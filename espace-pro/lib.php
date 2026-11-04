@@ -1,7 +1,11 @@
 <?php
 // Fonctions communes : base de données, session, sécurité, mise en page
 declare(strict_types=1);
-require_once __DIR__ . '/config.php';
+// Configuration : d'abord espace-pro/config.php, sinon le fichier placé HORS du dossier www
+// (ex. /homez.xxx/jdjhgfg/config-espace-pro.php, au même niveau que www et urgence).
+if (is_file(__DIR__ . '/config.php')) require_once __DIR__ . '/config.php';
+elseif (is_file(__DIR__ . '/../../config-espace-pro.php')) require_once __DIR__ . '/../../config-espace-pro.php';
+else { http_response_code(500); exit('Fichier de configuration introuvable : dépose config-espace-pro.php à la racine de l\'hébergement (à côté de www).'); }
 
 ini_set('session.cookie_httponly', '1');
 ini_set('session.use_strict_mode', '1');

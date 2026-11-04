@@ -2,7 +2,6 @@
 // Installation : crée les tables, les données d'exemple et le premier compte administrateur.
 // À lancer UNE SEULE FOIS, puis supprimer ce fichier du serveur.
 declare(strict_types=1);
-require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lib.php';
 
 $err = ''; $done = false;
