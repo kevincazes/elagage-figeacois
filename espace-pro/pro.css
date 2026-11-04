@@ -34,7 +34,12 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .modal-box{background:var(--blanc);border-radius:14px;padding:22px 24px;max-width:720px;width:100%;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:calc(100vh - 80px);overflow:auto}
 .modal-box h2{margin-top:0}
 .modal-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:1.6rem;cursor:pointer;color:var(--doux)}
-.nv{padding:10px 0;border-bottom:1px solid #edf0e8}.nv.neuf{border-left:4px solid var(--anis);padding-left:10px}
+.nv{padding:10px 0;border-bottom:1px solid #edf0e8}
+.conf{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.conf.c1{background:#5a9a3a}.conf.c2{background:#e0a200}.conf.c3{background:var(--rouge)}
+tr.c2 td{background:#fff8e3}tr.c3 td{background:#fbeae8}
+.tbl.imp textarea.lib{width:100%;min-width:320px;resize:none;overflow:hidden;line-height:1.35;padding:6px 8px;margin:0;font:inherit;font-size:.92rem}
+.tbl.imp select.selcat{max-width:420px;font-size:.88rem}.nv.neuf{border-left:4px solid var(--anis);padding-left:10px}
 .bell.mob{display:none}
 .burger{display:none;background:none;border:0;width:42px;height:42px;cursor:pointer;padding:6px}
 .burger span{display:block;height:3px;background:var(--sapin);margin:7px 0;border-radius:2px}

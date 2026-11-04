@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.1', '2026-11-04', [
+        'Import d\'un bordereau reçu (Excel, Word, CSV, PDF texte) : lecture des lignes, appariement automatique au catalogue avec indice de confiance, validation ligne par ligne, création du bordereau au format de la collectivité',
+        'Les corrections d\'appariement sont mémorisées pour les bordereaux suivants',
+    ]],
     ['2.0.4', '2026-11-04', ['Lien « Site » dans le bandeau pour revenir au site public', 'Fil d\'Ariane sous le bandeau ; la cloche ouvre les nouveautés dans un panneau sans quitter la page', 'Catalogue : fin du tableau accessible (colonne PU HT plus figée), défilement horizontal ; désignations affichées en entier (champ qui s\'agrandit)']],
     ['2.0.3', '2026-11-04', ['Affichage sur téléphone : menu à trois traits, tuiles et formulaires sur une colonne, tableaux défilants']],
     ['2.0.2', '2026-11-04', ['Paramètres : champs chiffrés alignés en bout de ligne ; liens du tableau de bord séparés des règles de calcul']],

@@ -26,8 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $bords = q("SELECT b.*, u.prenom, v.prenom vprenom, v.nom vnom, (SELECT COUNT(*) FROM bordereau_lignes l WHERE l.bordereau_id = b.id AND l.type = 'ligne') nb FROM bordereaux b LEFT JOIN utilisateurs u ON u.id = b.cree_par LEFT JOIN utilisateurs v ON v.id = b.verrou_par ORDER BY b.cree_le DESC")->fetchAll();
 page_start('Bordereaux de prix', 'bordereaux.php');
 ?>
+<section class="card" style="border-left:5px solid var(--anis)">
+  <h2>Importer un bordereau reçu</h2>
+  <p class="muted">Dépose le fichier de la collectivité (Excel, Word, PDF texte) : les lignes sont lues et appariées au catalogue, tu valides, le bordereau est créé à son format.</p>
+  <a class="btn" href="importer.php">Importer un fichier</a>
+</section>
 <section class="card">
-  <h2>Nouveau bordereau</h2>
+  <h2>Nouveau bordereau vide</h2>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="creer">
     <div class="cols">
       <label>Nom du marché <input name="nom" placeholder="Ex. Lot Habitat – entretien du patrimoine arboré 2026" required <?= isset($_GET['nouveau']) ? 'autofocus' : '' ?>></label>
