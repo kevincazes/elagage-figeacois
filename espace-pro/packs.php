@@ -27,8 +27,9 @@ page_start($pack ? $pack['nom'] : 'Packs de lignes', 'packs.php', $pack ? ['pack
 <div class="cols">
 <section class="card">
   <h2>Packs existants</h2>
+  <p class="muted">Clique sur « Modifier » pour changer le nom, la description ou les lignes d'un pack. Les temps et prix des lignes se règlent dans le catalogue.</p>
   <?php if (!$packs): ?><p class="muted">Aucun pack. Importe le catalogue de démarrage depuis « Catalogue », ou crée un pack ci-dessous.</p><?php endif; ?>
-  <table class="tbl"><?php foreach ($packs as $p): ?><tr><td><a href="packs.php?id=<?= $p['id'] ?>"><strong><?= e($p['nom']) ?></strong></a><br><span class="muted"><?= e($p['description']) ?></span></td><td class="r"><?= $p['nb'] ?> lignes</td></tr><?php endforeach; ?></table>
+  <table class="tbl"><?php foreach ($packs as $p): ?><tr><td><a href="packs.php?id=<?= $p['id'] ?>"><strong><?= e($p['nom']) ?></strong></a><br><span class="muted"><?= e($p['description']) ?></span></td><td class="r"><?= $p['nb'] ?> lignes</td><td class="r"><a class="mini" href="packs.php?id=<?= $p['id'] ?>">Modifier</a></td></tr><?php endforeach; ?></table>
   <h2>Nouveau pack</h2>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="creer">
     <label>Nom <input name="nom" required placeholder="Ex. Tailles par hauteur – commune"></label>
