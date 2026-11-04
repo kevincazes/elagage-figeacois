@@ -75,4 +75,6 @@ body.centered{display:flex;align-items:center;justify-content:center;min-height:
 .box h1{text-align:center}
 .box .btn{width:100%;text-align:center;margin-top:12px}
 
-@media print{.top,.bottom,.btn,details{display:none}body{background:#fff}main{padding:0}.scroll{box-shadow:none}}
+tr.section td{background:var(--clair)}
+.tbl.bord td input:not(.num):not(.tiny){min-width:300px}
+@media print{.top,.bottom,.btn,.mini,details,.cols,form.card button,th:nth-last-child(2),td:nth-last-child(2){display:none!important}body{background:#fff;font-size:12px}main{padding:0}.scroll{box-shadow:none;overflow:visible}input,select{border:0;background:transparent;padding:2px}.tbl .pu{position:static;box-shadow:none}h1{font-size:1.3rem}}

@@ -3,8 +3,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
 require_login();
 $nbLignes = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
-$nbGrilles = (int)q("SELECT COUNT(*) c FROM grilles")->fetch()['c'];
-$derniere = q("SELECT * FROM grilles ORDER BY cree_le DESC LIMIT 1")->fetch();
+$nbBord = (int)q("SELECT COUNT(*) c FROM bordereaux")->fetch()['c'];
+$dernier = q("SELECT * FROM bordereaux ORDER BY cree_le DESC LIMIT 1")->fetch();
 $liens = [
     ['Google Drive', setting('lien_drive'), 'Dossiers, devis, photos de chantier'],
     ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client'],
@@ -15,9 +15,9 @@ page_start('Tableau de bord', 'index.php');
 ?>
 <p class="lead">Bonjour <?= e(user()['prenom']) ?>. Que veux-tu faire ?</p>
 <div class="tiles">
-  <a class="tile" href="bpu.php"><strong><?= $nbLignes ?></strong><span>lignes de bordereau</span><em>Modifier les temps et voir les prix</em></a>
-  <a class="tile" href="grilles.php?nouvelle=1"><strong>+</strong><span>Nouvelle grille</span><em>Figer les prix pour un marché</em></a>
-  <a class="tile" href="grilles.php"><strong><?= $nbGrilles ?></strong><span>grilles enregistrées</span><em><?= $derniere ? 'Dernière : ' . e($derniere['nom']) : 'Aucune pour l\'instant' ?></em></a>
+  <a class="tile" href="bpu.php"><strong><?= $nbLignes ?></strong><span>prestations au catalogue</span><em>Temps, taux, prix de référence</em></a>
+  <a class="tile" href="bordereaux.php?nouveau=1"><strong>+</strong><span>Nouveau bordereau</span><em>Composer au format de la collectivité</em></a>
+  <a class="tile" href="bordereaux.php"><strong><?= $nbBord ?></strong><span>bordereaux</span><em><?= $dernier ? 'Dernier : ' . e($dernier['nom']) : 'Aucun pour l\'instant' ?></em></a>
   <a class="tile" href="parametres.php"><strong><?= e(setting('coef')) ?></strong><span>coefficient actuel</span><em>Taux horaires, TVA, arrondi</em></a>
 </div>
 <h2>Outils de l'entreprise</h2>

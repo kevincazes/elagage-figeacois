@@ -33,7 +33,57 @@ function migrate(): void {
         if (!in_array('token', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN token VARCHAR(64) NULL, ADD COLUMN token_expire DATETIME NULL");
         if (!in_array('mfa_type', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN mfa_type VARCHAR(10) NOT NULL DEFAULT 'none', ADD COLUMN mfa_secret VARCHAR(64) NULL, ADD COLUMN mfa_code VARCHAR(255) NULL, ADD COLUMN mfa_expire DATETIME NULL");
         else { foreach (q("SHOW COLUMNS FROM utilisateurs LIKE 'mfa_code'") as $c) if (stripos($c['Type'], '255') === false) db()->exec("ALTER TABLE utilisateurs MODIFY mfa_code VARCHAR(255) NULL"); }
+        $cols = array_column(q("SHOW COLUMNS FROM bpu_lignes")->fetchAll(), 'Field');
+        if (!in_array('famille', $cols)) db()->exec("ALTER TABLE bpu_lignes ADD COLUMN famille VARCHAR(80) NOT NULL DEFAULT '', ADD COLUMN hauteur VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN houppier VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN circonference VARCHAR(12) NOT NULL DEFAULT '', ADD COLUMN prix_ref DECIMAL(10,2) NULL, ADD COLUMN source VARCHAR(120) NOT NULL DEFAULT ''");
+        db()->exec("CREATE TABLE IF NOT EXISTS packs (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        db()->exec("CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        db()->exec("CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $cols = array_column(q("SHOW COLUMNS FROM bordereau_lignes")->fetchAll(), 'Field');
+        if ($cols && !in_array('numero', $cols)) db()->exec("ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre");
+        db()->exec("CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $t) { /* tables pas encore créées : install.php s'en charge */ }
+}
+
+// ---- Catalogue : prix d'une ligne à partir des temps courants ----
+function ressources(): array { static $r = null; return $r ??= q("SELECT * FROM ressources WHERE actif = 1 ORDER BY ordre, id")->fetchAll(); }
+function taux_courants(): array { $t = []; foreach (ressources() as $r) $t[$r['id']] = (float)$r['taux']; return $t; }
+function temps_par_ligne(): array { static $t = null; if ($t === null) { $t = []; foreach (q("SELECT * FROM bpu_temps") as $x) $t[$x['ligne_id']][$x['ressource_id']] = (float)$x['heures']; } return $t; }
+function prix_catalogue(array $ligne): float {
+    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants(), (float)$ligne['forfait'], (float)setting('coef', '1'), (float)setting('arrondi', '1'));
+    return $p['pu'];
+}
+/** Importe le catalogue de démarrage (lignes + packs), sans doublon sur le code. Retourne [lignes ajoutées, packs ajoutés]. */
+function importer_catalogue(): array {
+    $data = require __DIR__ . '/catalogue_data.php';
+    $res = ressources(); $coef = (float)setting('coef', '1'); $pdo = db();
+    $existants = array_column(q("SELECT code, id FROM bpu_lignes")->fetchAll(), 'id', 'code');
+    $ordre = (int)q("SELECT COALESCE(MAX(ordre),0) o FROM bpu_lignes")->fetch()['o'];
+    $nb = 0; $ids = $existants;
+    foreach ($data['lignes'] as $l) {
+        [$code, $fam, $lib, $unite, $h, $d, $c, $prix, $src, $profil] = $l + [9 => 'grimpe'];
+        if (isset($existants[$code])) continue;
+        q("INSERT INTO bpu_lignes (code, libelle, unite, forfait, ordre, famille, hauteur, houppier, circonference, prix_ref, source) VALUES (?,?,?,0,?,?,?,?,?,?,?)",
+          [$code, $lib, $unite, ++$ordre, $fam, $h, $d, $c, $prix, $src]);
+        $id = (int)$pdo->lastInsertId(); $ids[$code] = $id; $nb++;
+        // Temps calibrés pour retomber sur le prix de référence avec les taux et le coefficient actuels
+        $cout = $prix / $coef;
+        foreach (PROFILS[$profil] ?? PROFILS['grimpe'] as $idx => $part) {
+            $r = $res[$idx] ?? $res[0]; $taux = (float)$r['taux'];
+            if ($taux <= 0) continue;
+            $heures = round($cout * $part / $taux * 20) / 20; // au vingtième d'heure (3 min)
+            if ($heures > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = heures + VALUES(heures)", [$id, $r['id'], $heures]);
+        }
+    }
+    $nbp = 0;
+    $packsExistants = array_column(q("SELECT nom FROM packs")->fetchAll(), 'nom');
+    foreach ($data['packs'] as $nom => [$desc, $prefixes]) {
+        if (in_array($nom, $packsExistants)) continue;
+        q("INSERT INTO packs (nom, description) VALUES (?,?)", [$nom, $desc]);
+        $pid = (int)$pdo->lastInsertId(); $o = 0;
+        foreach ($prefixes as $pref) foreach ($ids as $code => $lid) if ($code === $pref || str_starts_with($code, $pref)) q("INSERT IGNORE INTO pack_lignes (pack_id, ligne_id, ordre) VALUES (?,?,?)", [$pid, $lid, ++$o]);
+        $nbp++;
+    }
+    return [$nb, $nbp];
 }
 
 // Lien d'invitation / réinitialisation : génère un jeton valable 48 h et envoie l'e-mail
@@ -152,8 +202,9 @@ function page_start(string $title, string $active = ''): void {
     $nav = [
         'index.php' => 'Tableau de bord',
         'parametres.php' => 'Paramètres',
-        'bpu.php' => 'Lignes BPU',
-        'grilles.php' => 'Grilles par marché',
+        'bpu.php' => 'Catalogue',
+        'packs.php' => 'Packs',
+        'bordereaux.php' => 'Bordereaux',
     ];
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
     $nav['compte.php'] = 'Mon compte';
@@ -162,6 +213,7 @@ function page_start(string $title, string $active = ''): void {
     echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro</span><nav>';
     if ($u) {
         if ($active === 'securite.php') $active = 'compte.php';
+        if ($active === 'bordereau.php') $active = 'bordereaux.php';
         foreach ($nav as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
