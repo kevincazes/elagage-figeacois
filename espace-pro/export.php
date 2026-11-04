@@ -10,7 +10,7 @@ $tva = $fige ? (float)$b['tva'] : (float)setting('tva', '20');
 $cat = []; foreach (q("SELECT * FROM bpu_lignes") as $c) $cat[$c['id']] = $c;
 $eqId = $b['equipe_id'] !== null ? (int)$b['equipe_id'] : null;
 $lignes = q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$b['id']])->fetchAll();
-$nomFichier = 'BPU_' . preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $b['nom'])) . '_' . date('Y-m-d') . '.csv';
+$nomFichier = 'BPU_' . preg_replace('/[^A-Za-z0-9]+/', '_', (string)(@iconv('UTF-8', 'ASCII//TRANSLIT', $b['nom']) ?: 'bordereau')) . '_' . date('Y-m-d') . '.csv';
 header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="' . $nomFichier . '"');
 $out = fopen('php://output', 'w'); fwrite($out, "\xEF\xBB\xBF");
@@ -28,5 +28,5 @@ foreach ($lignes as $l) {
     $q = $l['quantite']; $tot = $q !== null ? $pu * (float)$q : null; if ($tot !== null) $total += $tot;
     fputcsv($out, [$num, $l['code'], $l['libelle'], $l['unite'], $fr($pu), $fr($pu * (1 + $tva / 100)), $q !== null ? $fr($q) : '', $tot !== null ? $fr($tot) : ''], ';');
 }
-if ($total > 0) { fputcsv($out, [], ';'); fputcsv($out, ['', '', 'TOTAL ESTIMATIF HT', '', '', '', '', $fr($total)], ';'); fputcsv($out, ['', '', 'TOTAL TTC', '', '', '', '', $fr($total * (1 + $tva / 100))], ';'); }
+if ($total != 0) { fputcsv($out, [], ';'); fputcsv($out, ['', '', 'TOTAL ESTIMATIF HT', '', '', '', '', $fr($total)], ';'); fputcsv($out, ['', '', 'TOTAL TTC', '', '', '', '', $fr($total * (1 + $tva / 100))], ';'); }
 fclose($out);

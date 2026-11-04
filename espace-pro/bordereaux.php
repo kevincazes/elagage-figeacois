@@ -11,16 +11,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $neq = isset($_POST['equipe_id']) && $_POST['equipe_id'] !== '' ? (int)$_POST['equipe_id'] : null;
         q("INSERT INTO bordereaux (nom, client, notes, cree_par, equipe_id) VALUES (?,?,?,?,?)", [$nom, trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), user()['id'], $neq]);
         $bid = (int)$pdo->lastInsertId();
-        if (!empty($_POST['pack'])) { // partir d'un pack : ses lignes, dans l'ordre
-            $o = 1; $n = 0; $pack = q("SELECT * FROM packs WHERE id = ?", [(int)$_POST['pack']])->fetch();
-            foreach (q("SELECT l.* FROM pack_lignes pl JOIN bpu_lignes l ON l.id = pl.ligne_id WHERE pl.pack_id = ? AND l.actif = 1 ORDER BY pl.ordre", [(int)$_POST['pack']]) as $l) {
-                q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, ligne_id) VALUES (?,?,'ligne',?,?,?,?)", [$bid, $o++, $l['code'], $l['libelle'], $l['unite'], $l['id']]); $n++; }
-            journal('ajout', 'Pack « ' . ($pack['nom'] ?? '') . " » ($n lignes)", $bid);
-        }
         if (!empty($_POST['modele'])) { // dupliquer un bordereau existant
             $src = (int)$_POST['modele'];
             foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$src]) as $l)
                 q("INSERT INTO bordereau_lignes (bordereau_id, ordre, numero, type, code, libelle, unite, ligne_id, quantite, pu_manuel) VALUES (?,?,?,?,?,?,?,?,?,?)", [$bid, $l['ordre'], $l['numero'], $l['type'], $l['code'], $l['libelle'], $l['unite'], $l['ligne_id'], $l['quantite'], $l['pu_manuel']]);
+        }
+        if (!empty($_POST['pack'])) { // partir d'un pack : ses lignes, dans l'ordre (après celles d'un bordereau copié)
+            $o = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bordereau_lignes WHERE bordereau_id = ?", [$bid])->fetch()['o']; $n = 0; $pack = q("SELECT * FROM packs WHERE id = ?", [(int)$_POST['pack']])->fetch();
+            foreach (q("SELECT l.* FROM pack_lignes pl JOIN bpu_lignes l ON l.id = pl.ligne_id WHERE pl.pack_id = ? AND l.actif = 1 ORDER BY pl.ordre", [(int)$_POST['pack']]) as $l) {
+                q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, ligne_id) VALUES (?,?,'ligne',?,?,?,?)", [$bid, $o++, $l['code'], $l['libelle'], $l['unite'], $l['id']]); $n++; }
+            journal('ajout', 'Pack « ' . ($pack['nom'] ?? '') . " » ($n lignes)", $bid);
         }
         journal('creation', 'Bordereau créé' . (!empty($_POST['modele']) ? ' à partir d\'un modèle' : '') . (!empty($_POST['pack']) ? ' à partir d\'un pack' : '') . ($neq ? ' ; équipe : ' . (equipe_choisie($neq)['nom'] ?? '') : ''), $bid);
         redirect('bordereau.php?id=' . $bid);

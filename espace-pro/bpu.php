@@ -6,7 +6,7 @@ $pdo = db();
 $eqPrincipale = ressource_equipe();
 // Une seule colonne d'heures d'équipe : celles de l'équipe principale. Les autres équipes ne changent que le taux (menu « Prix avec » ici, « Équipe appliquée » dans le bordereau).
 $res = array_values(array_filter(ressources(), fn($r) => $r['role'] !== 'equipe' || ($eqPrincipale && (int)$r['id'] === (int)$eqPrincipale['id'])));
-$eqApercu = isset($_GET['equipe']) ? (int)$_GET['equipe'] : null; $taux = taux_courants($eqApercu); $equipes = ressources_equipes();
+$eqApercu = equipe_apercu(); $taux = taux_courants($eqApercu); $equipes = ressources_equipes();
 $coef = (float)setting('coef', '1'); $pas = (float)setting('arrondi', '1'); $tva = (float)setting('tva', '20');
 $HAUT = ['' => '—', '<10' => '< 10 m', '10-20' => '10–20 m', '>20' => '> 20 m'];
 $HOUP = ['' => '—', '<=5' => '≤ 5 m', '5-10' => '5–10 m', '>10' => '> 10 m'];
@@ -18,13 +18,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($_POST['l'] ?? [] as $id => $d) {
             $id = (int)$id;
             q("UPDATE bpu_lignes SET code=?, libelle=?, unite=?, forfait=?, ordre=?, famille=?, hauteur=?, houppier=?, circonference=?, prix_ref=? WHERE id=?",
-              [trim($d['code'] ?? ''), trim($d['libelle'] ?? ''), trim($d['unite'] ?? 'U'), (float)str_replace(',', '.', $d['forfait'] ?? '0'), (int)($d['ordre'] ?? 0),
-               trim($d['famille'] ?? ''), $d['hauteur'] ?? '', $d['houppier'] ?? '', trim($d['circ'] ?? ''), ($d['prix_ref'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['prix_ref']), $id]);
+              [trim($d['code'] ?? ''), trim($d['libelle'] ?? ''), trim($d['unite'] ?? 'U'), nb($d['forfait'] ?? '0'), (int)($d['ordre'] ?? 0),
+               trim($d['famille'] ?? ''), $d['hauteur'] ?? '', $d['houppier'] ?? '', trim($d['circ'] ?? ''), ($d['prix_ref'] ?? '') === '' ? null : nb($d['prix_ref']), $id]);
             q("DELETE FROM bpu_temps WHERE ligne_id = ?", [$id]);
-            foreach ($d['h'] ?? [] as $rid => $h) { $h = (float)str_replace(',', '.', $h); if ($h > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$id, (int)$rid, $h]); }
+            foreach ($d['h'] ?? [] as $rid => $h) { $h = nb($h); if ($h > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$id, (int)$rid, $h]); }
         }
         foreach ($_POST['l'] ?? [] as $id => $d) { appliquer_actions((int)$id); appliquer_variantes((int)$id); }
-        $pdo->commit(); journal('catalogue', count($_POST['l'] ?? []) . ' ligne(s) du catalogue enregistrée(s)'); flash('Lignes enregistrées.');
+        $pdo->commit(); journal('catalogue', count($_POST['l'] ?? []) . ' ligne(s) du catalogue enregistrée(s)');
+        $doubles = array_column(q("SELECT code FROM bpu_lignes WHERE actif = 1 AND code <> '' GROUP BY code HAVING COUNT(*) > 1")->fetchAll(), 'code');
+        flash('Lignes enregistrées.' . ($doubles ? ' Attention, codes utilisés par plusieurs prestations : ' . implode(', ', $doubles) . '. Donne-leur un code unique : le code sert à rattacher les lignes des bordereaux.' : ''), $doubles ? 'err' : 'ok');
     } elseif ($action === 'add') {
         $ordre = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bpu_lignes")->fetch()['o'];
         q("INSERT INTO bpu_lignes (code, libelle, unite, ordre, famille) VALUES (?,?,?,?,?)", [trim($_POST['code'] ?? ''), trim($_POST['libelle'] ?? 'Nouvelle ligne'), trim($_POST['unite'] ?? 'U'), $ordre, trim($_POST['famille'] ?? '')]);
@@ -34,18 +36,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $src = q("SELECT * FROM bpu_lignes WHERE id = ?", [(int)$_POST['id']])->fetch();
         if ($src) {
             q("INSERT INTO bpu_lignes (code, libelle, unite, forfait, ordre, famille, hauteur, houppier, circonference, source) VALUES (?,?,?,?,?,?,?,?,?,?)",
-              [$src['code'] . '-COPIE', $src['libelle'] . ' (copie)', $src['unite'], $src['forfait'], (int)$src['ordre'] + 1, $src['famille'], $src['hauteur'], $src['houppier'], $src['circonference'], 'Copie']);
+              [($src['code'] !== '' ? $src['code'] : 'L' . $src['id']) . '-COPIE' . (q("SELECT COUNT(*) c FROM bpu_lignes WHERE code LIKE ?", [$src['code'] . '-COPIE%'])->fetch()['c'] ?: ''), $src['libelle'] . ' (copie)', $src['unite'], $src['forfait'], (int)$src['ordre'] + 1, $src['famille'], $src['hauteur'], $src['houppier'], $src['circonference'], 'Copie']);
             $nid = (int)$pdo->lastInsertId();
             foreach (q("SELECT * FROM bpu_temps WHERE ligne_id = ?", [$src['id']]) as $t) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$nid, $t['ressource_id'], $t['heures']]);
             flash('Ligne dupliquée : adapte-la puis enregistre.');
         }
     } elseif ($action === 'del') {
-        q("UPDATE bpu_lignes SET actif = 0 WHERE id = ?", [(int)$_POST['id']]); flash('Ligne supprimée.');
+        q("UPDATE bpu_lignes SET actif = 0 WHERE id = ?", [(int)$_POST['id']]);
+        $nv = q("UPDATE bpu_lignes SET base_id = NULL, source = 'Variante détachée (base supprimée)' WHERE base_id = ?", [(int)$_POST['id']])->rowCount();
+        flash('Ligne supprimée.' . ($nv ? " Ses $nv variantes deviennent des lignes indépendantes." : ''));
     } elseif ($action === 'act_add') {
-        $lid = (int)$_POST['ligne_id']; $aid = (int)$_POST['action_id']; $nb = max(0.25, (float)str_replace(',', '.', $_POST['nb'] ?? '1'));
-        if ($aid) { q("INSERT INTO ligne_actions (ligne_id, action_id, nb) VALUES (?,?,?) ON DUPLICATE KEY UPDATE nb = nb + VALUES(nb)", [$lid, $aid, $nb]); appliquer_actions($lid); flash('Action ajoutée à la prestation.'); }
+        $lid = (int)$_POST['ligne_id']; $aid = (int)$_POST['action_id']; $nb = max(0.25, nb($_POST['nb'] ?? '1'));
+        if ($aid) { q("INSERT INTO ligne_actions (ligne_id, action_id, nb) VALUES (?,?,?) ON DUPLICATE KEY UPDATE nb = nb + VALUES(nb)", [$lid, $aid, $nb]); appliquer_actions($lid); appliquer_variantes($lid); flash('Action ajoutée à la prestation.'); }
     } elseif ($action === 'act_del') {
-        $lid = (int)$_POST['ligne_id']; q("DELETE FROM ligne_actions WHERE ligne_id = ? AND action_id = ?", [$lid, (int)$_POST['action_id']]); appliquer_actions($lid); flash('Action retirée.');
+        $lid = (int)$_POST['ligne_id']; q("DELETE FROM ligne_actions WHERE ligne_id = ? AND action_id = ?", [$lid, (int)$_POST['action_id']]); appliquer_actions($lid); appliquer_variantes($lid); flash('Action retirée.' . (q("SELECT COUNT(*) c FROM ligne_actions WHERE ligne_id = ?", [$lid])->fetch()['c'] ? '' : ' Plus aucune action : le temps d\'équipe actuel est conservé et redevient modifiable à la main.'));
     } elseif ($action === 'variantes') {
         $n = generer_variantes((int)$_POST['id'], !empty($_POST['houppier']));
         journal('catalogue', "$n variante(s) générée(s) pour la ligne " . (int)$_POST['id']); flash("$n variante(s) créée(s) et calculée(s) à partir de la ligne de base.");
@@ -77,7 +81,7 @@ $lignes = q("SELECT * FROM bpu_lignes WHERE " . implode(' AND ', $where) . " ORD
 $HLIB = ['' => 'Sans classe de hauteur', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
 // Résumé par famille (nombre, prix mini/maxi) pour les en-têtes de bloc
 $resume = [];
-foreach ($lignes as $l) { $f = $l['famille'] ?: 'Sans famille'; $pu = prix_catalogue($l); $r = &$resume[$f]; $r['n'] = ($r['n'] ?? 0) + 1; $r['min'] = isset($r['min']) ? min($r['min'], $pu) : $pu; $r['max'] = isset($r['max']) ? max($r['max'], $pu) : $pu; unset($r); }
+foreach ($lignes as $l) { $f = $l['famille'] ?: 'Sans famille'; $pu = prix_catalogue($l, $eqApercu); $r = &$resume[$f]; $r['n'] = ($r['n'] ?? 0) + 1; $r['min'] = isset($r['min']) ? min($r['min'], $pu) : $pu; $r['max'] = isset($r['max']) ? max($r['max'], $pu) : $pu; unset($r); }
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 AND famille <> '' ORDER BY famille")->fetchAll(), 'famille');
 $temps = temps_par_ligne(); $compo = actions_par_ligne(); $actionsDispo = actions_catalogue(); $eq = ressource_equipe();
 $total = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
@@ -137,7 +141,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   <td class="acts"><?php $cp = $compo[$id] ?? []; foreach ($cp as $c): ?><span class="chip" title="<?= e((string)(float)$c['duree']) ?> h × <?= e((string)(float)$c['nb']) ?>"><?= e($c['nom']) ?><?= (float)$c['nb'] != 1 ? ' ×' . e((string)(float)$c['nb']) : '' ?> <button type="button" class="chipx" onclick="actDel(<?= $id ?>,<?= $c['action_id'] ?>)">×</button></span><?php endforeach; ?>
     <?php if ($actionsDispo): ?><span class="addact"><select class="actsel" data-l="<?= $id ?>"><option value="">+ action…</option><?php foreach ($actionsDispo as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> (<?= e((string)(float)$x['duree']) ?> h)</option><?php endforeach; ?></select></span><?php endif; ?></td>
   <?php foreach ($res as $r): $compose = ($eq && (int)$r['id'] === (int)$eq['id'] && !empty($compo[$id])) || !empty($l['base_id']); ?><td class="r"><input class="num h" data-rid="<?= $r['id'] ?>" name="l[<?= $id ?>][h][<?= $r['id'] ?>]" value="<?= isset($temps[$id][$r['id']]) ? e((string)$temps[$id][$r['id']]) : '' ?>" inputmode="decimal" placeholder="–" <?= $compose ? 'readonly title="Calculé à partir des actions"' : '' ?>></td><?php endforeach; ?>
-  <td class="r"><input class="num forfait" name="l[<?= $id ?>][forfait]" value="<?= (float)$l['forfait'] > 0 ? e($l['forfait']) : '' ?>" inputmode="decimal" placeholder="–"></td>
+  <td class="r"><input class="num forfait" name="l[<?= $id ?>][forfait]" value="<?= (float)$l['forfait'] != 0 ? e($l['forfait']) : '' ?>" inputmode="decimal" placeholder="–" <?= !empty($l['base_id']) ? 'readonly title="Calculé à partir de la ligne de base"' : '' ?>></td>
   <td class="r"><input class="num ref" name="l[<?= $id ?>][prix_ref]" value="<?= $l['prix_ref'] !== null ? e((string)(float)$l['prix_ref']) : '' ?>" inputmode="decimal" placeholder="–"></td>
   <td class="r out ecart"></td>
   <td style="white-space:nowrap"><?php if ($l['base_id']): ?><button class="mini" type="button" title="Variante calculée depuis sa ligne de base ; cliquer pour la rendre indépendante" onclick="if(confirm('Détacher cette variante de sa ligne de base ?'))varSend('detacher',<?= $id ?>,0)">⛓</button><?php else: ?><button class="mini" type="button" title="Générer les variantes 10–20 m et > 20 m (et houppiers)" onclick="varSend('variantes',<?= $id ?>,confirm('Générer aussi les variantes par houppier (3 × 3) ? Annuler = hauteur seule.')?1:0)">↕</button><?php endif; ?> <button class="mini" type="submit" form="c<?= $id ?>" title="Dupliquer">⧉</button> <button class="mini danger" type="submit" form="d<?= $id ?>" onclick="return confirm('Supprimer cette ligne ?')">×</button></td>
@@ -165,16 +169,17 @@ page_start('Catalogue des prestations', 'bpu.php');
 </section>
 <script>
 const TAUX = <?= json_encode($taux) ?>, COEF = <?= json_encode($coef) ?>, PAS = <?= json_encode($pas) ?>;
-const num = v => parseFloat(String(v).replace(',', '.')) || 0;
+const num = v => parseFloat(String(v).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.')) || 0;
 const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 function calc(tr) {
   let cout = 0;
   tr.querySelectorAll('input.h').forEach(i => cout += num(i.value) * (TAUX[i.dataset.rid] || 0));
-  const brut = (cout + num(tr.querySelector('.forfait').value)) * COEF;
-  const pu = PAS > 0 ? Math.round(brut / PAS) * PAS : Math.round(brut * 100) / 100;
+  // Même règle que le serveur (arrondir() dans lib.php) : on gomme l'imprécision des nombres à virgule avant d'arrondir
+  const brut = Math.round((cout + num(tr.querySelector('.forfait').value)) * COEF * 1e6) / 1e6;
+  const pu = PAS > 0 ? Math.round(Math.round(brut / PAS * 1e6) / 1e6) * PAS : Math.round(brut * 100) / 100;
   tr.querySelector('.pu').textContent = fmt(pu);
   const ref = num(tr.querySelector('.ref').value), ec = tr.querySelector('.ecart');
-  if (ref > 0) { const d = pu - ref; ec.textContent = (d > 0 ? '+' : '') + Math.round(d) + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#b3403a' : '#5b6a60'; } else ec.textContent = '';
+  if (ref > 0) { const d = Math.round((pu - ref) * 100) / 100, r = Math.sign(d) * Math.round(Math.abs(d)); ec.textContent = (r > 0 ? '+' : '') + r + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#b3403a' : '#5b6a60'; } else ec.textContent = '';
 }
 document.querySelectorAll('tr[data-id]').forEach(tr => { calc(tr); tr.addEventListener('input', () => calc(tr)); });
 // Désignations : hauteur ajustée au texte

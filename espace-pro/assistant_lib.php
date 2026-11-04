@@ -31,11 +31,13 @@ function assistant_contexte(?int $bordereauId): string {
     if ($m) $lignes[] = "Mémoire d'entreprise (règles validées par l'équipe) :\n" . implode("\n", $m);
     // Catalogue compact : code | libellé | unité | heures par ressource | PU
     $temps = temps_par_ligne(); $cat = [];
+    $eqB = null; if ($bordereauId) { $bb = q("SELECT equipe_id FROM bordereaux WHERE id = ?", [$bordereauId])->fetch(); $eqB = $bb && $bb['equipe_id'] !== null ? (int)$bb['equipe_id'] : null; }
+    $eqNom = equipe_choisie($eqB)['nom'] ?? 'équipe';
     foreach (q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, ordre") as $l) {
         $h = []; foreach ($temps[$l['id']] ?? [] as $rid => $hh) $h[] = "r$rid=$hh";
-        $cat[] = "#{$l['id']} {$l['code']} | {$l['libelle']} | {$l['unite']} | " . implode(',', $h) . ($l['forfait'] > 0 ? " | forfait {$l['forfait']}" : '') . " | PU " . prix_catalogue($l) . ($l['prix_ref'] !== null ? " | réf {$l['prix_ref']}" : '');
+        $cat[] = "#{$l['id']} {$l['code']} | {$l['libelle']} | {$l['unite']} | " . implode(',', $h) . ($l['forfait'] > 0 ? " | forfait {$l['forfait']}" : '') . " | PU " . prix_catalogue($l, $eqB) . ($l['prix_ref'] !== null ? " | réf {$l['prix_ref']}" : '');
     }
-    $lignes[] = "Catalogue (" . count($cat) . " lignes ; rN = heures de la ressource N) :\n" . implode("\n", $cat);
+    $lignes[] = "Catalogue (" . count($cat) . " lignes ; rN = heures de la ressource N ; PU calculés avec : $eqNom ; les heures d'équipe sont toujours portées par l'équipe principale, les autres équipes ne changent que le taux) :\n" . implode("\n", $cat);
     if ($bordereauId) {
         $b = q("SELECT * FROM bordereaux WHERE id = ?", [$bordereauId])->fetch();
         if ($b) {
@@ -77,8 +79,19 @@ function assistant_outils(): array {
 /** Applique un outil confirmé. Retourne un message. */
 function assistant_appliquer(string $nom, array $in, ?int $bordereauId): string {
     $via = ' (via l\'assistant)';
+    // Bordereau : mêmes règles que pour une personne (figé = lecture seule ; ouvert par quelqu'un d'autre = lecture seule)
+    if (in_array($nom, ['modifier_ligne_bordereau', 'ajouter_ligne_bordereau'], true) && $bordereauId) {
+        $b = q("SELECT * FROM bordereaux WHERE id = ?", [$bordereauId])->fetch();
+        if ($b && $b['statut'] === 'fige') return "Refusé : ce bordereau est figé. Défige-le d'abord si tu veux le modifier.";
+        if ($b && $b['verrou_par'] && (int)$b['verrou_par'] !== (int)user()['id'] && strtotime((string)$b['verrou_le']) > time() - VERROU_MINUTES * 60) return "Refusé : ce bordereau est ouvert par quelqu'un d'autre.";
+    }
     switch ($nom) {
         case 'modifier_temps_catalogue':
+            $lig = q("SELECT * FROM bpu_lignes WHERE id = ?", [(int)$in['ligne_id']])->fetch(); if (!$lig) return "Prestation introuvable.";
+            if ($lig['base_id']) return "Refusé : cette prestation est une variante calculée depuis la ligne #{$lig['base_id']} ; modifie plutôt le temps de la ligne de base (ou détache la variante dans le catalogue).";
+            $eqP = ressource_equipe(); $res = q("SELECT * FROM ressources WHERE id = ? AND actif = 1", [(int)$in['ressource_id']])->fetch(); if (!$res) return "Ressource introuvable.";
+            if ($res['role'] === 'equipe' && $eqP) $in['ressource_id'] = $eqP['id']; // les heures d'équipe sont toujours portées par l'équipe principale
+            if ((int)$in['ressource_id'] === (int)($eqP['id'] ?? 0) && q("SELECT COUNT(*) c FROM ligne_actions WHERE ligne_id = ?", [(int)$in['ligne_id']])->fetch()['c']) return "Refusé : le temps d'équipe de cette prestation est la somme de ses actions ; modifie les actions (page Actions) ou retire-les de la prestation.";
             q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [(int)$in['ligne_id'], (int)$in['ressource_id'], (float)$in['heures']]);
             appliquer_variantes((int)$in['ligne_id']);
             journal('catalogue', "Temps modifié sur la ligne #{$in['ligne_id']} : ressource #{$in['ressource_id']} = {$in['heures']} h — {$in['motif']}$via");
@@ -87,7 +100,8 @@ function assistant_appliquer(string $nom, array $in, ?int $bordereauId): string 
             $o = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bpu_lignes")->fetch()['o'];
             q("INSERT INTO bpu_lignes (code, libelle, unite, forfait, ordre, famille, hauteur, houppier, source) VALUES (?,?,?,?,?,?,?,?,?)", [$in['code'], $in['libelle'], $in['unite'] ?: 'U', (float)($in['forfait'] ?? 0), $o, $in['famille'], $in['hauteur'] ?? '', $in['houppier'] ?? '', 'Créée via l\'assistant']);
             $id = (int)db()->lastInsertId();
-            foreach ((array)$in['heures'] as $rid => $h) if ((float)$h > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$id, (int)$rid, (float)$h]);
+            $eqIds = array_map(fn($r) => (int)$r['id'], ressources_equipes()); $eqP = ressource_equipe();
+            foreach ((array)$in['heures'] as $rid => $h) if ((float)$h > 0) { $rid = in_array((int)$rid, $eqIds, true) && $eqP ? (int)$eqP['id'] : (int)$rid; q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = heures + VALUES(heures)", [$id, $rid, (float)$h]); }
             journal('catalogue', "Ligne créée #{$id} {$in['code']} « {$in['libelle']} » — {$in['motif']}$via");
             return "Ligne {$in['code']} créée (#$id).";
         case 'modifier_ligne_bordereau':

@@ -245,3 +245,4 @@ body:has(.scroll.fenetre) .top{position:relative}
 body.panneau .pan-tete{flex:none}body.panneau .bulle.outil pre{font-family:inherit;font-size:.88rem;color:var(--texte)}
 @media(min-width:1200px){body.ia-ouvert{padding-right:min(520px,40vw)}body.ia-ouvert .pan-ia{width:min(520px,40vw)}}
 html{scroll-padding-top:var(--bandeau,0px)}
+@media(max-width:700px){form.inline{flex-wrap:wrap;max-width:100%}form.inline select,form.inline input{max-width:100%;min-width:0}#ajout select[name=pack_id]{width:100%}}

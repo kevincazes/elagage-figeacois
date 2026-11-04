@@ -8,31 +8,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'generaux') {
         $avantCoef = setting('coef');
-        set_setting('coef', (string)max(0.1, (float)str_replace(',', '.', $_POST['coef'] ?? '1')));
-        set_setting('tva', (string)max(0, (float)str_replace(',', '.', $_POST['tva'] ?? '20')));
-        set_setting('arrondi', (string)max(0, (float)str_replace(',', '.', $_POST['arrondi'] ?? '1')));
-        foreach (['prog_h2', 'prog_h3', 'prog_d2', 'prog_d3'] as $k) if (isset($_POST[$k])) set_setting($k, (string)(float)str_replace(',', '.', $_POST[$k]));
+        set_setting('coef', (string)max(0.1, nb($_POST['coef'] ?? '1')));
+        set_setting('tva', (string)max(0, nb($_POST['tva'] ?? '20')));
+        set_setting('arrondi', (string)max(0, nb($_POST['arrondi'] ?? '1')));
+        foreach (['prog_h2', 'prog_h3', 'prog_d2', 'prog_d3'] as $k) if (isset($_POST[$k])) set_setting($k, (string)nb($_POST[$k]));
         foreach (q("SELECT DISTINCT base_id FROM bpu_lignes WHERE base_id IS NOT NULL") as $b) appliquer_variantes((int)$b['base_id']);
         journal('parametres', "Coefficient $avantCoef → " . setting('coef') . ', TVA ' . setting('tva') . ' %, arrondi ' . setting('arrondi') . ' €, progression ' . setting('prog_h2') . '/' . setting('prog_h3') . '/' . setting('prog_d2') . '/' . setting('prog_d3') . ' %'); flash('Règles de calcul enregistrées : tous les prix non figés sont recalculés.');
     } elseif ($action === 'liens') {
         foreach (['lien_drive', 'lien_extrabat', 'lien_urgence', 'lien_arbogestion'] as $k) set_setting($k, trim($_POST[$k] ?? ''));
         flash('Liens du tableau de bord enregistrés.');
     } elseif ($action === 'taux') {
-        foreach ($_POST['taux'] ?? [] as $id => $t) q("UPDATE ressources SET taux = ? WHERE id = ?", [(float)str_replace(',', '.', $t), (int)$id]);
+        $avantP = ressource_equipe();
+        foreach ($_POST['taux'] ?? [] as $id => $t) q("UPDATE ressources SET taux = ? WHERE id = ?", [nb($t), (int)$id]);
         foreach ($_POST['nom'] ?? [] as $id => $n) if (trim($n) !== '') q("UPDATE ressources SET nom = ? WHERE id = ?", [trim($n), (int)$id]);
         foreach ($_POST['role'] ?? [] as $id => $r) q("UPDATE ressources SET role = ? WHERE id = ?", [in_array($r, ['equipe', 'rognage', '']) ? $r : '', (int)$id]);
+        // Les heures d'équipe du catalogue sont portées par l'équipe principale (la première de type Équipe) :
+        // si elle change (type modifié), on y déplace les heures pour que les prix ne bougent pas.
+        $nouvP = q("SELECT * FROM ressources WHERE actif = 1 AND role = 'equipe' ORDER BY ordre, id LIMIT 1")->fetch();
+        if ($avantP && $nouvP && (int)$avantP['id'] !== (int)$nouvP['id']) {
+            q("DELETE FROM bpu_temps WHERE ressource_id = ? AND ligne_id IN (SELECT ligne_id FROM (SELECT ligne_id FROM bpu_temps WHERE ressource_id = ?) x)", [(int)$nouvP['id'], (int)$avantP['id']]);
+            q("UPDATE bpu_temps SET ressource_id = ? WHERE ressource_id = ?", [(int)$nouvP['id'], (int)$avantP['id']]);
+            journal('taux', "Équipe principale : « {$avantP['nom']} » → « {$nouvP['nom']} » (heures d'équipe reportées)");
+        }
         journal('taux', 'Taux horaires : ' . implode(', ', array_map(fn($id, $t) => (q("SELECT nom FROM ressources WHERE id = ?", [(int)$id])->fetch()['nom'] ?? $id) . " $t €/h", array_keys($_POST['taux'] ?? []), $_POST['taux'] ?? []))); flash('Taux horaires enregistrés.');
     } elseif ($action === 'simplifier') {
         require_admin();
-        [$n, $old] = simplifier_en_equipe(max(1, (float)str_replace(',', '.', $_POST['taux_equipe'] ?? '190')), 80.0, (float)str_replace(',', '.', $_POST['taux_equipe2'] ?? '0'));
+        [$n, $old] = simplifier_en_equipe(max(1, nb($_POST['taux_equipe'] ?? '190')), 80.0, nb($_POST['taux_equipe2'] ?? '0'));
         journal('taux', "Passage au modèle Équipe + Rognage : $n lignes converties, $old anciennes ressources retirées");
         flash("Modèle simplifié : $n lignes converties en heures d'équipe (prix inchangés), $old anciennes ressources retirées.");
     } elseif ($action === 'ajout_ressource' && trim($_POST['nom_new'] ?? '') !== '') {
         $ordre = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM ressources")->fetch()['o'];
-        q("INSERT INTO ressources (nom, taux, ordre, role) VALUES (?,?,?,?)", [trim($_POST['nom_new']), (float)str_replace(',', '.', $_POST['taux_new'] ?? '0'), $ordre, in_array($_POST['role_new'] ?? '', ['equipe', 'rognage']) ? $_POST['role_new'] : '']);
+        q("INSERT INTO ressources (nom, taux, ordre, role) VALUES (?,?,?,?)", [trim($_POST['nom_new']), nb($_POST['taux_new'] ?? '0'), $ordre, in_array($_POST['role_new'] ?? '', ['equipe', 'rognage']) ? $_POST['role_new'] : '']);
         flash('Ressource ajoutée.');
     } elseif ($action === 'suppr_ressource') {
         $id = (int)$_POST['id'];
+        if (($p = ressource_equipe()) && (int)$p['id'] === $id) { flash("Impossible de retirer l'équipe principale : elle porte les heures d'équipe de tout le catalogue. Change d'abord le type ou l'ordre des équipes.", 'err'); redirect('parametres.php'); }
         q("UPDATE ressources SET actif = 0 WHERE id = ?", [$id]);
         q("DELETE FROM bpu_temps WHERE ressource_id = ?", [$id]);
         flash('Ressource retirée.');

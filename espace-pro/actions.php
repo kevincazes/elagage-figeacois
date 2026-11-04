@@ -8,17 +8,19 @@ $pdo = db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';
     if ($a === 'save') {
-        foreach ($_POST['a'] ?? [] as $id => $d) q("UPDATE actions SET nom = ?, duree = ?, description = ?, ordre = ? WHERE id = ?", [trim($d['nom']), (float)str_replace(',', '.', $d['duree'] ?? '0'), trim($d['description'] ?? ''), (int)($d['ordre'] ?? 0), (int)$id]);
+        foreach ($_POST['a'] ?? [] as $id => $d) q("UPDATE actions SET nom = ?, duree = ?, description = ?, ordre = ? WHERE id = ?", [trim($d['nom']), nb($d['duree'] ?? '0'), trim($d['description'] ?? ''), (int)($d['ordre'] ?? 0), (int)$id]);
         // Recalcule les lignes composées d'actions
-        foreach (q("SELECT DISTINCT ligne_id FROM ligne_actions") as $l) appliquer_actions((int)$l['ligne_id']);
+        foreach (q("SELECT DISTINCT ligne_id FROM ligne_actions") as $l) { appliquer_actions((int)$l['ligne_id']); appliquer_variantes((int)$l['ligne_id']); }
         journal('catalogue', 'Actions modifiées (' . count($_POST['a'] ?? []) . ')'); flash('Actions enregistrées ; les prestations composées ont été recalculées.');
     } elseif ($a === 'add' && trim($_POST['nom'] ?? '') !== '') {
         $o = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM actions")->fetch()['o'];
-        q("INSERT INTO actions (nom, duree, description, ordre) VALUES (?,?,?,?)", [trim($_POST['nom']), (float)str_replace(',', '.', $_POST['duree'] ?? '0'), trim($_POST['description'] ?? ''), $o]);
+        q("INSERT INTO actions (nom, duree, description, ordre) VALUES (?,?,?,?)", [trim($_POST['nom']), nb($_POST['duree'] ?? '0'), trim($_POST['description'] ?? ''), $o]);
         flash('Action ajoutée.');
     } elseif ($a === 'del') {
+        $touchees = array_column(q("SELECT ligne_id FROM ligne_actions WHERE action_id = ?", [(int)$_POST['id']])->fetchAll(), 'ligne_id');
         q("UPDATE actions SET actif = 0 WHERE id = ?", [(int)$_POST['id']]); q("DELETE FROM ligne_actions WHERE action_id = ?", [(int)$_POST['id']]);
-        flash('Action supprimée (retirée des prestations qui l\'utilisaient).');
+        foreach ($touchees as $lid) { appliquer_actions((int)$lid); appliquer_variantes((int)$lid); }
+        flash('Action supprimée : retirée de ' . count($touchees) . ' prestation(s), dont le temps a été recalculé (une prestation qui n\'avait que cette action garde son temps actuel, modifiable à la main).');
     } elseif ($a === 'exemples') {
         $ex = [
             ['Reconnaissance et mise en place du chantier', 0.5, 'Balisage, choix des accès, installation des cordes'],
@@ -42,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $actions = q("SELECT a.*, (SELECT COUNT(*) FROM ligne_actions la WHERE la.action_id = a.id) nb FROM actions a WHERE actif = 1 ORDER BY ordre, nom")->fetchAll();
 $equipes = ressources_equipes();
-$eq = equipe_choisie(isset($_GET['equipe']) ? (int)$_GET['equipe'] : null);
+$eq = equipe_choisie(equipe_apercu());
 page_start('Actions dans l\'arbre', 'actions.php');
 ?>
 <p class="muted small">Facultatif : tu peux aussi saisir directement les heures d'équipe d'une prestation dans le catalogue. Les actions servent à construire ce temps geste par geste : dans le catalogue, menu « + action… » sur une ligne.</p>

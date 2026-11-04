@@ -38,7 +38,8 @@ function detecter_famille(string $texte): ?string {
     return null;
 }
 function detecter_hauteur(string $texte): string {
-    $t = norm($texte);
+    // On retire ce qui décrit le houppier, le diamètre ou la circonférence (« houppier de 5 à 10 m ») : ce n'est pas la hauteur
+    $t = preg_replace('/(houppier|diametre|circonference|envergure|couronne)(?:(?!arbre|sujet|hauteur|haut\b)[^,;()])*/', ' ', norm($texte));
     if (preg_match('/(moins de|inferieur\w* (ou egal\w* )?a|<|jusqu\'a|<=) ?10 ?m/', $t) || preg_match('/\b(5|6|7|8|9) ?(a|et) ?10 ?m/', $t)) return '<10';
     if (preg_match('/10 ?(a|et|-|–) ?20 ?m/', $t) || preg_match('/(entre|de) 10 ?m/', $t)) return '10-20';
     if (preg_match('/(plus de|superieur\w* a|>|au-dela de) ?20 ?m/', $t)) return '>20';
@@ -89,8 +90,12 @@ function mots_cles(string $s): array {
 /** Retourne [ligne_id|null, score 0-100, raison] */
 function apparier(array $ligne, string $contexte, array $catalogue, array $memoire): array {
     $texte = $ligne['libelle']; $plein = $contexte . ' ' . $texte;
-    $cle = norm($texte);
-    if (isset($memoire[$cle])) return [$memoire[$cle], 100, 'Déjà validé précédemment'];
+    // Mémoire : d'abord la même ligne dans le même contexte (ex. même libellé sous « 10 à 20 m »), sinon le libellé seul (anciennes validations)
+    foreach ([cle_memoire($texte, $contexte), norm($texte)] as $cle) {
+        if (!array_key_exists($cle, $memoire)) continue;
+        if ($memoire[$cle] === null) return [null, 0, 'Marquée « sans prestation » lors d\'un import précédent'];
+        return [$memoire[$cle], 100, 'Déjà validé précédemment'];
+    }
     $fam = detecter_famille($texte) ?? detecter_famille($contexte);
     $h = detecter_hauteur($texte) ?: detecter_hauteur($contexte);
     if (str_contains(norm($plein), 'cypres')) { $tt = norm($texte); $h = preg_match('/(superieur|plus de|>) ?10/', $tt) ? '10-20' : '<10'; }
@@ -118,3 +123,5 @@ function apparier(array $ligne, string $contexte, array $catalogue, array $memoi
     $raison = ($fam ? "Famille $fam" : '') . ($h ? ", hauteur $h" : '') . ($d ? ", houppier $d" : '') . ($c ? ", circonférence $c" : '');
     return [(int)$best['id'], min(100, $bestScore), trim($raison, ', ')];
 }
+/** Clé de mémoire d'appariement : libellé + contexte (rubrique, classe de taille) */
+function cle_memoire(string $libelle, string $contexte): string { $l = norm($libelle); if ($l === '') return ''; $c = norm($contexte); return mb_substr($c !== '' ? $c . ' | ' . $l : $l, 0, 250); }

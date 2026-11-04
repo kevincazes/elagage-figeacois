@@ -16,19 +16,22 @@ $etape = 'depot'; $lignes = []; $erreur = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creer') {
     $nom = trim($_POST['nom'] ?? ''); if ($nom === '') { flash('Donne un nom au bordereau.', 'err'); redirect('importer.php'); }
     $equipeId = isset($_POST['equipe_id']) && $_POST['equipe_id'] !== '' ? (int)$_POST['equipe_id'] : null;
+    $pdo->beginTransaction();
     q("INSERT INTO bordereaux (nom, client, notes, cree_par, equipe_id) VALUES (?,?,?,?,?)", [$nom, trim($_POST['client'] ?? ''), 'Importé depuis ' . ($_POST['fichier'] ?? 'fichier'), user()['id'], $equipeId]);
     $bid = (int)$pdo->lastInsertId(); $o = 0; $n = 0; $sans = 0;
     foreach ($_POST['r'] ?? [] as $i => $r) {
         $o++;
+        if (!empty($r['ignorer'])) { $o--; continue; }
         if (!empty($r['section'])) { q("INSERT INTO bordereau_lignes (bordereau_id, ordre, numero, type, libelle) VALUES (?,?,?,'section',?)", [$bid, $o, $r['numero'] ?? '', $r['libelle'] ?? '']); continue; }
         if (!empty($r['ignorer'])) { $o--; continue; }
         $lid = ($r['ligne_id'] ?? '') !== '' ? (int)$r['ligne_id'] : null;
-        $cle = norm($r['libelle'] ?? '');
+        $cle = cle_memoire($r['libelle'] ?? '', $r['ctx'] ?? '');
         if ($cle !== '') q("INSERT INTO appariements (cle, ligne_id) VALUES (?,?) ON DUPLICATE KEY UPDATE ligne_id = VALUES(ligne_id)", [$cle, $lid]);
         q("INSERT INTO bordereau_lignes (bordereau_id, ordre, numero, type, code, libelle, unite, ligne_id, quantite, pu_manuel) VALUES (?,?,?,'ligne',?,?,?,?,?,?)",
-          [$bid, $o, $r['numero'] ?? '', $r['code'] ?? '', $r['libelle'] ?? '', $r['unite'] ?? '', $lid, ($r['qte'] ?? '') === '' ? null : (float)str_replace(',', '.', $r['qte']), ($r['pu'] ?? '') === '' ? null : (float)str_replace(',', '.', $r['pu'])]);
+          [$bid, $o, $r['numero'] ?? '', $r['code'] ?? '', $r['libelle'] ?? '', $r['unite'] ?? '', $lid, ($r['qte'] ?? '') === '' ? null : nb($r['qte']), ($r['pu'] ?? '') === '' ? null : nb($r['pu'])]);
         $n++; if (!$lid && ($r['pu'] ?? '') === '') $sans++;
     }
+    $pdo->commit();
     journal('creation', "Bordereau importé depuis « " . ($_POST['fichier'] ?? '') . " » : $n lignes" . ($sans ? ", $sans sans prix" : ''), $bid);
     flash("Bordereau créé : $n lignes" . ($sans ? ", dont $sans sans prix à compléter" : '') . '.');
     redirect('bordereau.php?id=' . $bid);
@@ -65,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'lire'
             }
             $cle = $b['code'] !== '' ? 'code:' . $b['code'] : norm($b['numero'] . '|' . $ctx . '|' . $ctx2 . '|' . $b['libelle']);
             if (isset($vus[$cle])) { $k = $vus[$cle]; if ($lignes[$k]['quantite'] === null && $b['quantite'] !== null) $lignes[$k]['quantite'] = $b['quantite']; if ($lignes[$k]['prix'] === null && $b['prix'] !== null) $lignes[$k]['prix'] = $b['prix']; continue; }
-            [$id, $score, $raison] = apparier($b, $ctx . ' ' . $ctx2, array_values(array_filter($catalogue, fn($c) => $c['famille'] !== '')), $memoire);
+            [$id, $score, $raison] = apparier($b, trim($ctx . ' › ' . $ctx2, ' ›'), array_values(array_filter($catalogue, fn($c) => $c['famille'] !== '')), $memoire);
             $vus[$cle] = count($lignes);
             $lignes[] = $b + ['contexte' => trim($ctx . ' › ' . $ctx2, ' ›'), 'ligne_id' => $id, 'score' => $score, 'raison' => $raison, 'sous_titre' => false];
         }
@@ -105,7 +108,7 @@ page_start('Importer un bordereau reçu', 'bordereaux.php', ['bordereaux.php', '
 <tr class="section"><td><input class="tiny" name="r[<?= $i ?>][numero]" value="<?= e($l['numero'] === '?' ? '' : $l['numero']) ?>"><input type="hidden" name="r[<?= $i ?>][section]" value="1"></td><td colspan="6"><input name="r[<?= $i ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900"></td><td><label class="check" style="margin:0"><input type="checkbox" name="r[<?= $i ?>][ignorer]" value="1"></label></td></tr>
 <?php else: $cl = $l['score'] >= 60 ? 'c1' : ($l['score'] >= 40 ? 'c2' : 'c3'); $cat = $l['ligne_id'] ? $catParId[$l['ligne_id']] ?? null : null; ?>
 <tr class="<?= $cl ?>" title="<?= e($l['raison']) ?>">
-  <td><input class="tiny" name="r[<?= $i ?>][numero]" value="<?= e($l['numero'] === '?' ? '' : $l['numero']) ?>"><input type="hidden" name="r[<?= $i ?>][code]" value="<?= e($l['code']) ?>"></td>
+  <td><input class="tiny" name="r[<?= $i ?>][numero]" value="<?= e($l['numero'] === '?' ? '' : $l['numero']) ?>"><input type="hidden" name="r[<?= $i ?>][code]" value="<?= e($l['code']) ?>"><input type="hidden" name="r[<?= $i ?>][ctx]" value="<?= e($l['contexte']) ?>"></td>
   <td><textarea class="lib" name="r[<?= $i ?>][libelle]" rows="1"><?= e($l['libelle']) ?></textarea><?php if ($l['contexte']): ?><div class="small"><?= e($l['contexte']) ?></div><?php endif; ?></td>
   <td><input class="tiny" style="width:80px" name="r[<?= $i ?>][unite]" value="<?= e($l['unite']) ?>"></td>
   <td class="r"><input class="num" name="r[<?= $i ?>][qte]" value="<?= $l['quantite'] !== null ? e((string)(float)$l['quantite']) : '' ?>" inputmode="decimal"></td>

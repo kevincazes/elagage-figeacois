@@ -2,6 +2,16 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.4.1', '2026-11-04', [
+        'Contrôle complet des calculs : 14 000 vérifications automatiques (catalogue, blocs, actions, variantes, bordereaux, totaux, export, figement) sur plusieurs réglages ; correction d\'un arrondi qui donnait certains prix 1 € trop bas (ex. 85,50 € affiché 85 € au lieu de 86 €)',
+        'Import de BPU : colonnes reconnues par leur intitulé, dans n\'importe quel ordre (Excel, Word, CSV) ; codes de toute forme ; quantités du DQE toutes récupérées ; classe de hauteur juste quand le libellé décrit aussi le houppier ; « Ignorer » respecté pour les titres ; mémoire des choix par rubrique',
+        'Le choix « Coût avec » / « Prix avec » est conservé après un enregistrement et d\'une page à l\'autre',
+        'Bordereau : un enregistrement ne détache plus jamais une ligne de sa prestation ; PU imposé à 0 ou négatif et quantités négatives comptés comme à l\'export ; prestation supprimée : prix conservé',
+        'Paramètres : un changement de pourcentage de progression recalcule aussitôt les variantes ; l\'équipe principale ne peut plus être retirée par erreur',
+        'Actions : ajouter, retirer, modifier ou supprimer une action recalcule aussi les variantes des prestations concernées',
+        'Assistant : ne modifie plus un bordereau figé ou ouvert par quelqu\'un d\'autre ; prix donnés avec l\'équipe du bordereau',
+        'Catalogue : codes en double signalés ; moins-values (forfait négatif) conservées ; variantes détachées si leur base est supprimée ; colonnes de la base élargies (codes et libellés longs)',
+    ]],
     ['2.4', '2026-11-04', [
         'Assistant disponible sur toutes les pages : bouton ✦ en bas à droite, panneau latéral qui reste ouvert d\'une page à l\'autre ; il sait sur quel écran tu es ; ses propositions affichent les noms (prestation, ressource, temps avant → après) ; le menu « Assistant » disparaît (page complète via « Historique ↗ »)',
         'Guide entièrement refait, avec 24 captures d\'écran annotées : chaque bouton et chaque colonne expliqués, parcours pas à pas',

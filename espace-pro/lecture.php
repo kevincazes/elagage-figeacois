@@ -12,7 +12,7 @@ function lire_fichier(string $chemin, string $nomOriginal): array {
         'pdf' => lire_pdf($chemin),
         default => throw new RuntimeException("Format non pris en charge : .$ext (xlsx, docx, pdf ou csv)"),
     };
-    return interpreter_lignes($tableaux);
+    return interpreter_lignes($tableaux, $ext);
 }
 
 // ---- XLSX : toutes les feuilles, cellules en texte ----
@@ -32,10 +32,12 @@ function lire_xlsx(string $f): array {
                 $ref = (string)$c['r']; preg_match('/^([A-Z]+)/', $ref, $m); $col = $m[1] ?? 'A';
                 $t = (string)$c['t']; $v = isset($c->v) ? (string)$c->v : '';
                 if ($t === 's') $v = $shared[(int)$v] ?? ''; elseif ($t === 'inlineStr') $v = (string)($c->is->t ?? '');
-                $cells[$col] = trim($v);
+                $idx = 0; foreach (str_split($col) as $ch) $idx = $idx * 26 + (ord($ch) - 64);
+                $cells[$idx - 1] = trim($v);
             }
-            if (array_filter($cells, fn($x) => $x !== '')) $rows[] = array_values(array_filter($cells, fn($x) => $x !== ''));
+            if (array_filter($cells, fn($x) => $x !== '')) { ksort($cells); $rows[] = $cells; }
         }
+        $rows[] = ['__FEUILLE__'];
     }
     $z->close(); return $rows;
 }
@@ -49,24 +51,25 @@ function lire_docx(string $f): array {
     // Paragraphes hors tableau (titres, en-têtes de colonnes) → une pseudo-ligne d'en-tête pour la détection prix/quantité
     $hors = []; foreach ($x->query('//w:body/w:p') as $p) { $t = trim($p->textContent); if ($t !== '') $hors[] = $t; }
     if ($hors) $rows[] = ['ENTETE: ' . implode(' ', array_slice($hors, 0, 30))];
-    foreach ($x->query('//w:tbl/w:tr') as $tr) {
-        $cells = []; $prev = null;
+    foreach ($x->query('//w:tbl') as $tbl) { foreach ($x->query('./w:tr', $tbl) as $tr) {
+        $cells = [];
         foreach ($x->query('./w:tc', $tr) as $tc) {
             $t = trim(preg_replace('/\s+/', ' ', implode(' ', array_map(fn($p) => $p->textContent, iterator_to_array($x->query('./w:p', $tc))))));
             // Première ligne de la cellule = libellé ; le reste est descriptif
             $first = trim(explode("\n", trim(implode("\n", array_map(fn($p) => $p->textContent, iterator_to_array($x->query('./w:p', $tc))))))[0]);
             $val = $first !== '' ? $first : $t;
-            if ($val !== '' && $val !== $prev) $cells[] = $val; $prev = $val;
+            $span = 1; foreach ($x->query('./w:tcPr/w:gridSpan', $tc) as $g) $span = max(1, (int)$g->getAttribute('w:val'));
+            $cells[] = $val; for ($k = 1; $k < $span; $k++) $cells[] = '';
         }
-        if ($cells) $rows[] = $cells;
-    }
+        if (array_filter($cells, fn($v) => $v !== '')) $rows[] = $cells;
+    } $rows[] = ['__FEUILLE__']; }
     return $rows;
 }
 
 function lire_csv(string $f): array {
     $rows = []; $h = fopen($f, 'r'); $sep = ';';
     $first = fgets($h); rewind($h); if ($first && substr_count($first, ',') > substr_count($first, ';')) $sep = ',';
-    while (($r = fgetcsv($h, 0, $sep)) !== false) { $r = array_values(array_filter(array_map('trim', $r), fn($x) => $x !== '')); if ($r) $rows[] = $r; }
+    while (($r = fgetcsv($h, 0, $sep, '"', '')) !== false) { $r = array_map(fn($v) => trim((string)$v), $r); if (array_filter($r, fn($x) => $x !== '')) $rows[] = $r; }
     fclose($h); return $rows;
 }
 
@@ -85,7 +88,67 @@ function lire_pdf(string $f): array {
 }
 
 // ---- Interprétation : repère numéro, libellé, unité, quantité, prix ; détecte les sections ----
-function interpreter_lignes(array $rows): array {
+/** Rôle d'un intitulé de colonne (numero, code, libelle, unite, quantite, prix, montant) ou null */
+function role_colonne(string $c): ?string {
+    $c = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $c)));
+    if ($c === '' || mb_strlen($c) > 60) return null;
+    if (preg_match('/^(n°|n °|no\b|n\.|num[ée]ro|n° prix|prix n°|art(\.|icle)|rep[èe]re|poste|item)/u', $c)) return 'numero';
+    if (preg_match('/^(code|r[ée]f(\.|[ée]rence)?\b)/u', $c)) return 'code';
+    if (preg_match('/^(d[ée]signation|libell[ée]|intitul[ée]|description|nature des|prestations?$)/u', $c)) return 'libelle';
+    if (preg_match('/(montant|total)/u', $c)) return 'montant';
+    if (preg_match('/(quantit|^qt[ée]s?\.?$|^q\.?$|^nombre|^nb\b)/u', $c)) return 'quantite';
+    if (preg_match('/^(unit[ée]s?( de mesure)?|u\.?|ud)$/u', $c)) return 'unite';
+    if (preg_match('/(prix|^p\.?\s?u\.?\b|^pu\b|tarif|€)/u', $c)) return 'prix';
+    return null;
+}
+/** Nombre écrit dans une cellule (« 1 234,50 € ») ou null */
+function nombre_cellule(string $c): ?float {
+    $n = str_replace([' ', "\xc2\xa0", "\xe2\x80\xaf", '€'], '', $c); $n = str_replace(',', '.', $n);
+    return is_numeric($n) ? (float)$n : null;
+}
+function interpreter_lignes(array $rows, string $ext = ''): array {
+    if ($ext !== 'pdf') {
+        // 1. Lecture par en-têtes : une ligne « N° | Désignation | Unité | Quantité | Prix… » fixe le rôle de chaque colonne,
+        //    quel que soit leur ordre ; elle peut changer d'une feuille ou d'un tableau à l'autre (en-têtes répétés).
+        $out = []; $carte = null; $trouve = false; $hors = [];
+        foreach ($rows as $r) {
+            if (($r[0] ?? '') === '__FEUILLE__' && count($r) === 1) { $carte = null; continue; }
+            $roles = []; $nb = 0;
+            foreach ($r as $i => $c) { if ($c === '') continue; $nb++; $ro = role_colonne((string)$c); if ($ro && !in_array($ro, $roles, true)) $roles[$i] = $ro; }
+            if (in_array('libelle', $roles, true) && count(array_intersect($roles, ['unite', 'quantite', 'prix'])) >= 1 && count($roles) >= $nb - 1) { $carte = array_flip($roles); $trouve = true; continue; }
+            if (!$carte) { $hors[] = $r; continue; }
+            $val = fn($role) => isset($carte[$role]) ? trim((string)($r[$carte[$role]] ?? '')) : '';
+            $remplies = array_filter($r, fn($c) => $c !== '');
+            $libelle = $val('libelle'); $numero = rtrim($val('numero'), '.'); $code = $val('code');
+            // Ligne réduite à un seul texte (titre de rubrique écrit dans la colonne N°, mention…) : ancienne méthode sur ce texte
+            if ($libelle === '' && count($remplies) === 1) { foreach (interpreter_lignes([array_values($remplies)], 'pdf') as $x) $out[] = $x; continue; }
+            if ($libelle === '') { $autres = array_filter($remplies, fn($c, $i) => !in_array($i, $carte, true) && nombre_cellule((string)$c) === null, ARRAY_FILTER_USE_BOTH); $libelle = (string)(reset($autres) ?: ''); }
+            if ($libelle === '' || role_colonne($libelle) === 'libelle') continue; // en-tête répété
+            $unite = trim(preg_replace('/\s+/', ' ', $val('unite')));
+            $qte = $val('quantite') !== '' ? nombre_cellule($val('quantite')) : null;
+            $prix = $val('prix') !== '' ? nombre_cellule($val('prix')) : null;
+            if (str_contains($libelle, "\n")) $libelle = trim(explode("\n", $libelle)[0]);
+            $libelle = trim(preg_replace('/[\s\x{00A0}\x{202F}]+/u', ' ', $libelle));
+            if (mb_strlen($libelle) < 3 || preg_match('/^(montant|tva|total|accord-cadre|bordereau de|identification du|date,? (signature|cachet)|l\'entrepreneur|chaque poste|les prix|nota|le classement|\(.*du cctp\)$)/iu', $libelle) || preg_match('/^\(.*\)$/u', $libelle)) continue;
+            $section = ($unite === '' && $prix === null && $qte === null) && (mb_strtoupper($libelle) === $libelle || preg_match('/^(\d+(\.0)?|[IVX]+(\.\d+)?)$/', $numero) || mb_strlen($libelle) < 60 && preg_match('/^(abattage|taille|dessouchage|d[ée]bitage|prestations|haubanage|chenilles|signalisation|entretien|élimination|elimination|réduction|rehaussement|allègement|conif)/iu', $libelle));
+            $out[] = ['numero' => $numero, 'code' => $code, 'libelle' => $libelle, 'unite' => $unite, 'quantite' => $qte, 'prix' => $prix, 'section' => $section];
+        }
+        if ($trouve) {
+            // Titres et rubriques placés avant le premier en-tête : ancienne méthode
+            $avant = interpreter_lignes(array_values(array_filter($hors, fn($r) => !(($r[0] ?? '') === '__FEUILLE__' && count($r) === 1))), 'pdf');
+            return array_merge($avant, $out);
+        }
+    }
+    // 2. Pas d'en-tête reconnu : méthode par position des nombres (cellules vides retirées)
+    $rows = array_values(array_filter(array_map(function ($r) use ($ext) {
+        if (($r[0] ?? '') === '__FEUILLE__' && count($r) === 1) return [];
+        $v = array_values(array_filter($r, fn($c) => $c !== ''));
+        if ($ext === 'docx') { $d = []; foreach ($v as $c) if (end($d) !== $c) $d[] = $c; $v = $d; } // cellules fusionnées répétées
+        return $v;
+    }, $rows)));
+    return interpreter_heuristique($rows);
+}
+function interpreter_heuristique(array $rows): array {
     $entete = mb_strtolower(implode(' ', array_map(fn($r) => implode(' ', $r), array_slice($rows, 0, 40))));
     $aPrix = preg_match('/prix\s*(h\.?t|unitaire|u\b)/u', $entete) || str_contains($entete, 'p.u');
     $aQte = preg_match('/quantit/u', $entete);
@@ -125,7 +188,7 @@ function interpreter_lignes(array $rows): array {
         if ($libelle === '' || mb_strlen($libelle) < 3 || preg_match('/^[IVX]+\.\d+(\.\d+)*\.?$/', $libelle)) continue;
         if (preg_match('/^(montant|tva|total|accord-cadre|bordereau de|identification du|date,? (signature|cachet)|l\'entrepreneur|chaque poste|les prix unitaires|nota|le classement|\(.*du cctp\)$)/iu', $libelle)) continue;
         if (preg_match('/^\(.*\)$/u', $libelle)) continue;
-        $out[] = ['numero' => $numero, 'code' => $code, 'libelle' => trim(preg_replace('/\s+/', ' ', $libelle)), 'unite' => trim(preg_replace('/\s+/', ' ', $unite)), 'quantite' => $qte, 'prix' => $prix, 'section' => $section];
+        $out[] = ['numero' => $numero, 'code' => $code, 'libelle' => trim(preg_replace('/[\s\x{00A0}\x{202F}]+/u', ' ', $libelle)), 'unite' => trim(preg_replace('/\s+/', ' ', $unite)), 'quantite' => $qte, 'prix' => $prix, 'section' => $section];
     }
     return $out;
 }

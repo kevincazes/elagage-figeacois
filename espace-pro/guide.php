@@ -153,7 +153,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <h2 id="actions">5. Actions dans l'arbre <small class="muted">(facultatif)</small></h2>
 <p>Une action est un geste avec sa durée en heures d'équipe : grimper, démonter une charpentière, broyer, nettoyer… Dans le catalogue, une prestation peut se composer de plusieurs actions ; son temps d'équipe devient la somme. Intérêt : si un geste prend plus de temps qu'estimé, tu corriges l'action et <strong>toutes les prestations qui l'utilisent</strong> sont recalculées. Si tu préfères saisir directement les heures dans le catalogue, tu peux ignorer cette page.</p>
 <?php fig('actions', 'La page Actions', [
-    '<strong>Coût avec</strong> : l\'équipe utilisée pour afficher le coût indicatif de chaque action. Rien n\'est modifié.',
+    '<strong>Coût avec</strong> : l\'équipe utilisée pour afficher le coût indicatif de chaque action. Rien n\'est modifié. Ce choix est retenu pendant ta session (après un enregistrement, et aussi pour « Prix avec » dans le catalogue).',
     '<strong>Durée (h)</strong> : le temps de l\'équipe pour ce geste. Bouton « Enregistrer » en bas après modification.',
     '<strong>Coût</strong> : durée × taux de l\'équipe choisie, avant marge.',
     '<strong>Utilisée</strong> : le nombre de prestations qui utilisent l\'action. Clic pour les voir dans le catalogue.',
@@ -188,6 +188,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 
 <h2 id="import">8. Importer un bordereau reçu</h2>
 <p>La collectivité t'envoie son BPU ou son DQE : l'outil lit le fichier, rapproche chaque ligne d'une prestation de ton catalogue, et crée le bordereau <strong>au format de la collectivité</strong> (ses numéros, ses libellés, ses quantités).</p>
+<p>Les colonnes sont reconnues <strong>par leur intitulé</strong> (« N° », « Code », « Désignation », « Unité », « Quantité », « Prix unitaire », « Montant »…), dans n'importe quel ordre, y compris quand le fichier a plusieurs feuilles (BPU puis DQE) ou répète l'en-tête à chaque rubrique. La classe de taille (hauteur, houppier, circonférence) est lue dans le libellé et dans la rubrique au-dessus.</p>
 <?php fig('import-depot', 'Étape 1 : déposer le fichier', [
     '<strong>Choisir le fichier</strong> : Excel (.xlsx), Word (.docx), CSV ou PDF contenant du texte. Un PDF scanné (image) ne peut pas être lu : demande le fichier Excel ou Word.',
     '<strong>Lire le fichier</strong> : quelques secondes, puis l\'étape de vérification s\'affiche.',
@@ -199,10 +200,10 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
     '<strong>Prix catalogue</strong> : le prix que donnera la prestation choisie.',
     '<strong>Quantité</strong> : reprise du DQE quand le fichier en contient. Modifiable.',
     '<strong>PU imposé</strong> : un prix forcé pour cette ligne (rempli d\'office si le fichier contient déjà des prix). Laisser vide pour utiliser le prix du catalogue.',
-    '<strong>Ignorer</strong> : coche les lignes qui n\'ont rien à faire dans le bordereau (titres en double, mentions).',
+    '<strong>Ignorer</strong> : coche les lignes ou les titres qui n\'ont rien à faire dans le bordereau (titre de la collectivité, mentions, prestation hors métier) : ils ne seront pas créés.',
     '<strong>Titres de section</strong> : les rubriques de la collectivité, conservées telles quelles.',
 ]); ?>
-<p>En bas : <strong>Créer le bordereau</strong>. <strong>Chaque correction est mémorisée</strong> : la même formulation sera reconnue d'office au prochain bordereau de cette collectivité.</p>
+<p>En bas : <strong>Créer le bordereau</strong>. <strong>Chaque correction est mémorisée</strong>, avec sa rubrique : la même formulation sera reconnue d'office au prochain import (pastille verte « Déjà validé précédemment »), et un même libellé sous « moins de 10 m » et sous « 10 à 20 m » garde deux choix distincts. Une ligne que tu as laissée « Sans prestation » ressort en rouge avec la mention « Marquée sans prestation lors d'un import précédent ».</p>
 
 <h2 id="bordereau">9. Travailler dans un bordereau</h2>
 <h3>L'en-tête</h3>
@@ -223,7 +224,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
     '<strong>Qté (DQE)</strong> : la quantité estimative ; elle donne le total de l\'offre.',
     '<strong>Prestation du catalogue</strong> : le code de la prestation qui donne le prix. Pour rattacher une ligne « sans prestation » ou en changer, efface et tape un code ou le début d\'un libellé : la liste propose les prestations avec leur prix. Le prix se met à jour tout de suite ; enregistre pour le conserver.',
     '<strong>PU calculé</strong> : temps du catalogue × taux de l\'équipe × coefficient. Clic sur le prix (↗) : la prestation s\'ouvre dans le catalogue, dans un nouvel onglet, pour voir ou régler son temps.',
-    '<strong>PU imposé</strong> : un prix forcé pour ce marché seulement (geste commercial, contrainte du marché). Le catalogue n\'est pas touché. Vider la case pour revenir au prix calculé.',
+    '<strong>PU imposé</strong> : un prix forcé pour ce marché seulement (geste commercial, contrainte du marché). 0 = prestation offerte ; un montant négatif = remise. Le catalogue n\'est pas touché. Vider la case pour revenir au prix calculé.',
     '<strong>Total HT</strong> : PU retenu × quantité. Tout à droite, la colonne <strong>PU retenu</strong> donne le prix qui part réellement dans l\'offre : le PU imposé s\'il existe, sinon le PU calculé.',
 ]); ?>
 <?php fig('bordereau-total', 'Bas du tableau', [
@@ -292,6 +293,9 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <h3>Le PDF n'est pas lu</h3><p>C'est un scan sans texte : demande le fichier Excel ou Word à la collectivité, ou crée le bordereau à partir d'un pack.</p>
 <h3>Je ne retrouve pas une ligne que je viens d'ajouter au catalogue</h3><p>Elle est dans le bloc de sa famille (ou « Sans famille »), qui est peut-être replié. Tape son code dans la recherche, ou clique « Tout déplier ».</p>
 <h3>Comment comparer avec ce qu'on a déjà remis ?</h3><p>Colonnes « Réf. » et « Écart » du catalogue, ou l'assistant depuis le bordereau.</p>
+<h3>Le prix d'une ligne de bordereau vient de quelle prestation ?</h3><p>Colonne « Prestation du catalogue » : son code (ou « #numéro » si la prestation n'a pas de code). Donne un code unique à chaque prestation : l'enregistrement du catalogue te signale les codes en double.</p>
+<h3>J'ai supprimé une prestation du catalogue qui était dans un bordereau</h3><p>La ligne garde son prix (calculé avec les derniers temps de la prestation) et affiche « prestation supprimée du catalogue ». Rattache-la à une autre prestation ou impose son prix.</p>
+<h3>Comment sont arrondis les prix ?</h3><p>Le prix brut (heures × taux + forfait, × coefficient) est arrondi au pas choisi dans Paramètres, au plus proche, les demis vers le haut : 85,50 € donne 86 € à l'euro, 87,50 € donne 90 € aux 5 €. Le même calcul est fait partout : catalogue, bordereau, export, figement.</p>
 <h3>Je ne peux pas modifier un bordereau</h3><p>Soit il est figé (bouton « Défiger »), soit quelqu'un d'autre l'a ouvert (bandeau rouge en haut, voir partie 12).</p>
 <h3>Où changer le modèle d'IA ou la clé de l'assistant ?</h3><p>Dans le fichier <code>config-espace-pro.php</code> à la racine de l'hébergement (hors du site), lignes <code>CLAUDE_API_KEY</code> et <code>CLAUDE_MODELE</code>. Réservé à l'administrateur technique.</p>
 </div>

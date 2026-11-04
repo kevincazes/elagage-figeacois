@@ -77,6 +77,14 @@ function migrate(): void {
         try { $cols = array_column(q("SHOW COLUMNS FROM `$table`")->fetchAll(), 'Field'); if ($cols && !in_array($col, $cols)) db()->exec($sql); } catch (Throwable $t) {}
     }
     try { foreach (q("SHOW COLUMNS FROM utilisateurs LIKE 'mfa_code'") as $c) if (stripos($c['Type'], '255') === false) db()->exec("ALTER TABLE utilisateurs MODIFY mfa_code VARCHAR(255) NULL"); } catch (Throwable $t) {}
+    // 2.4 : colonnes élargies (codes de variantes, libellés de BPU très longs, numéros de prix)
+    if (setting('schema') !== '2.4') {
+        foreach (["ALTER TABLE bpu_lignes MODIFY code VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE bpu_lignes MODIFY libelle VARCHAR(1000) NOT NULL",
+                  "ALTER TABLE bpu_lignes MODIFY unite VARCHAR(60) NOT NULL DEFAULT 'U'", "ALTER TABLE bordereau_lignes MODIFY numero VARCHAR(40) NOT NULL DEFAULT ''",
+                  "ALTER TABLE bordereau_lignes MODIFY code VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE bordereau_lignes MODIFY libelle VARCHAR(1000) NOT NULL DEFAULT ''",
+                  "ALTER TABLE bordereau_lignes MODIFY unite VARCHAR(60) NOT NULL DEFAULT ''"] as $sql) { try { db()->exec($sql); } catch (Throwable $t) {} }
+        set_setting('schema', '2.4');
+    }
 }
 
 // ---- Historique et verrous ----
@@ -104,6 +112,13 @@ function ressources_equipes(): array { return array_values(array_filter(ressourc
 function ressource_equipe(): ?array { return ressources_equipes()[0] ?? null; }
 /** Équipe à appliquer : celle demandée (id) ou, par défaut, l'équipe principale */
 function equipe_choisie(?int $id): ?array { foreach (ressources_equipes() as $r) if ((int)$r['id'] === (int)$id) return $r; return ressource_equipe(); }
+/** Équipe choisie pour l'aperçu des prix (« Prix avec » / « Coût avec ») : mémorisée pour la session, jusqu'à un autre choix */
+function equipe_apercu(): ?int {
+    if (isset($_GET['equipe']) && $_GET['equipe'] !== '') $_SESSION['equipe_apercu'] = (int)$_GET['equipe'];
+    $id = $_SESSION['equipe_apercu'] ?? null;
+    foreach (ressources_equipes() as $r) if ((int)$r['id'] === (int)$id) return (int)$id;
+    return null;
+}
 /** Recalcule les heures d'équipe d'une ligne composée d'actions (Σ nb × durée) */
 function appliquer_actions(int $ligneId): void {
     $eq = ressource_equipe(); if (!$eq) return;
@@ -119,7 +134,8 @@ function simplifier_en_equipe(float $tauxEquipe, float $tauxRognage, float $taux
     $eq = ressource_equipe();
     // Une ressource déjà nommée « équipe » (créée à la main) devient l'équipe standard
     if (!$eq) foreach ($res as $r) if ($r['role'] === '' && stripos($r['nom'], 'quipe') !== false) { q("UPDATE ressources SET role = 'equipe', ordre = 0 WHERE id = ?", [$r['id']]); $eq = $r; $res = array_values(array_filter($res, fn($x) => $x['id'] !== $r['id'])); break; }
-    if (!$eq) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe standard (personnel + nacelle + broyeur + matériel)', ?, 0, 'equipe')", [$tauxEquipe]); $eqId = (int)$pdo->lastInsertId(); } else { $eqId = (int)$eq['id']; q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxEquipe, $eqId]); }
+    if (!$eq) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe standard (personnel + nacelle + broyeur + matériel)', ?, 0, 'equipe')", [$tauxEquipe]); $eqId = (int)$pdo->lastInsertId(); }
+    else { $eqId = (int)$eq['id']; if ((float)$eq['taux'] > 0 && abs((float)$eq['taux'] - $tauxEquipe) > 0.001) q("UPDATE bpu_temps SET heures = ROUND(heures * ? / ?, 2) WHERE ressource_id = ?", [(float)$eq['taux'], $tauxEquipe, $eqId]); q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxEquipe, $eqId]); } // heures converties : prix inchangés
     if ($tauxEquipe2 > 0 && count(ressources_equipes()) < 2) q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe marché public', ?, 1, 'equipe')", [$tauxEquipe2]);
     $ro = null; foreach ($res as $r) if ($r['role'] === 'rognage') $ro = $r;
     if (!$ro) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Rognage (opérateur + rogneuse)', ?, 2, 'rognage')", [$tauxRognage]); $roId = (int)$pdo->lastInsertId(); } else { $roId = (int)$ro['id']; q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxRognage, $roId]); }
@@ -135,8 +151,8 @@ function simplifier_en_equipe(float $tauxEquipe, float $tauxRognage, float $taux
         // Les lignes de rognage : tout le coût passe en heures de rognage
         $estRognage = $coutRo > 0;
         q("DELETE FROM bpu_temps WHERE ligne_id = ? AND ressource_id IN (" . implode(',', array_map('intval', array_keys($taux))) . ")", [$l['id']]);
-        if ($estRognage) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [$l['id'], $roId, round(($coutEq + $coutRo) / $tauxRognage, 2)]);
-        elseif ($coutEq > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [$l['id'], $eqId, round($coutEq / $tauxEquipe, 2)]);
+        if ($estRognage) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = heures + VALUES(heures)", [$l['id'], $roId, round(($coutEq + $coutRo) / $tauxRognage, 2)]);
+        elseif ($coutEq > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = heures + VALUES(heures)", [$l['id'], $eqId, round($coutEq / $tauxEquipe, 2)]);
         $n++;
     }
     foreach ($anciennes as $r) q("UPDATE ressources SET actif = 0 WHERE id = ?", [$r['id']]);
@@ -193,6 +209,7 @@ function ressources(): array { static $r = null; return $r ??= q("SELECT * FROM 
 function taux_courants(?int $equipeId = null): array {
     $t = []; foreach (ressources() as $r) $t[$r['id']] = (float)$r['taux'];
     $p = ressource_equipe(); $c = equipe_choisie($equipeId);
+    foreach (ressources_equipes() as $r) if ($p && (int)$r['id'] !== (int)$p['id']) $t[$r['id']] = 0.0; // heures jamais portées par les autres équipes
     if ($p && $c && (int)$c['id'] !== (int)$p['id']) $t[$p['id']] = (float)$c['taux'];
     return $t;
 }
@@ -216,6 +233,12 @@ function importer_catalogue(): array {
         $id = (int)$pdo->lastInsertId(); $ids[$code] = $id; $nb++;
         // Temps calibrés pour retomber sur le prix de référence avec les taux et le coefficient actuels
         $cout = $prix / $coef;
+        if ($eqP = ressource_equipe()) { // modèle Équipe (+ rognage) : tout le coût en heures d'équipe, ou de rognage pour les souches
+            $ro = null; foreach ($res as $r) if ($r['role'] === 'rognage') $ro = $r;
+            $cible = ($profil === 'souche' && $ro) ? $ro : $eqP;
+            if ((float)$cible['taux'] > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [$id, $cible['id'], round($cout / (float)$cible['taux'], 2)]);
+            continue;
+        }
         foreach (PROFILS[$profil] ?? PROFILS['grimpe'] as $idx => $part) {
             $r = $res[$idx] ?? $res[0]; $taux = (float)$r['taux'];
             if ($taux <= 0) continue;
@@ -258,12 +281,12 @@ function redirect(string $url): never { header("Location: $url"); exit; }
 
 // ---- Paramètres (clé / valeur) ----
 function setting(string $key, string $default = ''): string {
-    static $cache = null;
-    if ($cache === null) { $cache = []; foreach (q("SELECT cle, valeur FROM parametres") as $r) $cache[$r['cle']] = $r['valeur']; }
-    return $cache[$key] ?? $default;
+    if (!isset($GLOBALS['__reglages'])) { $GLOBALS['__reglages'] = []; foreach (q("SELECT cle, valeur FROM parametres") as $r) $GLOBALS['__reglages'][$r['cle']] = $r['valeur']; }
+    return $GLOBALS['__reglages'][$key] ?? $default;
 }
 function set_setting(string $key, string $val): void {
     q("INSERT INTO parametres (cle, valeur) VALUES (?, ?) ON DUPLICATE KEY UPDATE valeur = VALUES(valeur)", [$key, $val]);
+    if (isset($GLOBALS['__reglages'])) $GLOBALS['__reglages'][$key] = $val; // les calculs suivants voient la nouvelle valeur
 }
 
 // ---- Sécurité ----
@@ -361,8 +384,10 @@ function page_simple_start(string $title): void {
 function page_simple_end(): void { echo '</main></body></html>'; }
 
 // ---- Calcul ----
+/** Nombre saisi par l'utilisateur : « 1 234,5 », « 12.5 », espaces insécables… */
+function nb($v): float { return (float)str_replace([',', ' ', "\u{00A0}", "\u{202F}"], ['.', '', '', ''], trim((string)$v)); }
 function money(float $v): string { return number_format($v, 2, ',', ' ') . ' €'; }
-function arrondir(float $v, float $pas): float { return $pas > 0 ? round($v / $pas) * $pas : round($v, 2); }
+function arrondir(float $v, float $pas): float { $v = round($v, 6); return $pas > 0 ? round(round($v / $pas, 6)) * $pas : round($v, 2); }
 /** Prix unitaire HT d'une ligne à partir de ses temps et des taux */
 function prix_ligne(array $temps, array $taux, float $forfait, float $coef, float $pas): array {
     $cout = 0.0;
@@ -440,6 +465,7 @@ function page_end(): void {
   function bandeau(){ var t=document.querySelector('header.top'); if(t) document.documentElement.style.setProperty('--bandeau', (getComputedStyle(t).position==='sticky'?t.offsetHeight:0)+'px'); }
   bandeau(); window.addEventListener('resize',bandeau);
   // Formulaires « paquet » : tous les champs partent dans un seul champ caché (voir lib.php)
+  window.addEventListener('pageshow',function(e){ if(e.persisted) document.querySelectorAll('form[data-paquet]').forEach(function(f){ delete f.dataset.envoye; f.querySelectorAll('[disabled]').forEach(function(x){x.disabled=false;}); var p=f.querySelector('input[name=payload]'); if(p) p.remove(); }); });
   document.querySelectorAll('form[data-paquet]').forEach(function(f){
     f.addEventListener('submit',function(){
       if(f.dataset.envoye) return; f.dataset.envoye='1';
