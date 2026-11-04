@@ -410,6 +410,18 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
 function page_end(): void { echo '</main>' . <<<'JS'
 <script>
 (function(){
+  // Mémorise la position (page et tableau) avant un rechargement, la restaure ensuite
+  var cle='pos:'+location.pathname;
+  try{
+    var sv=JSON.parse(sessionStorage.getItem(cle)||'null');
+    if(sv && Date.now()-sv.t<600000){
+      requestAnimationFrame(function(){ window.scrollTo(0,sv.y); document.querySelectorAll('.scroll').forEach(function(sc,i){ if(sv.x[i]!=null) sc.scrollLeft=sv.x[i]; }); });
+    }
+    sessionStorage.removeItem(cle);
+  }catch(e){}
+  function memoPos(){ try{ sessionStorage.setItem(cle, JSON.stringify({t:Date.now(), y:window.scrollY, x:[].map.call(document.querySelectorAll('.scroll'),function(sc){return sc.scrollLeft;})})); }catch(e){} }
+  document.addEventListener('submit',memoPos,true);
+  window.addEventListener('beforeunload',memoPos);
   document.querySelectorAll('.scroll').forEach(function(sc){
     // Glisser le tableau à la souris en dehors des champs
     var dep=null;
