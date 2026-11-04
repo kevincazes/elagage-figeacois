@@ -34,6 +34,8 @@ function migrate(): void {
         "CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL, verrou_par INT NULL, verrou_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS actions (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, duree DECIMAL(6,2) NOT NULL DEFAULT 0, description VARCHAR(255) NOT NULL DEFAULT '', ordre INT NOT NULL DEFAULT 0, actif TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS ligne_actions (ligne_id INT NOT NULL, action_id INT NOT NULL, nb DECIMAL(6,2) NOT NULL DEFAULT 1, PRIMARY KEY (ligne_id, action_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS historique (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NULL, utilisateur_id INT NULL, quand DATETIME DEFAULT CURRENT_TIMESTAMP, action VARCHAR(40) NOT NULL, detail TEXT, INDEX (bordereau_id), INDEX (quand)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ];
     foreach ($etapes as $sql) { try { db()->exec($sql); } catch (Throwable $t) {} }
@@ -46,6 +48,9 @@ function migrate(): void {
         ['bordereaux', 'verrou_par', "ALTER TABLE bordereaux ADD COLUMN verrou_par INT NULL, ADD COLUMN verrou_le DATETIME NULL"],
         ['utilisateurs', 'souvenir', "ALTER TABLE utilisateurs ADD COLUMN souvenir VARCHAR(255) NULL, ADD COLUMN souvenir_expire DATETIME NULL"],
         ['utilisateurs', 'version_vue', "ALTER TABLE utilisateurs ADD COLUMN version_vue VARCHAR(10) NOT NULL DEFAULT ''"],
+        ['ressources', 'role', "ALTER TABLE ressources ADD COLUMN role VARCHAR(10) NOT NULL DEFAULT ''"],
+        ['bordereaux', 'equipe_id', "ALTER TABLE bordereaux ADD COLUMN equipe_id INT NULL"],
+        ['bpu_lignes', 'base_id', "ALTER TABLE bpu_lignes ADD COLUMN base_id INT NULL"],
         ['bordereau_lignes', 'numero', "ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre"],
     ];
     foreach ($colonnes as [$table, $col, $sql]) {
@@ -71,12 +76,107 @@ function verrou_prendre(int $bid, bool $forcer = false): ?array {
 }
 function verrou_liberer(int $bid): void { q("UPDATE bordereaux SET verrou_par = NULL, verrou_le = NULL WHERE id = ? AND verrou_par = ?", [$bid, user()['id']]); }
 
+// ---- Actions (temps par action dans l'arbre) ----
+function actions_catalogue(): array { static $a = null; return $a ??= q("SELECT * FROM actions WHERE actif = 1 ORDER BY ordre, nom")->fetchAll(); }
+function actions_par_ligne(): array { static $t = null; if ($t === null) { $t = []; foreach (q("SELECT la.*, a.nom, a.duree FROM ligne_actions la JOIN actions a ON a.id = la.action_id WHERE a.actif = 1") as $x) $t[$x['ligne_id']][] = $x; } return $t; }
+function ressources_equipes(): array { return array_values(array_filter(ressources(), fn($r) => $r['role'] === 'equipe')); }
+/** Équipe principale : celle dont la colonne porte les heures dans le catalogue */
+function ressource_equipe(): ?array { return ressources_equipes()[0] ?? null; }
+/** Équipe à appliquer : celle demandée (id) ou, par défaut, l'équipe principale */
+function equipe_choisie(?int $id): ?array { foreach (ressources_equipes() as $r) if ((int)$r['id'] === (int)$id) return $r; return ressource_equipe(); }
+/** Recalcule les heures d'équipe d'une ligne composée d'actions (Σ nb × durée) */
+function appliquer_actions(int $ligneId): void {
+    $eq = ressource_equipe(); if (!$eq) return;
+    $tot = (float)(q("SELECT COALESCE(SUM(la.nb * a.duree),0) h FROM ligne_actions la JOIN actions a ON a.id = la.action_id WHERE la.ligne_id = ? AND a.actif = 1", [$ligneId])->fetch()['h']);
+    $nb = (int)q("SELECT COUNT(*) c FROM ligne_actions WHERE ligne_id = ?", [$ligneId])->fetch()['c'];
+    if ($nb > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [$ligneId, $eq['id'], round($tot, 2)]);
+}
+/** Passe de N ressources à deux (Équipe tout compris + Rognage) en conservant le coût de chaque ligne. */
+function simplifier_en_equipe(float $tauxEquipe, float $tauxRognage, float $tauxEquipe2 = 0): array {
+    $pdo = db(); $res = ressources();
+    $pdo->beginTransaction();
+    // Ressources cibles : équipe principale (porte les heures), seconde équipe optionnelle, rognage
+    $eq = ressource_equipe();
+    if (!$eq) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe standard (personnel + nacelle + broyeur + matériel)', ?, 0, 'equipe')", [$tauxEquipe]); $eqId = (int)$pdo->lastInsertId(); } else { $eqId = (int)$eq['id']; q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxEquipe, $eqId]); }
+    if ($tauxEquipe2 > 0 && count(ressources_equipes()) < 2) q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe marché public', ?, 1, 'equipe')", [$tauxEquipe2]);
+    $ro = null; foreach ($res as $r) if ($r['role'] === 'rognage') $ro = $r;
+    if (!$ro) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Rognage (opérateur + rogneuse)', ?, 2, 'rognage')", [$tauxRognage]); $roId = (int)$pdo->lastInsertId(); } else { $roId = (int)$ro['id']; q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxRognage, $roId]); }
+    $anciennes = array_filter($res, fn($r) => !in_array($r['role'], ['equipe', 'rognage']));
+    $taux = []; foreach ($anciennes as $r) $taux[$r['id']] = (float)$r['taux'];
+    $rogneuseIds = []; foreach ($anciennes as $r) if (stripos($r['nom'], 'rogn') !== false) $rogneuseIds[] = (int)$r['id'];
+    $n = 0;
+    foreach (q("SELECT id FROM bpu_lignes") as $l) {
+        $temps = q("SELECT * FROM bpu_temps WHERE ligne_id = ?", [$l['id']])->fetchAll();
+        $coutEq = 0; $coutRo = 0; $touche = false;
+        foreach ($temps as $t) { if (!isset($taux[$t['ressource_id']])) continue; $touche = true; $c = (float)$t['heures'] * $taux[$t['ressource_id']]; if (in_array((int)$t['ressource_id'], $rogneuseIds)) $coutRo += $c; else $coutEq += $c; }
+        if (!$touche) continue;
+        // Les lignes de rognage : tout le coût passe en heures de rognage
+        $estRognage = $coutRo > 0;
+        q("DELETE FROM bpu_temps WHERE ligne_id = ? AND ressource_id IN (" . implode(',', array_map('intval', array_keys($taux))) . ")", [$l['id']]);
+        if ($estRognage) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [$l['id'], $roId, round(($coutEq + $coutRo) / $tauxRognage, 2)]);
+        elseif ($coutEq > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?) ON DUPLICATE KEY UPDATE heures = VALUES(heures)", [$l['id'], $eqId, round($coutEq / $tauxEquipe, 2)]);
+        $n++;
+    }
+    foreach ($anciennes as $r) q("UPDATE ressources SET actif = 0 WHERE id = ?", [$r['id']]);
+    $pdo->commit();
+    return [$n, count($anciennes)];
+}
+
+// ---- Variantes par taille d'arbre (progression en % du temps) ----
+const CLASSES_H = ['<10', '10-20', '>20']; const CLASSES_D = ['<=5', '5-10', '>10'];
+function multiplicateur(string $h, string $d): float {
+    $mh = ['<10' => 0, '' => 0, '10-20' => (float)setting('prog_h2', '80'), '>20' => (float)setting('prog_h3', '200')];
+    $md = ['<=5' => 0, '' => 0, '5-10' => (float)setting('prog_d2', '50'), '>10' => (float)setting('prog_d3', '120')];
+    return (1 + ($mh[$h] ?? 0) / 100) * (1 + ($md[$d] ?? 0) / 100);
+}
+/** Recalcule les temps des variantes liées à une ligne de base */
+function appliquer_variantes(int $baseId): int {
+    $base = q("SELECT * FROM bpu_lignes WHERE id = ?", [$baseId])->fetch(); if (!$base) return 0;
+    $tb = q("SELECT * FROM bpu_temps WHERE ligne_id = ?", [$baseId])->fetchAll();
+    $m0 = multiplicateur($base['hauteur'], $base['houppier']); $n = 0;
+    foreach (q("SELECT * FROM bpu_lignes WHERE base_id = ? AND actif = 1", [$baseId]) as $v) {
+        $m = multiplicateur($v['hauteur'], $v['houppier']) / ($m0 ?: 1);
+        q("DELETE FROM bpu_temps WHERE ligne_id = ?", [$v['id']]);
+        foreach ($tb as $t) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$v['id'], $t['ressource_id'], round((float)$t['heures'] * $m, 2)]);
+        q("UPDATE bpu_lignes SET forfait = ? WHERE id = ?", [round((float)$base['forfait'] * $m, 2), $v['id']]); $n++;
+    }
+    return $n;
+}
+/** Crée les variantes manquantes (hauteur × houppier, ou hauteur seule) d'une ligne de base */
+function generer_variantes(int $baseId, bool $avecHouppier): int {
+    $base = q("SELECT * FROM bpu_lignes WHERE id = ?", [$baseId])->fetch(); if (!$base) return 0;
+    // La base prend la classe minimale si elle n'en a pas, pour ne pas la dupliquer
+    if ($base['hauteur'] === '') { q("UPDATE bpu_lignes SET hauteur = '<10' WHERE id = ?", [$baseId]); $base['hauteur'] = '<10'; }
+    if ($avecHouppier && $base['houppier'] === '') { q("UPDATE bpu_lignes SET houppier = '<=5' WHERE id = ?", [$baseId]); $base['houppier'] = '<=5'; }
+    $lib = ['<10' => 'arbre de moins de 10 m', '10-20' => 'arbre de 10 à 20 m', '>20' => 'arbre de plus de 20 m'];
+    $libd = ['<=5' => 'houppier ≤ 5 m', '5-10' => 'houppier de 5 à 10 m', '>10' => 'houppier > 10 m'];
+    $racine = preg_replace('/\s*[–-]\s*(arbre|houppier).*$/iu', '', $base['libelle']);
+    $existe = []; foreach (q("SELECT hauteur, houppier FROM bpu_lignes WHERE (base_id = ? OR id = ?) AND actif = 1", [$baseId, $baseId]) as $x) $existe[$x['hauteur'] . '|' . $x['houppier']] = true;
+    $ordre = (int)$base['ordre']; $n = 0; $pdo = db();
+    foreach (CLASSES_H as $h) foreach (($avecHouppier ? CLASSES_D : ['']) as $d) {
+        if (isset($existe["$h|$d"])) continue;
+        $l = $racine . ' – ' . $lib[$h] . ($d ? ', ' . $libd[$d] : '');
+        $code = preg_replace('/-H[123](-D[123])?$/', '', $base['code']) . '-H' . (array_search($h, CLASSES_H) + 1) . ($d ? '-D' . (array_search($d, CLASSES_D) + 1) : '');
+        q("INSERT INTO bpu_lignes (code, libelle, unite, forfait, ordre, famille, hauteur, houppier, circonference, source, base_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          [$code, $l, $base['unite'], 0, ++$ordre, $base['famille'], $h, $d, '', 'Variante générée (+' . round((multiplicateur($h, $d) - 1) * 100) . ' %)', $baseId]);
+        $n++;
+    }
+    appliquer_variantes($baseId);
+    return $n;
+}
+
 // ---- Catalogue : prix d'une ligne à partir des temps courants ----
 function ressources(): array { static $r = null; return $r ??= q("SELECT * FROM ressources WHERE actif = 1 ORDER BY ordre, id")->fetchAll(); }
-function taux_courants(): array { $t = []; foreach (ressources() as $r) $t[$r['id']] = (float)$r['taux']; return $t; }
+/** Taux par ressource ; si une équipe est choisie, son taux remplace celui de l'équipe principale (les heures d'équipe sont stockées sur l'équipe principale) */
+function taux_courants(?int $equipeId = null): array {
+    $t = []; foreach (ressources() as $r) $t[$r['id']] = (float)$r['taux'];
+    $p = ressource_equipe(); $c = equipe_choisie($equipeId);
+    if ($p && $c && (int)$c['id'] !== (int)$p['id']) $t[$p['id']] = (float)$c['taux'];
+    return $t;
+}
 function temps_par_ligne(): array { static $t = null; if ($t === null) { $t = []; foreach (q("SELECT * FROM bpu_temps") as $x) $t[$x['ligne_id']][$x['ressource_id']] = (float)$x['heures']; } return $t; }
-function prix_catalogue(array $ligne): float {
-    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants(), (float)$ligne['forfait'], (float)setting('coef', '1'), (float)setting('arrondi', '1'));
+function prix_catalogue(array $ligne, ?int $equipeId = null): float {
+    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'], (float)setting('coef', '1'), (float)setting('arrondi', '1'));
     return $p['pu'];
 }
 /** Importe le catalogue de démarrage (lignes + packs), sans doublon sur le code. Retourne [lignes ajoutées, packs ajoutés]. */
@@ -263,6 +363,7 @@ function page_start(string $title, string $active = ''): void {
     $nav = [
         'index.php' => 'Tableau de bord',
         'parametres.php' => 'Paramètres',
+        'actions.php' => 'Actions',
         'bpu.php' => 'Catalogue',
         'packs.php' => 'Packs',
         'bordereaux.php' => 'Bordereaux',

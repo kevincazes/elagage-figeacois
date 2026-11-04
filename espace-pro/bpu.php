@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
 require_login();
 $pdo = db();
-$res = ressources(); $taux = taux_courants();
+$res = ressources(); $eqApercu = isset($_GET['equipe']) ? (int)$_GET['equipe'] : null; $taux = taux_courants($eqApercu); $equipes = ressources_equipes();
 $coef = (float)setting('coef', '1'); $pas = (float)setting('arrondi', '1'); $tva = (float)setting('tva', '20');
 $HAUT = ['' => '—', '<10' => '< 10 m', '10-20' => '10–20 m', '>20' => '> 20 m'];
 $HOUP = ['' => '—', '<=5' => '≤ 5 m', '5-10' => '5–10 m', '>10' => '> 10 m'];
@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q("DELETE FROM bpu_temps WHERE ligne_id = ?", [$id]);
             foreach ($d['h'] ?? [] as $rid => $h) { $h = (float)str_replace(',', '.', $h); if ($h > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$id, (int)$rid, $h]); }
         }
+        foreach ($_POST['l'] ?? [] as $id => $d) { appliquer_actions((int)$id); appliquer_variantes((int)$id); }
         $pdo->commit(); journal('catalogue', count($_POST['l'] ?? []) . ' ligne(s) du catalogue enregistrée(s)'); flash('Lignes enregistrées.');
     } elseif ($action === 'add') {
         $ordre = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bpu_lignes")->fetch()['o'];
@@ -36,6 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'del') {
         q("UPDATE bpu_lignes SET actif = 0 WHERE id = ?", [(int)$_POST['id']]); flash('Ligne supprimée.');
+    } elseif ($action === 'act_add') {
+        $lid = (int)$_POST['ligne_id']; $aid = (int)$_POST['action_id']; $nb = max(0.25, (float)str_replace(',', '.', $_POST['nb'] ?? '1'));
+        if ($aid) { q("INSERT INTO ligne_actions (ligne_id, action_id, nb) VALUES (?,?,?) ON DUPLICATE KEY UPDATE nb = nb + VALUES(nb)", [$lid, $aid, $nb]); appliquer_actions($lid); flash('Action ajoutée à la prestation.'); }
+    } elseif ($action === 'act_del') {
+        $lid = (int)$_POST['ligne_id']; q("DELETE FROM ligne_actions WHERE ligne_id = ? AND action_id = ?", [$lid, (int)$_POST['action_id']]); appliquer_actions($lid); flash('Action retirée.');
+    } elseif ($action === 'variantes') {
+        $n = generer_variantes((int)$_POST['id'], !empty($_POST['houppier']));
+        journal('catalogue', "$n variante(s) générée(s) pour la ligne " . (int)$_POST['id']); flash("$n variante(s) créée(s) et calculée(s) à partir de la ligne de base.");
+    } elseif ($action === 'detacher') {
+        q("UPDATE bpu_lignes SET base_id = NULL, source = 'Variante détachée' WHERE id = ?", [(int)$_POST['id']]); flash('Ligne détachée de sa base : ses temps sont maintenant libres.');
     } elseif ($action === 'purge_exemples') {
         require_admin();
         $n = q("UPDATE bpu_lignes SET actif = 0 WHERE actif = 1 AND famille = '' AND source = ''")->rowCount();
@@ -60,7 +71,7 @@ $HLIB = ['' => 'Sans classe de hauteur', '<10' => 'Arbres de moins de 10 m', '10
 $resume = [];
 foreach ($lignes as $l) { $f = $l['famille'] ?: 'Sans famille'; $pu = prix_catalogue($l); $r = &$resume[$f]; $r['n'] = ($r['n'] ?? 0) + 1; $r['min'] = isset($r['min']) ? min($r['min'], $pu) : $pu; $r['max'] = isset($r['max']) ? max($r['max'], $pu) : $pu; unset($r); }
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
-$temps = temps_par_ligne();
+$temps = temps_par_ligne(); $compo = actions_par_ligne(); $actionsDispo = actions_catalogue(); $eq = ressource_equipe();
 $total = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
 page_start('Catalogue des prestations', 'bpu.php');
 ?>
@@ -77,6 +88,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   <select name="famille"><option value="">Toutes les familles</option><?php foreach ($familles as $f): ?><option <?= $f === $fFam ? 'selected' : '' ?>><?= e($f) ?></option><?php endforeach; ?></select>
   <select name="hauteur"><?php foreach ($HAUT as $k => $v): ?><option value="<?= $k ?>" <?= $k === $fHaut ? 'selected' : '' ?>><?= $k === '' ? 'Toutes hauteurs' : $v ?></option><?php endforeach; ?></select>
   <input name="q" value="<?= e($fQ) ?>" placeholder="Rechercher (libellé, code)">
+  <?php if (count($equipes) > 1): ?><select name="equipe" title="Équipe utilisée pour afficher les prix"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= ($eqApercu ?? (int)$equipes[0]['id']) === (int)$x['id'] ? 'selected' : '' ?>>Prix avec : <?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select><?php endif; ?>
   <button class="btn secondary" type="submit">Filtrer</button>
   <a class="mini" href="bpu.php">Tout afficher</a>
   <span class="muted"><?= count($lignes) ?> / <?= $total ?> lignes</span>
@@ -91,15 +103,15 @@ page_start('Catalogue des prestations', 'bpu.php');
 <input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>">
 <div class="scroll">
 <table class="tbl bpu">
-<thead><tr><th>Ord.</th><th>Code</th><th class="w">Désignation</th><th>Famille</th><th>Haut.</th><th>Houp.</th><th>Circ.</th><th>Unité</th>
+<thead><tr><th>Ord.</th><th>Code</th><th class="w">Désignation</th><th>Famille</th><th>Haut.</th><th>Houp.</th><th>Circ.</th><th>Unité</th><th class="acts">Actions dans l'arbre</th>
 <?php foreach ($res as $r): ?><th class="r rot" title="<?= e($r['nom']) ?> – <?= money((float)$r['taux']) ?>/h"><span><?= e($r['nom']) ?></span></th><?php endforeach; ?>
 <th class="r">Forfait €</th><th class="r">Réf. €</th><th class="r">Écart</th><th></th><th class="r pu">PU HT</th></tr></thead>
  <tbody>
 <?php $famCour = null; $hautCour = null; $nbFam = count($resume); foreach ($lignes as $l): $id = $l['id']; $f = $l['famille'] ?: 'Sans famille';
   if ($f !== $famCour): $famCour = $f; $hautCour = null; $r = $resume[$f]; $grp = md5($f); ?>
-<tr class="grp" data-grp="<?= $grp ?>"><td colspan="<?= 13 + count($res) ?>"><button type="button" class="togg" onclick="toggle('<?= $grp ?>')"><span class="chev">▸</span> <?= e($f) ?> <span class="muted">· <?= $r['n'] ?> ligne<?= $r['n'] > 1 ? 's' : '' ?> · de <?= money($r['min']) ?> à <?= money($r['max']) ?></span></button></td></tr>
+<tr class="grp" data-grp="<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><button type="button" class="togg" onclick="toggle('<?= $grp ?>')"><span class="chev">▸</span> <?= e($f) ?> <span class="muted">· <?= $r['n'] ?> ligne<?= $r['n'] > 1 ? 's' : '' ?> · de <?= money($r['min']) ?> à <?= money($r['max']) ?></span></button></td></tr>
 <?php endif; if ($l['hauteur'] !== $hautCour && count(array_unique(array_map(fn($x) => $x['hauteur'], array_filter($lignes, fn($x) => ($x['famille'] ?: 'Sans famille') === $f)))) > 1): $hautCour = $l['hauteur']; ?>
-<tr class="sousgrp g-<?= $grp ?>"><td colspan="<?= 13 + count($res) ?>"><?= e($HLIB[$l['hauteur']] ?? $l['hauteur']) ?></td></tr>
+<tr class="sousgrp g-<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><?= e($HLIB[$l['hauteur']] ?? $l['hauteur']) ?></td></tr>
 <?php endif; ?>
 <tr class="g-<?= $grp ?>" data-id="<?= $id ?>" data-ref="<?= $l['prix_ref'] !== null ? (float)$l['prix_ref'] : '' ?>" title="<?= e($l['source']) ?>">
   <td><input class="tiny" name="l[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>"></td>
@@ -110,11 +122,13 @@ page_start('Catalogue des prestations', 'bpu.php');
   <td><select name="l[<?= $id ?>][houppier]"><?php foreach ($HOUP as $k => $v): ?><option value="<?= $k ?>" <?= $k === $l['houppier'] ? 'selected' : '' ?>><?= $v ?></option><?php endforeach; ?></select></td>
   <td><input class="tiny" style="width:80px" name="l[<?= $id ?>][circ]" value="<?= e($l['circonference']) ?>"></td>
   <td><input class="tiny" name="l[<?= $id ?>][unite]" value="<?= e($l['unite']) ?>"></td>
-  <?php foreach ($res as $r): ?><td class="r"><input class="num h" data-rid="<?= $r['id'] ?>" name="l[<?= $id ?>][h][<?= $r['id'] ?>]" value="<?= isset($temps[$id][$r['id']]) ? e((string)$temps[$id][$r['id']]) : '' ?>" inputmode="decimal" placeholder="–"></td><?php endforeach; ?>
+  <td class="acts"><?php $cp = $compo[$id] ?? []; foreach ($cp as $c): ?><span class="chip" title="<?= e((string)(float)$c['duree']) ?> h × <?= e((string)(float)$c['nb']) ?>"><?= e($c['nom']) ?><?= (float)$c['nb'] != 1 ? ' ×' . e((string)(float)$c['nb']) : '' ?> <button type="button" class="chipx" onclick="actDel(<?= $id ?>,<?= $c['action_id'] ?>)">×</button></span><?php endforeach; ?>
+    <?php if ($actionsDispo): ?><span class="addact"><select class="actsel" data-l="<?= $id ?>"><option value="">+ action…</option><?php foreach ($actionsDispo as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> (<?= e((string)(float)$x['duree']) ?> h)</option><?php endforeach; ?></select></span><?php endif; ?></td>
+  <?php foreach ($res as $r): $compose = ($eq && (int)$r['id'] === (int)$eq['id'] && !empty($compo[$id])) || !empty($l['base_id']); ?><td class="r"><input class="num h" data-rid="<?= $r['id'] ?>" name="l[<?= $id ?>][h][<?= $r['id'] ?>]" value="<?= isset($temps[$id][$r['id']]) ? e((string)$temps[$id][$r['id']]) : '' ?>" inputmode="decimal" placeholder="–" <?= $compose ? 'readonly title="Calculé à partir des actions"' : '' ?>></td><?php endforeach; ?>
   <td class="r"><input class="num forfait" name="l[<?= $id ?>][forfait]" value="<?= (float)$l['forfait'] > 0 ? e($l['forfait']) : '' ?>" inputmode="decimal" placeholder="–"></td>
   <td class="r"><input class="num ref" name="l[<?= $id ?>][prix_ref]" value="<?= $l['prix_ref'] !== null ? e((string)(float)$l['prix_ref']) : '' ?>" inputmode="decimal" placeholder="–"></td>
   <td class="r out ecart"></td>
-  <td style="white-space:nowrap"><button class="mini" type="submit" form="c<?= $id ?>" title="Dupliquer">⧉</button> <button class="mini danger" type="submit" form="d<?= $id ?>" onclick="return confirm('Supprimer cette ligne ?')">×</button></td>
+  <td style="white-space:nowrap"><?php if ($l['base_id']): ?><button class="mini" type="button" title="Variante calculée depuis sa ligne de base ; cliquer pour la rendre indépendante" onclick="if(confirm('Détacher cette variante de sa ligne de base ?'))varSend('detacher',<?= $id ?>,0)">⛓</button><?php else: ?><button class="mini" type="button" title="Générer les variantes 10–20 m et > 20 m (et houppiers)" onclick="varSend('variantes',<?= $id ?>,confirm('Générer aussi les variantes par houppier (3 × 3) ? Annuler = hauteur seule.')?1:0)">↕</button><?php endif; ?> <button class="mini" type="submit" form="c<?= $id ?>" title="Dupliquer">⧉</button> <button class="mini danger" type="submit" form="d<?= $id ?>" onclick="return confirm('Supprimer cette ligne ?')">×</button></td>
   <td class="r out pu"></td>
 </tr>
 <?php endforeach; ?>
@@ -123,6 +137,8 @@ page_start('Catalogue des prestations', 'bpu.php');
 </div>
 <p><button class="btn" type="submit">Enregistrer toutes les lignes</button> <a class="btn secondary" href="bordereaux.php">Composer un bordereau →</a></p>
 </form>
+<form id="fvar" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fvar_a"><input type="hidden" name="id" id="fvar_id"><input type="hidden" name="houppier" id="fvar_h"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
+<form id="fact" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fact_a"><input type="hidden" name="ligne_id" id="fact_l"><input type="hidden" name="action_id" id="fact_x"><input type="hidden" name="nb" value="1"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
 <datalist id="familles"><?php foreach ($familles as $f): ?><option value="<?= e($f) ?>"><?php endforeach; ?></datalist>
 <?php foreach ($lignes as $l): ?>
 <form id="d<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="del"><input type="hidden" name="id" value="<?= $l['id'] ?>"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
@@ -133,7 +149,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="add">
     <input class="tiny" style="width:110px" name="code" placeholder="Code"> <input name="libelle" placeholder="Désignation" required style="min-width:280px"> <input name="famille" placeholder="Famille" list="familles" style="width:160px"> <input class="tiny" name="unite" placeholder="Unité" value="U"> <button class="btn secondary" type="submit">Ajouter</button>
   </form>
-  <p class="muted">Astuce : le bouton ⧉ duplique une ligne avec ses temps, pratique pour créer une variante (autre hauteur, autre houppier).</p>
+  <p class="muted">Boutons de ligne : <strong>↕</strong> génère les variantes de taille (10–20 m, > 20 m, houppiers) à partir d'une ligne de base, avec les pourcentages de « Paramètres » ; <strong>⛓</strong> signale une variante liée (temps calculés, cliquer pour la détacher) ; <strong>⧉</strong> duplique ; <strong>×</strong> supprime.</p>
 </section>
 <script>
 const TAUX = <?= json_encode($taux) ?>, COEF = <?= json_encode($coef) ?>, PAS = <?= json_encode($pas) ?>;
@@ -149,6 +165,10 @@ function calc(tr) {
   if (ref > 0) { const d = pu - ref; ec.textContent = (d > 0 ? '+' : '') + Math.round(d) + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#b3403a' : '#5b6a60'; } else ec.textContent = '';
 }
 document.querySelectorAll('tr[data-id]').forEach(tr => { calc(tr); tr.addEventListener('input', () => calc(tr)); });
+function actSend(a, l, x) { document.getElementById('fact_a').value = a; document.getElementById('fact_l').value = l; document.getElementById('fact_x').value = x; document.getElementById('fact').submit(); }
+function actDel(l, x) { actSend('act_del', l, x); }
+function varSend(a, id, h) { document.getElementById('fvar_a').value = a; document.getElementById('fvar_id').value = id; document.getElementById('fvar_h').value = h; document.getElementById('fvar').submit(); }
+document.querySelectorAll('select.actsel').forEach(s => s.addEventListener('change', () => { if (s.value) actSend('act_add', s.dataset.l, s.value); }));
 // Blocs repliables (état mémorisé dans le navigateur)
 let ouverts = {}; try { ouverts = JSON.parse(localStorage.getItem('cat_ouverts') || '{}'); } catch (e) {}
 function appliquer(g, on) { document.querySelectorAll('.g-' + g).forEach(tr => tr.style.display = on ? '' : 'none'); const c = document.querySelector('tr[data-grp="' + g + '"] .chev'); if (c) c.textContent = on ? '▾' : '▸'; }

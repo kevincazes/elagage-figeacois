@@ -2,6 +2,12 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.0', '2026-11-04', [
+        'Nouveau modèle de chiffrage : heures d\'équipe (tout compris) + rognage + moyens spécifiques (enlèvement du bois, grue…) ; conversion du catalogue en un clic dans Paramètres, prix inchangés',
+        'Plusieurs équipes à taux différents (standard, marché public) : l\'équipe est choisie par bordereau et s\'applique à toutes ses lignes',
+        'Bibliothèque d\'actions dans l\'arbre (menu « Actions ») : une prestation se compose d\'actions indépendantes, son temps d\'équipe est la somme',
+        'Progression par taille : pourcentages de temps par classe de hauteur et de houppier (Paramètres) ; bouton ↕ pour générer les variantes d\'une ligne de base, recalculées automatiquement',
+    ]],
     ['1.10', '2026-11-04', [
         'Logos Extrabat et Urgence Élagage sur le tableau de bord',
         'Catalogue : menus Hauteur / Houppier lisibles ; bouton pour supprimer les lignes d\'exemple du premier jour ; en-tête de colonnes stable, blocs ouverts ou fermés',

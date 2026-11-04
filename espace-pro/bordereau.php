@@ -8,6 +8,7 @@ $b = q("SELECT * FROM bordereaux WHERE id = ?", [(int)($_GET['id'] ?? 0)])->fetc
 if (!$b) { flash('Bordereau introuvable.', 'err'); redirect('bordereaux.php'); }
 $bid = (int)$b['id']; $fige = $b['statut'] === 'fige';
 $retour = "bordereau.php?id=$bid";
+$equipes = ressources_equipes(); $eqChoisie = equipe_choisie($b['equipe_id'] !== null ? (int)$b['equipe_id'] : null); $eqId = $eqChoisie ? (int)$eqChoisie['id'] : null;
 $noms = []; foreach (q("SELECT id, prenom, nom FROM utilisateurs") as $u) $noms[$u['id']] = trim($u['prenom'] . ' ' . $u['nom']);
 
 // Verrou : battement de cœur (JS), libération, prise forcée
@@ -23,7 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($lecture) { flash("Dossier ouvert par {$detenteur['prenom']} : lecture seule.", 'err'); redirect($retour); }
     if ($fige && !in_array($a, ['defiger'])) { flash('Bordereau figé : défige-le pour le modifier.', 'err'); redirect($retour); }
     if ($a === 'entete') {
-        q("UPDATE bordereaux SET nom = ?, client = ?, notes = ? WHERE id = ?", [trim($_POST['nom']), trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), $bid]); journal('entete', 'En-tête modifié', $bid); flash('En-tête enregistré.');
+        $neq = isset($_POST['equipe_id']) && $_POST['equipe_id'] !== '' ? (int)$_POST['equipe_id'] : null;
+        q("UPDATE bordereaux SET nom = ?, client = ?, notes = ?, equipe_id = ? WHERE id = ?", [trim($_POST['nom']), trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), $neq, $bid]);
+        $neqNom = equipe_choisie($neq)['nom'] ?? ''; journal('entete', 'En-tête modifié' . ($neq !== ($b['equipe_id'] !== null ? (int)$b['equipe_id'] : null) ? " ; équipe : $neqNom" : ''), $bid); flash('En-tête enregistré.');
     } elseif ($a === 'section') {
         q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, $next(), trim($_POST['libelle'] ?? 'Section')]); journal('ajout', 'Section « ' . trim($_POST['libelle'] ?? '') . ' »', $bid);
     } elseif ($a === 'libre') {
@@ -66,8 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         journal('modif', 'Renumérotation 1, 2, 3…', $bid); flash('Numérotation remise à plat.');
     } elseif ($a === 'figer') {
         $taux = []; foreach (ressources() as $r) $taux[$r['id']] = ['nom' => $r['nom'], 'taux' => (float)$r['taux']];
+        if ($eqChoisie) $taux['equipe'] = ['nom' => 'Équipe appliquée : ' . $eqChoisie['nom'], 'taux' => (float)$eqChoisie['taux']];
         foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne'", [$bid]) as $l) {
-            $pu = $l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : ($l['ligne_id'] ? prix_catalogue(q("SELECT * FROM bpu_lignes WHERE id = ?", [$l['ligne_id']])->fetch() ?: ['id' => 0, 'forfait' => 0]) : 0);
+            $pu = $l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : ($l['ligne_id'] ? prix_catalogue(q("SELECT * FROM bpu_lignes WHERE id = ?", [$l['ligne_id']])->fetch() ?: ['id' => 0, 'forfait' => 0], $eqId) : 0);
             q("UPDATE bordereau_lignes SET pu_fige = ? WHERE id = ?", [$pu, $l['id']]);
         }
         q("UPDATE bordereaux SET statut = 'fige', fige_le = NOW(), coef = ?, tva = ?, taux_json = ? WHERE id = ?", [(float)setting('coef'), (float)setting('tva'), json_encode($taux, JSON_UNESCAPED_UNICODE), $bid]);
@@ -82,10 +86,10 @@ $lignes = q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordr
 $ro = $fige || $lecture; // champs non modifiables
 $cat = []; foreach (q("SELECT * FROM bpu_lignes WHERE actif = 1") as $c) $cat[$c['id']] = $c;
 $tva = $fige ? (float)$b['tva'] : (float)setting('tva', '20');
-$puDe = function (array $l) use ($fige, $cat): float {
+$puDe = function (array $l) use ($fige, $cat, $eqId): float {
     if ($fige) return (float)$l['pu_fige'];
     if ($l['pu_manuel'] !== null) return (float)$l['pu_manuel'];
-    return isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']]) : 0.0;
+    return isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId) : 0.0;
 };
 $total = 0; $nbQte = 0;
 foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $total += $puDe($l) * (float)$l['quantite']; $nbQte++; }
@@ -106,6 +110,7 @@ if ($lecture): ?>
     <label>Marché <input name="nom" value="<?= e($b['nom']) ?>" required <?= $ro ? 'readonly' : '' ?>></label>
     <label>Collectivité / client <input name="client" value="<?= e($b['client']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
     <label>Notes <input name="notes" value="<?= e($b['notes']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
+    <?php if ($equipes): ?><label>Équipe appliquée aux prix <?php if ($ro): ?><input value="<?= e($eqChoisie['nom'] ?? '') ?> – <?= money((float)($eqChoisie['taux'] ?? 0)) ?>/h" readonly><?php else: ?><select name="equipe_id" onchange="this.form.submit()"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= $eqId === (int)$x['id'] ? 'selected' : '' ?>><?= e($x['nom']) ?> – <?= money((float)$x['taux']) ?>/h</option><?php endforeach; ?></select><?php endif; ?></label><?php endif; ?>
   </div>
   <?php if ($fige): ?><p class="ok">Figé le <?= date('d/m/Y à H:i', strtotime($b['fige_le'])) ?> · coefficient <?= e($b['coef']) ?> · TVA <?= e($b['tva']) ?> %</p>
   <?php elseif (!$lecture): ?><button class="btn secondary" type="submit">Enregistrer l'en-tête</button><?php endif; ?>
@@ -123,7 +128,7 @@ if ($lecture): ?>
 <?php if ($l['type'] === 'section'): ?>
 <tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="7"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
 <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
-<?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']]) : null; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
+<?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId) : null; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
 <tr data-calc="<?= $calc ?? '' ?>" title="<?= e($src) ?>">
   <td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" placeholder="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
@@ -176,7 +181,7 @@ if ($lecture): ?>
       <?php if ($c['famille'] !== $fam) { $fam = $c['famille']; $haut = null; $nb = count(array_filter($catalogue, fn($x) => $x['famille'] === $fam)); echo '<div class="fam-titre" data-fam="' . e($fam) . '"><button type="button" class="togg" onclick="plier(this)"><span class="chev">▸</span> ' . e($fam ?: 'Sans famille') . ' <span class="muted">· ' . $nb . '</span></button></div>'; } ?>
       <?php if ($c['hauteur'] !== $haut && $c['hauteur'] !== '') { $haut = $c['hauteur']; echo '<div class="sous-titre choix" data-fam="' . e($fam) . '" data-haut="' . e($c['hauteur']) . '" data-houp="">' . e($HLIB[$c['hauteur']]) . '</div>'; } ?>
       <label class="choix" data-fam="<?= e($c['famille']) ?>" data-haut="<?= e($c['hauteur']) ?>" data-houp="<?= e($c['houppier']) ?>" style="font-weight:400;margin:2px 0;display:flex;gap:8px;align-items:center">
-        <input type="checkbox" name="l[<?= $c['id'] ?>]" style="width:auto;margin:0"> <span class="muted" style="min-width:90px"><?= e($c['code']) ?></span> <span style="flex:1"><?= e($c['libelle']) ?></span> <strong style="white-space:nowrap"><?= money(prix_catalogue($c)) ?></strong>
+        <input type="checkbox" name="l[<?= $c['id'] ?>]" style="width:auto;margin:0"> <span class="muted" style="min-width:90px"><?= e($c['code']) ?></span> <span style="flex:1"><?= e($c['libelle']) ?></span> <strong style="white-space:nowrap"><?= money(prix_catalogue($c, $eqId)) ?></strong>
       </label>
       <?php endforeach; ?>
     </div>
