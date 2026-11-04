@@ -5,17 +5,31 @@ require_login();
 page_start('Guide d\'utilisation', 'guide.php');
 ?>
 <style>
-.guide{max-width:900px}.guide h2{margin-top:2.2em;padding-top:1em;border-top:2px solid var(--clair);font-size:1.45rem}.guide h3{margin-top:1.4em;font-size:1.1rem}
+.guide{display:grid;grid-template-columns:230px minmax(0,1fr);gap:40px;align-items:start}
+.guide .corps{max-width:900px;min-width:0}
+.guide h2{margin-top:2.2em;padding-top:1em;border-top:2px solid var(--clair);font-size:1.45rem;scroll-margin-top:84px}.guide h3{margin-top:1.4em;font-size:1.1rem}
 .guide p,.guide li{line-height:1.6}.guide .ex{background:var(--clair);border-left:4px solid var(--anis);padding:12px 16px;border-radius:8px;margin:12px 0}
-.guide .ex strong{color:var(--sapin)}.guide .som{columns:2;gap:30px}.guide .som a{text-decoration:none}.guide kbd{background:#fff;border:1px solid #cfd6c8;border-radius:5px;padding:1px 7px;font-size:.88rem;font-weight:700;color:var(--sapin)}
+.guide .ex strong{color:var(--sapin)}.guide kbd{background:#fff;border:1px solid #cfd6c8;border-radius:5px;padding:1px 7px;font-size:.88rem;font-weight:700;color:var(--sapin)}
 .guide table{width:100%;border-collapse:collapse;margin:10px 0}.guide td,.guide th{padding:7px 9px;border-bottom:1px solid #e6eadf;text-align:left;vertical-align:top}.guide th{background:#f8f9f4;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
-@media(max-width:700px){.guide .som{columns:1}}
+.guide .som{scroll-margin-top:84px;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;padding:14px 16px;margin:0}
+.guide .som strong{display:block;margin-bottom:8px;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--doux)}
+.guide .som ol{margin:0;padding-left:22px}.guide .som li{margin:2px 0;line-height:1.35}
+.guide .som a{text-decoration:none;color:var(--texte);display:block;padding:4px 6px;border-radius:6px;font-size:.92rem}
+.guide .som a:hover{background:var(--clair)}.guide .som a.actif{background:var(--clair);color:var(--sapin);font-weight:700}
+.guide .som .haut{display:none}
+@media(max-width:1000px){
+  .guide{display:block}
+  .guide .som{position:static;max-height:none;overflow:visible;margin-bottom:10px}
+  .guide .som ol{columns:2;gap:24px}
+  .guide .som .haut{display:none}
+  .guide .retour{position:fixed;right:16px;bottom:16px;z-index:4;background:var(--sapin);color:#fff;border-radius:999px;padding:10px 16px;text-decoration:none;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+}
+@media(max-width:700px){.guide .som ol{columns:1}}
+@media(min-width:1001px){.guide .retour{display:none}}
 </style>
 <div class="guide">
-<p class="lead">Ce guide explique comment fonctionne l'espace pro, pourquoi il est organisé ainsi, et comment chiffrer un marché de A à Z. Lis d'abord la partie 1, elle donne la logique ; le reste se consulte au besoin.</p>
-
-<div class="card"><strong>Sommaire</strong>
-<ol class="som">
+<aside class="card som" id="sommaire"><strong>Sommaire</strong>
+<ol>
 <li><a href="#logique">La logique du chiffrage</a></li>
 <li><a href="#parametres">Paramètres</a></li>
 <li><a href="#actions">Actions dans l'arbre</a></li>
@@ -26,7 +40,11 @@ page_start('Guide d\'utilisation', 'guide.php');
 <li><a href="#assistant">L'assistant</a></li>
 <li><a href="#equipe">Travailler à plusieurs : verrou, historique, comptes</a></li>
 <li><a href="#faq">Questions fréquentes</a></li>
-</ol></div>
+</ol></aside>
+<div class="corps">
+<p class="lead">Ce guide explique comment fonctionne l'espace pro, pourquoi il est organisé ainsi, et comment chiffrer un marché de A à Z. Lis d'abord la partie 1, elle donne la logique ; le reste se consulte au besoin.</p>
+
+
 
 <h2 id="logique">1. La logique du chiffrage</h2>
 <p>Tout repose sur une idée simple : <strong>un prix, c'est du temps multiplié par un taux horaire</strong>, avec une marge par-dessus.</p>
@@ -158,4 +176,19 @@ page_start('Guide d\'utilisation', 'guide.php');
 <h3>Comment comparer avec ce qu'on a déjà remis ?</h3><p>Colonne « Réf. » et « Écart » du catalogue, ou l'assistant depuis le bordereau.</p>
 <h3>Où changer le modèle d'IA ou la clé ?</h3><p>Dans le fichier <code>config-espace-pro.php</code> à la racine de l'hébergement (hors du site), lignes <code>CLAUDE_API_KEY</code> et <code>CLAUDE_MODELE</code>. Réservé à l'administrateur technique.</p>
 </div>
+<a class="retour" href="#sommaire">☰ Sommaire</a>
+</div>
+<script>
+(function(){
+  var liens=[].slice.call(document.querySelectorAll('.som a[href^="#"]'));
+  var cibles=liens.map(function(a){return document.getElementById(a.getAttribute('href').slice(1));}).filter(Boolean);
+  function maj(){
+    var y=window.scrollY+100, cur=null;
+    cibles.forEach(function(h){ if(h.offsetTop<=y) cur=h; });
+    liens.forEach(function(a){ a.classList.toggle('actif', cur && a.getAttribute('href')==='#'+cur.id); });
+  }
+  window.addEventListener('scroll',maj,{passive:true}); maj();
+})();
+</script>
+
 <?php page_end(); ?>

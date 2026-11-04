@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.3.1', '2026-11-04', [
+        'Catalogue et bordereaux : barre de défilement horizontal qui reste visible en bas de l\'écran, avec boutons ⇤ ⇥ pour aller au début ou à la fin du tableau',
+        'Guide : sommaire fixé sur le côté (surligne la partie en cours), lien « Sommaire » sur téléphone ; les liens du sommaire s\'arrêtent juste sous le bandeau',
+    ]],
     ['2.3', '2026-11-04', [
         'Guide d\'utilisation complet dans le menu « Guide » : logique du chiffrage, paramètres, actions, catalogue, packs, bordereaux, assistant, travail à plusieurs, questions fréquentes',
         'Catalogue et bordereaux : page élargie sur grand écran, barre de défilement horizontal toujours visible, en-têtes de bloc qui restent lisibles en défilant',

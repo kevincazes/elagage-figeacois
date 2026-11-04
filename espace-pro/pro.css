@@ -163,6 +163,10 @@ input[readonly].h{background:#eef2e6;color:var(--sapin);font-weight:700}.tbl.bpu
 .tbl .pu{font-weight:900;color:var(--sapin);background:#fff}
 .scroll{overflow-x:scroll;-webkit-overflow-scrolling:touch;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
 .scroll::-webkit-scrollbar{height:12px}.scroll::-webkit-scrollbar-thumb{background:var(--sapin);border-radius:6px}.scroll::-webkit-scrollbar-track{background:var(--clair)}
+.defil{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--blanc);border-top:1px solid #e0e5da;box-shadow:0 -4px 14px rgba(28,59,43,.08);border-radius:0 0 var(--rayon) var(--rayon)}
+.defil .piste{flex:1;overflow-x:scroll;overflow-y:hidden;height:18px;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
+.defil .piste>div{height:1px}.defil .piste::-webkit-scrollbar{height:14px}.defil .piste::-webkit-scrollbar-thumb{background:var(--sapin);border-radius:7px}.defil .piste::-webkit-scrollbar-track{background:var(--clair);border-radius:7px}
+.defil button{font-size:1.1rem;line-height:1;padding:4px 10px}
 .scroll-aide{font-size:.82rem;color:var(--doux);margin:4px 0 0}
 main.large{max-width:1800px}
 .tbl th.pu{background:#f8f9f4}

@@ -407,4 +407,24 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     if (!empty($_SESSION['flash'])) { [$m, $t] = $_SESSION['flash']; unset($_SESSION['flash']); echo '<div class="flash ' . e($t) . '">' . e($m) . '</div>'; }
     echo '<h1>' . e($title) . '</h1>';
 }
-function page_end(): void { echo '</main><footer class="bottom">' . e(APP_NAME) . ' · version ' . e(app_version()) . ' · <a href="nouveautes.php">Nouveautés</a> · <a href="../index.html">Retour au site</a></footer></body></html>'; }
+function page_end(): void { echo '</main>' . <<<'JS'
+<script>
+(function(){
+  document.querySelectorAll('.scroll').forEach(function(sc){
+    if (sc.scrollWidth <= sc.clientWidth + 4) return;
+    var bar=document.createElement('div'); bar.className='defil';
+    bar.innerHTML='<button type="button" class="mini" title="Tout à gauche">⇤</button><div class="piste"><div></div></div><button type="button" class="mini" title="Tout à droite">⇥</button>';
+    sc.parentNode.insertBefore(bar, sc.nextSibling);
+    var piste=bar.querySelector('.piste'), inner=piste.firstChild, b=bar.querySelectorAll('button');
+    function dim(){ inner.style.width=sc.scrollWidth+'px'; bar.hidden = sc.scrollWidth <= sc.clientWidth + 4; }
+    dim(); new ResizeObserver(dim).observe(sc); new MutationObserver(dim).observe(sc,{childList:true,subtree:true,attributes:true});
+    var lock=false;
+    piste.addEventListener('scroll',function(){ if(lock) return; lock=true; sc.scrollLeft=piste.scrollLeft; lock=false; });
+    sc.addEventListener('scroll',function(){ if(lock) return; lock=true; piste.scrollLeft=sc.scrollLeft; lock=false; });
+    b[0].addEventListener('click',function(){ sc.scrollLeft=0; });
+    b[1].addEventListener('click',function(){ sc.scrollLeft=sc.scrollWidth; });
+  });
+})();
+</script>
+JS
+ . '<footer class="bottom">' . e(APP_NAME) . ' · version ' . e(app_version()) . ' · <a href="nouveautes.php">Nouveautés</a> · <a href="../index.html">Retour au site</a></footer></body></html>'; }

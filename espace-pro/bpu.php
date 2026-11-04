@@ -101,7 +101,7 @@ page_start('Catalogue des prestations', 'bpu.php');
 
 <form method="post" id="f"><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>">
-<p class="scroll-aide">Le tableau est plus large que l'écran : fais-le défiler avec la barre en bas, ou ⇧ + molette (Maj + molette), pour voir les actions, les heures, le forfait et la référence.</p>
+<p class="scroll-aide">Le tableau est plus large que l'écran : fais-le défiler avec la barre verte qui reste visible en bas de l'écran (ou ses boutons ⇤ ⇥ pour aller au début ou à la fin), ou ⇧ + molette, pour voir les actions, les heures, le forfait et la référence.</p>
 <div class="scroll">
 <table class="tbl bpu">
 <thead><tr><th>Ord.</th><th>Code</th><th class="w">Désignation</th><th>Famille</th><th>Haut.</th><th>Houp.</th><th>Circ.</th><th>Unité</th><th class="acts">Actions dans l'arbre</th>
