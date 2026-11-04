@@ -14,7 +14,7 @@ if ($u && $_SERVER['REQUEST_METHOD'] === 'POST') {
     else {
         q("UPDATE utilisateurs SET mdp = ?, token = NULL, token_expire = NULL WHERE id = ?", [password_hash($mdp, PASSWORD_DEFAULT), $u['id']]);
         session_regenerate_id(true);
-        $_SESSION['pending'] = $u['id'];
+        $_SESSION['pending'] = $u['id']; $_SESSION['souvenir'] = true;
         redirect($u['mfa_type'] === 'none' ? 'securite.php' : 'verifier.php');
     }
 }

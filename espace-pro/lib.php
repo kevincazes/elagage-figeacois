@@ -8,6 +8,8 @@ elseif (is_file(__DIR__ . '/../../config-espace-pro.php')) require_once __DIR__ 
 else { http_response_code(500); exit('Fichier de configuration introuvable : dépose config-espace-pro.php à la racine de l\'hébergement (à côté de www).'); }
 
 ini_set('session.cookie_httponly', '1');
+ini_set('session.gc_maxlifetime', (string)(12 * 3600)); // session active 12 h
+ini_set('session.cookie_lifetime', (string)(12 * 3600));
 ini_set('session.use_strict_mode', '1');
 if (!empty($_SERVER['HTTPS'])) ini_set('session.cookie_secure', '1');
 session_start();
@@ -27,24 +29,28 @@ function q(string $sql, array $p = []): PDOStatement { $s = db()->prepare($sql);
 
 // Mises à jour de structure (exécutées une seule fois)
 function migrate(): void {
-    try {
-        $cols = array_column(q("SHOW COLUMNS FROM utilisateurs")->fetchAll(), 'Field');
-        if (!in_array('nom', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN nom VARCHAR(80) NOT NULL DEFAULT '' AFTER prenom");
-        if (!in_array('token', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN token VARCHAR(64) NULL, ADD COLUMN token_expire DATETIME NULL");
-        if (!in_array('mfa_type', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN mfa_type VARCHAR(10) NOT NULL DEFAULT 'none', ADD COLUMN mfa_secret VARCHAR(64) NULL, ADD COLUMN mfa_code VARCHAR(255) NULL, ADD COLUMN mfa_expire DATETIME NULL");
-        else { foreach (q("SHOW COLUMNS FROM utilisateurs LIKE 'mfa_code'") as $c) if (stripos($c['Type'], '255') === false) db()->exec("ALTER TABLE utilisateurs MODIFY mfa_code VARCHAR(255) NULL"); }
-        $cols = array_column(q("SHOW COLUMNS FROM bpu_lignes")->fetchAll(), 'Field');
-        if (!in_array('famille', $cols)) db()->exec("ALTER TABLE bpu_lignes ADD COLUMN famille VARCHAR(80) NOT NULL DEFAULT '', ADD COLUMN hauteur VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN houppier VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN circonference VARCHAR(12) NOT NULL DEFAULT '', ADD COLUMN prix_ref DECIMAL(10,2) NULL, ADD COLUMN source VARCHAR(120) NOT NULL DEFAULT ''");
-        db()->exec("CREATE TABLE IF NOT EXISTS packs (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        db()->exec("CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        db()->exec("CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL, verrou_par INT NULL, verrou_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        $cols = array_column(q("SHOW COLUMNS FROM bordereau_lignes")->fetchAll(), 'Field');
-        if ($cols && !in_array('numero', $cols)) db()->exec("ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre");
-        $cols = array_column(q("SHOW COLUMNS FROM bordereaux")->fetchAll(), 'Field');
-        if ($cols && !in_array('verrou_par', $cols)) db()->exec("ALTER TABLE bordereaux ADD COLUMN verrou_par INT NULL, ADD COLUMN verrou_le DATETIME NULL");
-        db()->exec("CREATE TABLE IF NOT EXISTS historique (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NULL, utilisateur_id INT NULL, quand DATETIME DEFAULT CURRENT_TIMESTAMP, action VARCHAR(40) NOT NULL, detail TEXT, INDEX (bordereau_id), INDEX (quand)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        db()->exec("CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    } catch (Throwable $t) { /* tables pas encore créées : install.php s'en charge */ }
+    $etapes = [
+        "CREATE TABLE IF NOT EXISTS packs (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL, verrou_par INT NULL, verrou_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS historique (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NULL, utilisateur_id INT NULL, quand DATETIME DEFAULT CURRENT_TIMESTAMP, action VARCHAR(40) NOT NULL, detail TEXT, INDEX (bordereau_id), INDEX (quand)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ];
+    foreach ($etapes as $sql) { try { db()->exec($sql); } catch (Throwable $t) {} }
+    // Colonnes ajoutées au fil des versions : [table, colonne, instruction ALTER]
+    $colonnes = [
+        ['utilisateurs', 'nom', "ALTER TABLE utilisateurs ADD COLUMN nom VARCHAR(80) NOT NULL DEFAULT '' AFTER prenom"],
+        ['utilisateurs', 'token', "ALTER TABLE utilisateurs ADD COLUMN token VARCHAR(64) NULL, ADD COLUMN token_expire DATETIME NULL"],
+        ['utilisateurs', 'mfa_type', "ALTER TABLE utilisateurs ADD COLUMN mfa_type VARCHAR(10) NOT NULL DEFAULT 'none', ADD COLUMN mfa_secret VARCHAR(64) NULL, ADD COLUMN mfa_code VARCHAR(255) NULL, ADD COLUMN mfa_expire DATETIME NULL"],
+        ['bpu_lignes', 'famille', "ALTER TABLE bpu_lignes ADD COLUMN famille VARCHAR(80) NOT NULL DEFAULT '', ADD COLUMN hauteur VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN houppier VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN circonference VARCHAR(12) NOT NULL DEFAULT '', ADD COLUMN prix_ref DECIMAL(10,2) NULL, ADD COLUMN source VARCHAR(120) NOT NULL DEFAULT ''"],
+        ['bordereaux', 'verrou_par', "ALTER TABLE bordereaux ADD COLUMN verrou_par INT NULL, ADD COLUMN verrou_le DATETIME NULL"],
+        ['utilisateurs', 'souvenir', "ALTER TABLE utilisateurs ADD COLUMN souvenir VARCHAR(255) NULL, ADD COLUMN souvenir_expire DATETIME NULL"],
+        ['bordereau_lignes', 'numero', "ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre"],
+    ];
+    foreach ($colonnes as [$table, $col, $sql]) {
+        try { $cols = array_column(q("SHOW COLUMNS FROM `$table`")->fetchAll(), 'Field'); if ($cols && !in_array($col, $cols)) db()->exec($sql); } catch (Throwable $t) {}
+    }
+    try { foreach (q("SHOW COLUMNS FROM utilisateurs LIKE 'mfa_code'") as $c) if (stripos($c['Type'], '255') === false) db()->exec("ALTER TABLE utilisateurs MODIFY mfa_code VARCHAR(255) NULL"); } catch (Throwable $t) {}
 }
 
 // ---- Historique et verrous ----
@@ -141,7 +147,32 @@ function set_setting(string $key, string $val): void {
 function csrf(): string { if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16)); return $_SESSION['csrf']; }
 function csrf_field(): string { return '<input type="hidden" name="csrf" value="' . csrf() . '">'; }
 function check_csrf(): void { if ($_SERVER['REQUEST_METHOD'] === 'POST' && !hash_equals(csrf(), $_POST['csrf'] ?? '')) { http_response_code(403); exit('Formulaire expiré, recharge la page.'); } }
-function user(): ?array { return $_SESSION['user'] ?? null; }
+function user(): ?array {
+    if (!empty($_SESSION['user'])) return $_SESSION['user'];
+    // Reconnexion automatique : cookie « rester connecté » (id:jeton), jeton haché en base, 30 jours
+    if (!empty($_COOKIE['ef_souvenir']) && str_contains($_COOKIE['ef_souvenir'], ':')) {
+        [$id, $jeton] = explode(':', $_COOKIE['ef_souvenir'], 2);
+        try {
+            $u = q("SELECT * FROM utilisateurs WHERE id = ? AND actif = 1 AND souvenir IS NOT NULL AND souvenir_expire > NOW()", [(int)$id])->fetch();
+            if ($u && password_verify($jeton, $u['souvenir'])) {
+                session_regenerate_id(true);
+                $_SESSION['user'] = ['id' => $u['id'], 'prenom' => $u['prenom'], 'email' => $u['email'], 'role' => $u['role']];
+                return $_SESSION['user'];
+            }
+        } catch (Throwable $t) {}
+        setcookie('ef_souvenir', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    }
+    return null;
+}
+function souvenir_creer(int $uid): void {
+    $jeton = bin2hex(random_bytes(32));
+    q("UPDATE utilisateurs SET souvenir = ?, souvenir_expire = DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE id = ?", [password_hash($jeton, PASSWORD_DEFAULT), $uid]);
+    setcookie('ef_souvenir', "$uid:$jeton", ['expires' => time() + 30 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+}
+function souvenir_effacer(?int $uid): void {
+    if ($uid) try { q("UPDATE utilisateurs SET souvenir = NULL, souvenir_expire = NULL WHERE id = ?", [$uid]); } catch (Throwable $t) {}
+    setcookie('ef_souvenir', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+}
 function require_login(): void { if (!user()) redirect('login.php'); migrate(); check_csrf(); }
 function require_admin(): void { require_login(); if (user()['role'] !== 'admin') { http_response_code(403); exit('Réservé aux administrateurs.'); } }
 function flash(string $msg, string $type = 'ok'): void { $_SESSION['flash'] = [$msg, $type]; }
@@ -192,7 +223,8 @@ function frein(): void { $_SESSION['essais'] = ($_SESSION['essais'] ?? 0) + 1; i
 function connecter(array $u): never {
     session_regenerate_id(true);
     $_SESSION['user'] = ['id' => $u['id'], 'prenom' => $u['prenom'], 'email' => $u['email'], 'role' => $u['role']];
-    unset($_SESSION['pending'], $_SESSION['essais']);
+    if (!empty($_SESSION['souvenir'])) souvenir_creer((int)$u['id']);
+    unset($_SESSION['pending'], $_SESSION['essais'], $_SESSION['souvenir']);
     redirect('index.php');
 }
 /** Utilisateur en attente de 2e facteur (mot de passe déjà validé) */

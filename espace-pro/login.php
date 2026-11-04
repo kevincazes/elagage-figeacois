@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($u && password_verify($_POST['mdp'] ?? '', $u['mdp'])) {
         session_regenerate_id(true);
         $_SESSION['pending'] = $u['id'];
+        $_SESSION['souvenir'] = !empty($_POST['souvenir']);
         // Double authentification obligatoire : à configurer si absente, sinon à vérifier
         redirect($u['mfa_type'] === 'none' ? 'securite.php' : 'verifier.php');
     }
@@ -23,6 +24,7 @@ page_simple_start('Connexion');
 <form method="post"><?= csrf_field() ?>
   <label>E-mail <input type="email" name="email" required autofocus></label>
   <label>Mot de passe <input type="password" name="mdp" required></label>
+  <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="souvenir" value="1" checked style="width:auto;margin:0"> Rester connecté sur cet appareil (30 jours)</label>
   <button class="btn" type="submit">Se connecter</button>
 </form>
 <p class="muted"><a href="mdp-oublie.php">Mot de passe oublié ?</a> · <a href="../index.html">Retour au site</a></p>
