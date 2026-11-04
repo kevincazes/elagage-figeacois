@@ -66,7 +66,8 @@ input.tiny{width:60px}
 .tbl th{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--doux);background:#f8f9f4}
 .tbl .r{text-align:right}
 .tbl .w{min-width:260px}
-.tbl td input{margin:0;padding:6px 8px}
+.tbl td input,.tbl td select{margin:0;padding:6px 8px}
+.tbl td select{min-width:92px;width:auto}
 .tbl.bpu td input:not(.num):not(.tiny){min-width:420px}
 .tbl.bpu td input[name*='[famille]']{min-width:190px!important}
 .tbl.bpu td input[name*='[code]']{width:120px!important}

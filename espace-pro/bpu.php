@@ -36,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'del') {
         q("UPDATE bpu_lignes SET actif = 0 WHERE id = ?", [(int)$_POST['id']]); flash('Ligne supprimée.');
+    } elseif ($action === 'purge_exemples') {
+        require_admin();
+        $n = q("UPDATE bpu_lignes SET actif = 0 WHERE actif = 1 AND famille = '' AND source = ''")->rowCount();
+        journal('catalogue', "$n ligne(s) d'exemple supprimée(s)"); flash("$n ligne(s) d'exemple supprimée(s).");
     } elseif ($action === 'import') {
         require_admin();
         [$n, $np] = importer_catalogue(); journal('catalogue', "Import du catalogue : $n lignes, $np packs"); flash("Catalogue importé : $n lignes et $np packs ajoutés.");
@@ -79,6 +83,9 @@ page_start('Catalogue des prestations', 'bpu.php');
   <button class="mini" type="button" onclick="toutes(true)">Tout déplier</button> <button class="mini" type="button" onclick="toutes(false)">Tout replier</button>
   <?php if (user()['role'] === 'admin'): ?><a class="mini" href="bpu.php?import=1">Importer le catalogue</a><?php endif; ?>
 </form>
+<?php $nbEx = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1 AND famille = '' AND source = ''")->fetch()['c']; if ($nbEx && user()['role'] === 'admin'): ?>
+<form method="post" class="inline" onsubmit="return confirm('Supprimer les <?= $nbEx ?> lignes d\'exemple (sans famille) ?')"><?= csrf_field() ?><input type="hidden" name="action" value="purge_exemples"><span class="muted"><?= $nbEx ?> lignes d'exemple du premier jour sont encore là (bloc « Sans famille »).</span> <button class="mini danger" type="submit">Les supprimer</button></form>
+<?php endif; ?>
 
 <form method="post" id="f"><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>">
