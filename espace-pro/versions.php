@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.3', '2026-11-04', [
+        'Guide d\'utilisation complet dans le menu « Guide » : logique du chiffrage, paramètres, actions, catalogue, packs, bordereaux, assistant, travail à plusieurs, questions fréquentes',
+        'Catalogue et bordereaux : page élargie sur grand écran, barre de défilement horizontal toujours visible, en-têtes de bloc qui restent lisibles en défilant',
+    ]],
     ['2.2.1', '2026-11-04', ['Paramètres : le rognage se règle dans les taux horaires des ressources, plus dans le cadre de conversion']],
     ['2.2', '2026-11-04', [
         'Assistant intégré (menu « Assistant », bouton ✦ dans chaque bordereau) : questions de chiffrage, temps par action, comparaison aux prix remis ; il connaît le catalogue, les taux, les actions et le bordereau ouvert',

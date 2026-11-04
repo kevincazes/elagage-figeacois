@@ -161,7 +161,10 @@ input.tiny{width:60px}
 input[readonly].h{background:#eef2e6;color:var(--sapin);font-weight:700}.tbl.bpu th:nth-last-child(2),.tbl.bpu th:nth-last-child(3),.tbl.bpu th:nth-last-child(4),.tbl.bpu th:nth-last-child(5){min-width:92px}.tbl.bpu th.pu{min-width:110px}
 .tbl .out{font-variant-numeric:tabular-nums;white-space:nowrap}
 .tbl .pu{font-weight:900;color:var(--sapin);background:#fff}
-.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.scroll{overflow-x:scroll;-webkit-overflow-scrolling:touch;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
+.scroll::-webkit-scrollbar{height:12px}.scroll::-webkit-scrollbar-thumb{background:var(--sapin);border-radius:6px}.scroll::-webkit-scrollbar-track{background:var(--clair)}
+.scroll-aide{font-size:.82rem;color:var(--doux);margin:4px 0 0}
+main.large{max-width:1800px}
 .tbl th.pu{background:#f8f9f4}
 details.card summary{cursor:pointer;font-weight:700}
 
@@ -173,7 +176,8 @@ body.centered{display:flex;align-items:center;justify-content:center;min-height:
 .box .btn{width:100%;text-align:center;margin-top:12px}
 
 tr.section td{background:var(--clair)}
-tr.grp td{background:var(--sapin);padding:0;position:sticky;left:0}
+tr.grp td{background:var(--sapin);padding:0}
+tr.grp .togg,tr.sousgrp td{position:sticky;left:0;max-width:calc(100vw - 80px)}
 .togg{width:100%;text-align:left;background:var(--sapin);color:#fff;border:0;font:inherit;font-weight:900;padding:10px 12px;cursor:pointer;border-radius:8px}
 .togg .muted{color:#cfe39a;font-weight:400}
 tr.grp .togg{border-radius:0}

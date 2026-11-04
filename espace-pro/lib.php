@@ -371,6 +371,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         'bordereaux.php' => 'Bordereaux',
         'historique.php' => 'Historique',
         'assistant.php' => 'Assistant',
+        'guide.php' => 'Guide',
     ];
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
     $nav['compte.php'] = 'Mon compte';
@@ -402,7 +403,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         echo '<div id="nouv" class="modal" hidden><div class="modal-box"><button class="modal-x" type="button" onclick="fermerNouv()" aria-label="Fermer">×</button><h2>Nouveautés – version ' . e(app_version()) . '</h2><div id="nouv-corps" class="muted">Chargement…</div></div></div>';
         echo '<script>function ouvrirNouv(e){e.preventDefault();const m=document.getElementById("nouv");m.hidden=false;fetch("nouveautes.php?panneau=1").then(r=>r.text()).then(h=>{document.getElementById("nouv-corps").innerHTML=h;document.querySelectorAll(".bell b").forEach(b=>b.remove());});}function fermerNouv(){document.getElementById("nouv").hidden=true;}document.addEventListener("keydown",e=>{if(e.key==="Escape")fermerNouv();});document.addEventListener("click",e=>{if(e.target.id==="nouv")fermerNouv();});document.querySelectorAll("a.bell").forEach(a=>a.addEventListener("click",ouvrirNouv));</script>';
     }
-    echo '<main>';
+    echo '<main' . (in_array($active, ['bpu.php', 'bordereaux.php', 'bordereau.php']) ? ' class="large"' : '') . '>';
     if (!empty($_SESSION['flash'])) { [$m, $t] = $_SESSION['flash']; unset($_SESSION['flash']); echo '<div class="flash ' . e($t) . '">' . e($m) . '</div>'; }
     echo '<h1>' . e($title) . '</h1>';
 }
