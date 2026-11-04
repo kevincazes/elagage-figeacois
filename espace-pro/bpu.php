@@ -58,16 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_admin();
         [$n, $np] = importer_catalogue(); journal('catalogue', "Import du catalogue : $n lignes, $np packs"); flash("Catalogue importé : $n lignes et $np packs ajoutés.");
     }
-    $qs = http_build_query(array_filter(['famille' => $_POST['f_famille'] ?? '', 'hauteur' => $_POST['f_hauteur'] ?? '', 'q' => $_POST['f_q'] ?? '']));
+    $qs = http_build_query(array_filter(['famille' => $_POST['f_famille'] ?? '', 'hauteur' => $_POST['f_hauteur'] ?? '', 'pack' => $_POST['f_pack'] ?? '', 'q' => $_POST['f_q'] ?? '']));
     redirect('bpu.php' . ($qs ? "?$qs" : ''));
 }
 
 // Filtres
-$fFam = $_GET['famille'] ?? ''; $fHaut = $_GET['hauteur'] ?? ''; $fQ = trim($_GET['q'] ?? '');
+$fFam = $_GET['famille'] ?? ''; $fHaut = $_GET['hauteur'] ?? ''; $fQ = trim($_GET['q'] ?? ''); $fPack = (int)($_GET['pack'] ?? 0);
 $where = ['actif = 1']; $p = [];
 if ($fFam !== '') { $where[] = 'famille = ?'; $p[] = $fFam; }
 if ($fHaut !== '') { $where[] = 'hauteur = ?'; $p[] = $fHaut; }
 if ($fQ !== '') { $where[] = '(libelle LIKE ? OR code LIKE ?)'; $p[] = "%$fQ%"; $p[] = "%$fQ%"; }
+if ($fPack) { $where[] = 'id IN (SELECT ligne_id FROM pack_lignes WHERE pack_id = ?)'; $p[] = $fPack; }
+$packsListe = q("SELECT id, nom FROM packs ORDER BY nom")->fetchAll();
 $lignes = q("SELECT * FROM bpu_lignes WHERE " . implode(' AND ', $where) . " ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id", $p)->fetchAll();
 $HLIB = ['' => 'Sans classe de hauteur', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
 // Résumé par famille (nombre, prix mini/maxi) pour les en-têtes de bloc
@@ -91,6 +93,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   <select name="famille"><option value="">Toutes les familles</option><?php foreach ($familles as $f): ?><option <?= $f === $fFam ? 'selected' : '' ?>><?= e($f) ?></option><?php endforeach; ?></select>
   <select name="hauteur"><?php foreach ($HAUT as $k => $v): ?><option value="<?= $k ?>" <?= $k === $fHaut ? 'selected' : '' ?>><?= $k === '' ? 'Toutes hauteurs' : $v ?></option><?php endforeach; ?></select>
   <input name="q" value="<?= e($fQ) ?>" placeholder="Rechercher (libellé, code)">
+  <?php if ($packsListe): ?><select name="pack" title="N'afficher que les lignes d'un pack" onchange="this.form.submit()"><option value="">Tous les packs</option><?php foreach ($packsListe as $pk): ?><option value="<?= $pk['id'] ?>" <?= $fPack === (int)$pk['id'] ? 'selected' : '' ?>>Pack : <?= e($pk['nom']) ?></option><?php endforeach; ?></select><?php endif; ?>
   <?php if (count($equipes) > 1): ?><select name="equipe" title="Équipe utilisée pour afficher les prix" onchange="this.form.submit()"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= ($eqApercu ?? (int)$equipes[0]['id']) === (int)$x['id'] ? 'selected' : '' ?>>Prix avec : <?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select><?php endif; ?>
   <button class="btn secondary" type="submit">Filtrer</button>
   <a class="mini" href="bpu.php">Tout afficher</a>
@@ -103,7 +106,7 @@ page_start('Catalogue des prestations', 'bpu.php');
 <?php endif; ?>
 
 <form method="post" id="f"><?= csrf_field() ?><input type="hidden" name="action" value="save">
-<input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>">
+<input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>">
 <p class="scroll-aide">Le tableau défile dans sa propre fenêtre, dans les deux sens : molette pour descendre, barre du bas ou ⇤ ⇥ ou ⇧ + molette pour aller à droite, ou clic maintenu hors des champs pour le faire glisser. L'en-tête et la désignation restent visibles, pour voir les actions, les heures, le forfait et la référence.</p>
 <div class="scroll">
 <table class="tbl bpu">
@@ -141,12 +144,12 @@ page_start('Catalogue des prestations', 'bpu.php');
 </div>
 <p><button class="btn" type="submit">Enregistrer toutes les lignes</button> <a class="btn secondary" href="bordereaux.php">Composer un bordereau →</a></p>
 </form>
-<form id="fvar" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fvar_a"><input type="hidden" name="id" id="fvar_id"><input type="hidden" name="houppier" id="fvar_h"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
-<form id="fact" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fact_a"><input type="hidden" name="ligne_id" id="fact_l"><input type="hidden" name="action_id" id="fact_x"><input type="hidden" name="nb" value="1"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
+<form id="fvar" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fvar_a"><input type="hidden" name="id" id="fvar_id"><input type="hidden" name="houppier" id="fvar_h"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>"></form>
+<form id="fact" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fact_a"><input type="hidden" name="ligne_id" id="fact_l"><input type="hidden" name="action_id" id="fact_x"><input type="hidden" name="nb" value="1"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>"></form>
 <datalist id="familles"><?php foreach ($familles as $f): ?><option value="<?= e($f) ?>"><?php endforeach; ?></datalist>
 <?php foreach ($lignes as $l): ?>
-<form id="d<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="del"><input type="hidden" name="id" value="<?= $l['id'] ?>"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
-<form id="c<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="dup"><input type="hidden" name="id" value="<?= $l['id'] ?>"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"></form>
+<form id="d<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="del"><input type="hidden" name="id" value="<?= $l['id'] ?>"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>"></form>
+<form id="c<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="dup"><input type="hidden" name="id" value="<?= $l['id'] ?>"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>"></form>
 <?php endforeach; ?>
 <section class="card">
   <h2>Ajouter une ligne</h2>
@@ -182,7 +185,7 @@ let ouverts = {}; try { ouverts = JSON.parse(localStorage.getItem('cat_ouverts')
 function appliquer(g, on) { document.querySelectorAll('.g-' + g).forEach(tr => { tr.style.display = on ? '' : 'none'; if (on) tr.querySelectorAll('textarea.lib').forEach(ajuster); }); const c = document.querySelector('tr[data-grp="' + g + '"] .chev'); if (c) c.textContent = on ? '▾' : '▸'; }
 function toggle(g) { ouverts[g] = !ouverts[g]; appliquer(g, ouverts[g]); try { localStorage.setItem('cat_ouverts', JSON.stringify(ouverts)); } catch (e) {} }
 function toutes(on) { document.querySelectorAll('tr[data-grp]').forEach(tr => { ouverts[tr.dataset.grp] = on; appliquer(tr.dataset.grp, on); }); try { localStorage.setItem('cat_ouverts', JSON.stringify(ouverts)); } catch (e) {} }
-const filtre = <?= json_encode($fFam !== '' || $fQ !== '') ?>;
+const filtre = <?= json_encode($fFam !== '' || $fQ !== '' || $fPack > 0) ?>;
 document.querySelectorAll('tr[data-grp]').forEach(tr => appliquer(tr.dataset.grp, filtre || !!ouverts[tr.dataset.grp]));
 </script>
 <?php page_end(); ?>
