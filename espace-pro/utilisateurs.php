@@ -63,7 +63,7 @@ page_start('Comptes', 'utilisateurs.php');
 <tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>2FA</th><th>Mot de passe</th><th></th></tr>
 <?php foreach ($users as $u): $moi = (int)$u['id'] === (int)user()['id']; $enAttente = $u['token'] && strtotime($u['token_expire']) > time(); ?>
 <tr>
-  <td><strong><?= e($u['prenom'] . ' ' . $u['nom']) ?></strong><?= $moi ? ' <span class="muted">(toi)</span>' : '' ?></td>
+  <td><a href="compte.php<?= $moi ? '' : '?id=' . $u['id'] ?>"><strong><?= e($u['prenom'] . ' ' . $u['nom']) ?></strong></a><?= $moi ? ' <span class="muted">(toi)</span>' : '' ?><br><a class="mini" href="compte.php<?= $moi ? '' : '?id=' . $u['id'] ?>">Modifier</a></td>
   <td><?= e($u['email']) ?></td>
   <td><?php if ($moi): ?><?= $u['role'] === 'admin' ? 'Administrateur' : 'Utilisateur' ?><?php else: ?>
     <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="role"><input type="hidden" name="id" value="<?= $u['id'] ?>">
