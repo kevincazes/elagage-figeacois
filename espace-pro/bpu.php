@@ -113,7 +113,7 @@ page_start('Catalogue des prestations', 'bpu.php');
  <tbody>
 <?php $famCour = null; $hautCour = null; $nbFam = count($resume); foreach ($lignes as $l): $id = $l['id']; $f = $l['famille'] ?: 'Sans famille';
   if ($f !== $famCour): $famCour = $f; $hautCour = null; $r = $resume[$f]; $grp = md5($f); ?>
-<tr class="grp" data-grp="<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><button type="button" class="togg" onclick="toggle('<?= $grp ?>')"><span class="chev">▸</span> <?= e($f) ?> <span class="muted">· <?= $r['n'] ?> ligne<?= $r['n'] > 1 ? 's' : '' ?> · de <?= money($r['min']) ?> à <?= money($r['max']) ?></span></button></td></tr>
+<tr class="grp" data-grp="<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>" onclick="toggle('<?= $grp ?>')"><button type="button" class="togg"><span class="chev">▸</span> <?= e($f) ?> <span class="muted">· <?= $r['n'] ?> ligne<?= $r['n'] > 1 ? 's' : '' ?> · de <?= money($r['min']) ?> à <?= money($r['max']) ?></span></button></td></tr>
 <?php endif; if ($l['hauteur'] !== $hautCour && count(array_unique(array_map(fn($x) => $x['hauteur'], array_filter($lignes, fn($x) => ($x['famille'] ?: 'Sans famille') === $f)))) > 1): $hautCour = $l['hauteur']; ?>
 <tr class="sousgrp g-<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><span><?= e($HLIB[$l['hauteur']] ?? $l['hauteur']) ?></span></td></tr>
 <?php endif; ?>
