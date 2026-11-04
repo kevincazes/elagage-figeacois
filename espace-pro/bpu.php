@@ -75,7 +75,7 @@ $HLIB = ['' => 'Sans classe de hauteur', '<10' => 'Arbres de moins de 10 m', '10
 // Résumé par famille (nombre, prix mini/maxi) pour les en-têtes de bloc
 $resume = [];
 foreach ($lignes as $l) { $f = $l['famille'] ?: 'Sans famille'; $pu = prix_catalogue($l); $r = &$resume[$f]; $r['n'] = ($r['n'] ?? 0) + 1; $r['min'] = isset($r['min']) ? min($r['min'], $pu) : $pu; $r['max'] = isset($r['max']) ? max($r['max'], $pu) : $pu; unset($r); }
-$familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
+$familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 AND famille <> '' ORDER BY famille")->fetchAll(), 'famille');
 $temps = temps_par_ligne(); $compo = actions_par_ligne(); $actionsDispo = actions_catalogue(); $eq = ressource_equipe();
 $total = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
 page_start('Catalogue des prestations', 'bpu.php');
@@ -90,8 +90,8 @@ page_start('Catalogue des prestations', 'bpu.php');
 <?php endif; ?>
 
 <form method="get" class="inline card" style="display:flex">
-  <select name="famille"><option value="">Toutes les familles</option><?php foreach ($familles as $f): ?><option <?= $f === $fFam ? 'selected' : '' ?>><?= e($f) ?></option><?php endforeach; ?></select>
-  <select name="hauteur"><?php foreach ($HAUT as $k => $v): ?><option value="<?= $k ?>" <?= $k === $fHaut ? 'selected' : '' ?>><?= $k === '' ? 'Toutes hauteurs' : $v ?></option><?php endforeach; ?></select>
+  <select name="famille" onchange="this.form.submit()"><option value="">Toutes les familles</option><?php foreach ($familles as $f): ?><option <?= $f === $fFam ? 'selected' : '' ?>><?= e($f) ?></option><?php endforeach; ?></select>
+  <select name="hauteur" onchange="this.form.submit()"><?php foreach ($HAUT as $k => $v): ?><option value="<?= $k ?>" <?= $k === $fHaut ? 'selected' : '' ?>><?= $k === '' ? 'Toutes hauteurs' : $v ?></option><?php endforeach; ?></select>
   <input name="q" value="<?= e($fQ) ?>" placeholder="Rechercher (libellé, code)">
   <?php if ($packsListe): ?><select name="pack" title="N'afficher que les lignes d'un pack" onchange="this.form.submit()"><option value="">Tous les packs</option><?php foreach ($packsListe as $pk): ?><option value="<?= $pk['id'] ?>" <?= $fPack === (int)$pk['id'] ? 'selected' : '' ?>>Pack : <?= e($pk['nom']) ?></option><?php endforeach; ?></select><?php endif; ?>
   <?php if (count($equipes) > 1): ?><select name="equipe" title="Équipe utilisée pour afficher les prix" onchange="this.form.submit()"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= ($eqApercu ?? (int)$equipes[0]['id']) === (int)$x['id'] ? 'selected' : '' ?>>Prix avec : <?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select><?php endif; ?>
