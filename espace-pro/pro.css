@@ -32,6 +32,12 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .card h2:first-child{margin-top:0}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start}
 .cols-2{grid-template-columns:repeat(auto-fit,minmax(460px,1fr))}
+/* Libellé à gauche, champ aligné à droite sur une colonne fixe */
+.grille-champs{display:grid;grid-template-columns:230px auto;gap:10px 16px;align-items:start;margin:8px 0 18px}
+.grille-champs label{margin:0;padding-top:9px;font-weight:700;font-size:.92rem}
+.grille-champs>div{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:240px}
+.grille-champs>div input.num{width:96px;margin:0}
+.grille-champs small{flex-basis:100%;color:var(--doux);font-weight:400;font-size:.82rem}
 .card .cols{gap:0 18px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:14px 0 8px}
 .tile{display:block;background:var(--blanc);border-radius:var(--rayon);padding:20px;text-decoration:none;color:inherit;box-shadow:0 4px 18px rgba(28,59,43,.06);border-left:5px solid var(--anis)}

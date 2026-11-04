@@ -44,9 +44,9 @@ page_start('Paramètres', 'parametres.php');
   <h2>Passer au modèle « Équipe + Rognage »</h2>
   <p>Le catalogue stocke des <strong>heures d'équipe</strong> (temps des actions dans l'arbre). Chaque bordereau choisit ensuite l'équipe qui s'applique : l'équipe standard (coût complet) ou une équipe à taux réduit pour les marchés publics. Le rognage est à part, et tu pourras ajouter des moyens spécifiques (enlèvement du bois sur gros sujets, grue…) comme ressources supplémentaires. Les lignes existantes sont converties en heures au taux de l'équipe standard, <strong>sans changer leurs prix</strong> ; les anciennes ressources sont retirées.</p>
   <form method="post" class="inline" onsubmit="return confirm('Convertir tout le catalogue au modèle Équipe + Rognage ?')"><?= csrf_field() ?><input type="hidden" name="action" value="simplifier">
-    <label style="margin:0">Équipe standard €/h <input class="num" name="taux_equipe" value="190" inputmode="decimal"></label>
-    <label style="margin:0">Équipe marché public €/h <input class="num" name="taux_equipe2" value="60" inputmode="decimal"></label>
-    <label style="margin:0">Rognage €/h <input class="num" name="taux_rognage" value="80" inputmode="decimal"></label>
+    <span>Équipe standard</span> <input class="num" name="taux_equipe" value="190" inputmode="decimal"> <span>€/h</span>
+    <span style="margin-left:14px">Équipe marché public</span> <input class="num" name="taux_equipe2" value="60" inputmode="decimal"> <span>€/h</span>
+    <span style="margin-left:14px">Rognage</span> <input class="num" name="taux_rognage" value="80" inputmode="decimal"> <span>€/h</span>
     <button class="btn" type="submit">Convertir</button>
   </form>
 </section>
@@ -78,17 +78,18 @@ page_start('Paramètres', 'parametres.php');
 
 <section class="card">
   <h2>Règles de calcul</h2>
-  <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="generaux">
-    <label>Coefficient de marge et d'aléas <input class="num" name="coef" value="<?= e(setting('coef')) ?>" inputmode="decimal"><small>1,25 = coût × 1,25. Couvre marge, frais généraux, aléas météo.</small></label>
-    <label>TVA (%) <input class="num" name="tva" value="<?= e(setting('tva')) ?>" inputmode="decimal"></label>
-    <label>Arrondi des prix unitaires (€) <input class="num" name="arrondi" value="<?= e(setting('arrondi')) ?>" inputmode="decimal"><small>1 = à l'euro ; 5 = aux 5 € ; 0 = au centime.</small></label>
+    <div class="grille-champs">
+      <label for="coef">Coefficient de marge et d'aléas</label><div><input id="coef" class="num" name="coef" value="<?= e(setting('coef')) ?>" inputmode="decimal"><small>1,25 = coût × 1,25. Couvre marge, frais généraux, aléas météo.</small></div>
+      <label for="tva">TVA (%)</label><div><input id="tva" class="num" name="tva" value="<?= e(setting('tva')) ?>" inputmode="decimal"></div>
+      <label for="arrondi">Arrondi des prix unitaires (€)</label><div><input id="arrondi" class="num" name="arrondi" value="<?= e(setting('arrondi')) ?>" inputmode="decimal"><small>1 = à l'euro ; 5 = aux 5 € ; 0 = au centime.</small></div>
+    </div>
     <h2>Progression du temps selon la taille de l'arbre</h2>
     <p class="muted">Pourcentage de temps en plus par rapport à la classe de base (moins de 10 m, houppier ≤ 5 m). Sert à générer et recalculer les variantes du catalogue.</p>
-    <div class="cols">
-      <label>Arbre de 10 à 20 m : + <input class="num" name="prog_h2" value="<?= e(setting('prog_h2', '80')) ?>" inputmode="decimal"> %</label>
-      <label>Arbre de plus de 20 m : + <input class="num" name="prog_h3" value="<?= e(setting('prog_h3', '200')) ?>" inputmode="decimal"> %</label>
-      <label>Houppier de 5 à 10 m : + <input class="num" name="prog_d2" value="<?= e(setting('prog_d2', '50')) ?>" inputmode="decimal"> %</label>
-      <label>Houppier de plus de 10 m : + <input class="num" name="prog_d3" value="<?= e(setting('prog_d3', '120')) ?>" inputmode="decimal"> %</label>
+    <div class="grille-champs">
+      <label for="ph2">Arbre de 10 à 20 m</label><div>+ <input id="ph2" class="num" name="prog_h2" value="<?= e(setting('prog_h2', '80')) ?>" inputmode="decimal"> %</div>
+      <label for="ph3">Arbre de plus de 20 m</label><div>+ <input id="ph3" class="num" name="prog_h3" value="<?= e(setting('prog_h3', '200')) ?>" inputmode="decimal"> %</div>
+      <label for="pd2">Houppier de 5 à 10 m</label><div>+ <input id="pd2" class="num" name="prog_d2" value="<?= e(setting('prog_d2', '50')) ?>" inputmode="decimal"> %</div>
+      <label for="pd3">Houppier de plus de 10 m</label><div>+ <input id="pd3" class="num" name="prog_d3" value="<?= e(setting('prog_d3', '120')) ?>" inputmode="decimal"> %</div>
     </div>
     <h2>Liens du tableau de bord</h2>
     <label>Google Drive <input name="lien_drive" value="<?= e(setting('lien_drive')) ?>" placeholder="https://drive.google.com/…"></label>
