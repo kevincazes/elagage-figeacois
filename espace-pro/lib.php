@@ -14,6 +14,26 @@ ini_set('session.use_strict_mode', '1');
 if (!empty($_SERVER['HTTPS'])) ini_set('session.cookie_secure', '1');
 session_start();
 
+// Gros tableaux (catalogue, bordereau, import) : le navigateur envoie tout dans un seul champ « payload »
+// pour ne pas dépasser la limite d'hébergement sur le nombre de champs (max_input_vars) ; on le redéploie ici.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['payload'])) {
+    foreach (explode('&', (string)$_POST['payload']) as $paire) {
+        if ($paire === '') continue;
+        [$k, $v] = array_pad(explode('=', $paire, 2), 2, '');
+        $k = urldecode($k); $v = urldecode($v);
+        if (!preg_match('/^([^\[]+)((?:\[[^\]]*\])*)$/', $k, $m)) continue;
+        $cles = [$m[1]]; if ($m[2] !== '') { preg_match_all('/\[([^\]]*)\]/', $m[2], $mm); $cles = array_merge($cles, $mm[1]); }
+        $ref = &$_POST;
+        foreach ($cles as $i => $c) {
+            $dernier = $i === count($cles) - 1;
+            if ($c === '') { if ($dernier) { $ref[] = $v; break; } $ref[] = []; end($ref); $c = key($ref); }
+            if ($dernier) $ref[$c] = $v; else { if (!isset($ref[$c]) || !is_array($ref[$c])) $ref[$c] = []; $ref = &$ref[$c]; }
+        }
+        unset($ref);
+    }
+    unset($_POST['payload']);
+}
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
@@ -370,7 +390,6 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         'packs.php' => 'Packs',
         'bordereaux.php' => 'Bordereaux',
         'historique.php' => 'Historique',
-        'assistant.php' => 'Assistant',
         'guide.php' => 'Guide',
     ];
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
@@ -407,9 +426,38 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     if (!empty($_SESSION['flash'])) { [$m, $t] = $_SESSION['flash']; unset($_SESSION['flash']); echo '<div class="flash ' . e($t) . '">' . e($m) . '</div>'; }
     echo '<h1>' . e($title) . '</h1>';
 }
-function page_end(): void { echo '</main>' . <<<'JS'
+function page_end(): void {
+    $self = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    if ($self !== 'assistant.php') {
+        $ctx = 'page=' . $self . ($self === 'bordereau.php' && isset($_GET['id']) ? '&bordereau=' . (int)$_GET['id'] : '');
+        echo '<button type="button" class="bulle-ia" id="bulleIA" title="Assistant : pose une question sur cet écran ou sur un chiffrage">✦<span>Assistant</span></button>'
+           . '<aside class="pan-ia" id="panIA" hidden><button type="button" class="pan-fermer" title="Fermer">×</button><iframe data-src="assistant.php?panneau=1&' . e($ctx) . '" title="Assistant"></iframe></aside>';
+    }
+    echo '</main>' . <<<'JS'
 <script>
 (function(){
+  // Hauteur réelle du bandeau (une ou deux lignes selon l'écran) : sert aux ancres et éléments collants
+  function bandeau(){ var t=document.querySelector('header.top'); if(t) document.documentElement.style.setProperty('--bandeau', (getComputedStyle(t).position==='sticky'?t.offsetHeight:0)+'px'); }
+  bandeau(); window.addEventListener('resize',bandeau);
+  // Formulaires « paquet » : tous les champs partent dans un seul champ caché (voir lib.php)
+  document.querySelectorAll('form[data-paquet]').forEach(function(f){
+    f.addEventListener('submit',function(){
+      if(f.dataset.envoye) return; f.dataset.envoye='1';
+      var fd=new FormData(f), garder={csrf:1,action:1}, parts=[];
+      fd.forEach(function(v,k){ if(typeof v==='string') parts.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); });
+      f.querySelectorAll('[name]').forEach(function(el){ if(!garder[el.name]) el.disabled=true; });
+      var h=document.createElement('input'); h.type='hidden'; h.name='payload'; h.value=parts.join('&'); f.appendChild(h);
+    });
+  });
+  // Bulle Assistant : ouvre un panneau latéral, chargé à la première ouverture, état mémorisé
+  var bIA=document.getElementById('bulleIA'), pIA=document.getElementById('panIA');
+  if(bIA&&pIA){
+    var ifr=pIA.querySelector('iframe');
+    function ouvrirIA(on){ pIA.hidden=!on; bIA.classList.toggle('on',on); document.body.classList.toggle('ia-ouvert',on); if(on&&!ifr.src) ifr.src=ifr.dataset.src; try{sessionStorage.setItem('ia_ouvert',on?'1':'0');}catch(e){} }
+    bIA.addEventListener('click',function(){ ouvrirIA(pIA.hidden); });
+    pIA.querySelector('.pan-fermer').addEventListener('click',function(){ ouvrirIA(false); });
+    try{ if(sessionStorage.getItem('ia_ouvert')==='1' && window.innerWidth>900) ouvrirIA(true); }catch(e){}
+  }
   // Mémorise la position (page et tableau) avant un rechargement, la restaure ensuite
   var cle='pos:'+location.pathname;
   try{
@@ -422,7 +470,13 @@ function page_end(): void { echo '</main>' . <<<'JS'
   function memoPos(){ try{ sessionStorage.setItem(cle, JSON.stringify({t:Date.now(), y:window.scrollY, x:[].map.call(document.querySelectorAll('.scroll'),function(sc){return sc.scrollLeft;}), v:[].map.call(document.querySelectorAll('.scroll'),function(sc){return sc.scrollTop;})})); }catch(e){} }
   document.addEventListener('submit',memoPos,true);
   window.addEventListener('beforeunload',memoPos);
-  document.querySelectorAll('.scroll').forEach(function(sc){
+  document.querySelectorAll('.scroll').forEach(function(sc){ if(sc.querySelector('.tbl.bpu,.tbl.bord,.tbl.imp')) sc.classList.add('fenetre'); });
+  document.querySelectorAll('.scroll.fenetre').forEach(function(sc){
+    // Quand la molette arrive dans le tableau, la page se cale d'abord pour que la fenêtre occupe l'écran
+    sc.addEventListener('wheel',function(e){
+      var r=sc.getBoundingClientRect();
+      if(Math.abs(e.deltaY)>Math.abs(e.deltaX) && r.top>8 && e.deltaY>0 && sc.scrollTop===0 && r.top<window.innerHeight*0.6){ e.preventDefault(); window.scrollBy({top:r.top-4,behavior:'smooth'}); }
+    },{passive:false});
     // Glisser le tableau à la souris en dehors des champs
     var dep=null;
     sc.addEventListener('mousedown',function(e){

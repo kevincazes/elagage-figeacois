@@ -48,6 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($_POST['r'] ?? [] as $id => $d) {
             $o = $avant[(int)$id] ?? null;
             if ($o) {
+                if (array_key_exists('cat', $d)) { // rattachement à une prestation du catalogue (par son code)
+                    $code = trim(explode(' — ', (string)$d['cat'])[0]);
+                    $nl = $code === '' ? null : (q("SELECT id FROM bpu_lignes WHERE actif = 1 AND code = ? ORDER BY id LIMIT 1", [$code])->fetch()['id'] ?? false);
+                    if ($nl !== false && (int)$nl !== (int)$o['ligne_id']) { q("UPDATE bordereau_lignes SET ligne_id = ? WHERE id = ?", [$nl === null ? null : (int)$nl, (int)$id]); $modifs[] = '[' . ($o['numero'] ?: $o['ordre']) . ' ' . mb_substr($o['libelle'], 0, 40) . '] prestation : ' . ($code ?: 'aucune'); }
+                }
                 $nv = ['ordre' => (int)($d['ordre'] ?? 0), 'numero' => trim($d['numero'] ?? ''), 'code' => trim($d['code'] ?? ''), 'libelle' => trim($d['libelle'] ?? ''), 'unite' => trim($d['unite'] ?? ''),
                        'quantite' => ($d['qte'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['qte']), 'pu_manuel' => ($d['pu'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['pu'])];
                 $ch = [];
@@ -94,7 +99,7 @@ $puDe = function (array $l) use ($fige, $cat, $eqId): float {
 $total = 0; $nbQte = 0;
 foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $total += $puDe($l) * (float)$l['quantite']; $nbQte++; }
 $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = p.id) nb FROM packs p ORDER BY nom")->fetchAll();
-$familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
+$familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 AND famille <> '' ORDER BY famille")->fetchAll(), 'famille');
 $catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id")->fetchAll();
 $HLIB = ['' => '', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
 page_start($b['nom'], 'bordereau.php', ['bordereaux.php', 'Bordereaux']);
@@ -103,7 +108,7 @@ if ($lecture): ?>
   <?php if (user()['role'] === 'admin'): ?><form method="post" class="inline" onsubmit="return confirm('Forcer la libération ? Les modifications non enregistrées de cette personne seront perdues.')"><?= csrf_field() ?><input type="hidden" name="action" value="forcer"><button class="mini danger">Forcer la libération (admin)</button></form><?php endif; ?>
 </div>
 <?php else: ?>
-<p class="muted">Tu as la main sur ce dossier. <a href="bordereaux.php" onclick="navigator.sendBeacon('bordereau.php?id=<?= $bid ?>&liberer=1')">Libérer et revenir à la liste</a></p>
+<p class="muted no-print">Tu as la main sur ce dossier. <a href="bordereaux.php" onclick="navigator.sendBeacon('bordereau.php?id=<?= $bid ?>&liberer=1')">Libérer et revenir à la liste</a></p>
 <?php endif; ?>
 <form method="post" class="card"><?= csrf_field() ?><input type="hidden" name="action" value="entete">
   <div class="cols">
@@ -114,29 +119,32 @@ if ($lecture): ?>
   </div>
   <?php if ($fige): ?><p class="ok">Figé le <?= date('d/m/Y à H:i', strtotime($b['fige_le'])) ?> · coefficient <?= e($b['coef']) ?> · TVA <?= e($b['tva']) ?> %</p>
   <?php elseif (!$lecture): ?><button class="btn secondary" type="submit">Enregistrer l'en-tête</button><?php endif; ?>
-  <a class="btn" href="export.php?id=<?= $bid ?>">Excel (CSV)</a> <a class="btn secondary" href="assistant.php?bordereau=<?= $bid ?>">Assistant ✦</a> <a class="btn secondary" href="bordereau.php?id=<?= $bid ?>&print=1" target="_blank">Imprimer / PDF</a>
+  <a class="btn" href="export.php?id=<?= $bid ?>">Excel (CSV)</a> <button class="btn secondary" type="button" onclick="document.getElementById('bulleIA').click()">Assistant ✦</button> <a class="btn secondary" href="bordereau.php?id=<?= $bid ?>&print=1" target="_blank">Imprimer / PDF</a>
   <?php if ($lecture): ?><?php elseif ($fige): ?><button class="mini" type="submit" form="defiger">Défiger</button><?php else: ?><button class="mini" type="submit" form="figer" onclick="return confirm('Figer les prix de ce bordereau ?')">Figer les prix</button><?php endif; ?>
 </form>
 <form id="figer" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="figer"></form>
 <form id="defiger" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="defiger"></form>
 
-<form method="post" id="f"><?= csrf_field() ?><input type="hidden" name="action" value="save">
+<datalist id="catcodes"><?php foreach ($catalogue as $c): if ($c['code'] === '') continue; ?><option value="<?= e($c['code']) ?>"><?= e(mb_substr($c['libelle'], 0, 90)) ?> · <?= money(prix_catalogue($c, $eqId)) ?></option><?php endforeach; ?></datalist>
+<?php if (!$ro): ?><p class="barre-ajout">Ajouter : <a class="mini" href="#ajout">un pack</a> <a class="mini" href="#ajout-cat">des lignes du catalogue</a> <a class="mini" href="#ajout">un titre de section</a> <a class="mini" href="#ajout">une ligne libre</a> <span class="muted small">· Colonnes : <strong>PU calculé</strong> = temps du catalogue × taux de l'équipe × coefficient (clic ↗ pour régler le temps) ; <strong>PU imposé</strong> = prix forcé pour ce marché seulement ; <strong>PU retenu</strong> = celui qui part dans l'offre.</span></p><?php endif; ?>
+<form method="post" id="f" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <div class="scroll"><table class="tbl bord">
-<thead><tr><th title="Ordre de tri">Tri</th><th>N°</th><th>Code</th><th class="w">Désignation</th><th>Unité</th><th class="r">Qté (DQE)</th><th class="r">PU calculé</th><th class="r">PU imposé</th><th class="r">Total HT</th><th></th><th class="r pu">PU retenu</th></tr></thead>
+<thead><tr><th title="Ordre de tri">Tri</th><th>N°</th><th>Code</th><th class="w">Désignation</th><th>Unité</th><th class="r">Qté (DQE)</th><th title="Prestation du catalogue qui donne le prix : tape un code ou un mot pour choisir">Prestation du catalogue</th><th class="r">PU calculé</th><th class="r">PU imposé</th><th class="r">Total HT</th><th></th><th class="r pu">PU retenu</th></tr></thead>
 <tbody>
 <?php $n = 0; foreach ($lignes as $l): $id = $l['id']; ?>
 <?php if ($l['type'] === 'section'): ?>
-<tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="7"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
+<tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="8"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
 <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
 <?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId) : null; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
 <tr data-calc="<?= $calc ?? '' ?>" title="<?= e($src) ?>">
   <td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" placeholder="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td><input class="tiny" style="width:100px" name="r[<?= $id ?>][code]" value="<?= e($l['code']) ?>" <?= $ro ? 'readonly' : '' ?>></td>
-  <td><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" <?= $ro ? 'readonly' : '' ?>><?php if ($l['ligne_id'] && !isset($cat[$l['ligne_id']])): ?><br><span class="off">ligne du catalogue supprimée</span><?php endif; ?></td>
+  <td><textarea class="lib" name="r[<?= $id ?>][libelle]" rows="1" <?= $ro ? 'readonly' : '' ?>><?= e($l['libelle']) ?></textarea><?php if ($l['ligne_id'] && !isset($cat[$l['ligne_id']])): ?><br><span class="off">ligne du catalogue supprimée</span><?php endif; ?></td>
   <td><input class="tiny" style="width:70px" name="r[<?= $id ?>][unite]" value="<?= e($l['unite']) ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td class="r"><input class="num qte" name="r[<?= $id ?>][qte]" value="<?= $l['quantite'] !== null ? e((string)(float)$l['quantite']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
-  <td class="r out calc"><?= $calc !== null ? money($calc) : '<span class="muted">—</span>' ?></td>
+  <td><?php $cl = $cat[$l['ligne_id']] ?? null; ?><input class="catsel" list="catcodes" name="r[<?= $id ?>][cat]" value="<?= $cl ? e($cl['code']) : '' ?>" placeholder="aucune – prix à imposer" title="<?= $cl ? e($cl['libelle']) : 'Aucune prestation : saisis un PU imposé, ou tape un code / un mot pour rattacher une prestation' ?>" style="width:150px" <?= $ro ? 'readonly' : '' ?>></td>
+  <td class="r out calc"><?php if ($calc !== null): ?><a href="bpu.php?ligne=<?= (int)$l['ligne_id'] ?>" target="_blank" title="Ouvrir cette prestation dans le catalogue (nouvel onglet) pour voir ou régler son temps"><?= money($calc) ?> ↗</a><?php else: ?><span class="muted">—</span><?php endif; ?></td>
   <td class="r"><input class="num manuel" name="r[<?= $id ?>][pu]" value="<?= $l['pu_manuel'] !== null ? e((string)(float)$l['pu_manuel']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
   <td class="r out tot"></td>
   <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>" onclick="return confirm('Retirer cette ligne ?')">×</button><?php endif; ?></td>
@@ -144,7 +152,7 @@ if ($lecture): ?>
 </tr>
 <?php endif; endforeach; ?>
 </tbody>
-<tfoot><tr><td colspan="8" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr></tfoot>
+<tfoot><tr><td colspan="9" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr></tfoot>
 </table></div>
 <?php if (!$ro): ?><p><button class="btn" type="submit">Enregistrer le bordereau</button> <button class="mini" type="submit" form="renum">Renuméroter 1, 2, 3…</button> <span class="muted">« Tri » ordonne les lignes ; « N° » est le numéro affiché sur le bordereau (ex. 2.1.1), libre ; « PU imposé » remplace le prix calculé.</span></p><?php endif; ?>
 </form>
@@ -152,7 +160,7 @@ if ($lecture): ?>
 <?php foreach ($lignes as $l): ?><form id="x<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="del"><input type="hidden" name="id" value="<?= $l['id'] ?>"></form><?php endforeach; ?>
 
 <?php if (!$ro): ?>
-<div class="cols">
+<div class="cols" id="ajout">
 <section class="card">
   <h2>Ajouter un pack</h2>
   <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="pack">
@@ -164,10 +172,10 @@ if ($lecture): ?>
   <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="section"><input name="libelle" placeholder="Ex. 2.0 – Abattage d'arbres" required style="min-width:280px"> <button class="btn secondary" type="submit">Ajouter</button></form>
   <h2>Ajouter une ligne libre</h2>
   <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="libre">
-    <input class="tiny" style="width:90px" name="code" placeholder="Code"> <input name="libelle" placeholder="Désignation" required style="min-width:260px"> <input class="tiny" name="unite" placeholder="Unité" value="U"> <input class="num" name="pu" placeholder="PU €" inputmode="decimal"> <button class="btn secondary" type="submit">Ajouter</button>
+    <input class="tiny" style="width:90px" name="code" placeholder="Code"> <input name="libelle" placeholder="Désignation" required style="min-width:260px"> <input class="tiny" name="unite" placeholder="Unité" value="U" style="width:80px;flex:none"> <input class="num" name="pu" placeholder="PU €" inputmode="decimal"> <button class="btn secondary" type="submit">Ajouter</button>
   </form>
 </section>
-<section class="card">
+<section class="card" id="ajout-cat">
   <h2>Ajouter des lignes du catalogue</h2>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="catalogue">
     <div class="inline">
@@ -191,7 +199,7 @@ if ($lecture): ?>
 </section>
 </div>
 <?php endif; ?>
-<section class="card">
+<section class="card no-print">
   <h2>Historique du dossier</h2>
   <?php $hist = q("SELECT * FROM historique WHERE bordereau_id = ? ORDER BY quand DESC, id DESC LIMIT 100", [$bid])->fetchAll(); if (!$hist): ?><p class="muted">Aucune action enregistrée.</p><?php else: ?>
   <table class="tbl"><tr><th>Quand</th><th>Qui</th><th>Action</th><th>Détail</th></tr>
@@ -221,9 +229,21 @@ function recalc() {
   document.getElementById('total').textContent = total > 0 ? fmt(total) + ' HT · ' + fmt(total * (1 + TVA / 100)) + ' TTC' : '—';
 }
 document.querySelectorAll('tr[data-calc]').forEach(tr => tr.addEventListener('input', recalc)); recalc();
+function ajuster(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+document.querySelectorAll('textarea.lib').forEach(t => { ajuster(t); t.addEventListener('input', () => ajuster(t)); });
+// Rattachement à une prestation : prix mis à jour tout de suite (enregistrer pour conserver)
+const CATPU = <?php $m = []; foreach ($catalogue as $c) if ($c['code'] !== '' && !isset($m[$c['code']])) $m[$c['code']] = prix_catalogue($c, $eqId); echo json_encode($m, JSON_UNESCAPED_UNICODE); ?>;
+document.querySelectorAll('input.catsel').forEach(i => i.addEventListener('change', () => {
+  const tr = i.closest('tr'), code = i.value.split(' — ')[0].trim(), cell = tr.querySelector('.calc');
+  if (code === '') { tr.dataset.calc = ''; cell.innerHTML = '<span class="muted">—</span>'; }
+  else if (code in CATPU) { tr.dataset.calc = CATPU[code]; cell.textContent = fmt(CATPU[code]) + ' (à enregistrer)'; }
+  else { cell.innerHTML = '<span class="off">code inconnu</span>'; }
+  recalc();
+}));
 const plies = {};
 function plier(btn) { const t = btn.closest('.fam-titre'), f = t.dataset.fam; plies[f] = !(plies[f] ?? true); filtrer(); }
 function filtrer() {
+  if (!document.getElementById('fam')) return; // bordereau figé ou en lecture seule : pas de cadre d'ajout
   const f = document.getElementById('fam').value, h = document.getElementById('haut').value, d = document.getElementById('houp').value, r = document.getElementById('rech').value.toLowerCase();
   const actif = f || h || d || r; // avec un filtre, on déplie tout ce qui correspond
   document.querySelectorAll('#choix .choix').forEach(l => {

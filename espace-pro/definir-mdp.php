@@ -27,11 +27,11 @@ if ($u && $_SERVER['REQUEST_METHOD'] === 'POST') {
   <a class="btn" href="login.php">Page de connexion</a>
 <?php else: ?>
   <h1>Bonjour <?= e($u['prenom']) ?></h1>
-  <p class="muted">Choisissez votre mot de passe pour l'identifiant <strong><?= e($u['email']) ?></strong>.</p>
+  <p class="muted">Choisis ton mot de passe pour l'identifiant <strong><?= e($u['email']) ?></strong>.</p>
   <?php if ($err): ?><div class="flash err"><?= e($err) ?></div><?php endif; ?>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="token" value="<?= e($token) ?>">
     <label>Mot de passe (10 caractères minimum) <input type="password" name="mdp" minlength="10" required autofocus></label>
-    <label>Confirmez le mot de passe <input type="password" name="mdp2" minlength="10" required></label>
+    <label>Confirme le mot de passe <input type="password" name="mdp2" minlength="10" required></label>
     <button class="btn" type="submit">Enregistrer et me connecter</button>
   </form>
 <?php endif; ?>

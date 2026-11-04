@@ -7,13 +7,16 @@ $pdo = db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'generaux') {
+        $avantCoef = setting('coef');
         set_setting('coef', (string)max(0.1, (float)str_replace(',', '.', $_POST['coef'] ?? '1')));
         set_setting('tva', (string)max(0, (float)str_replace(',', '.', $_POST['tva'] ?? '20')));
         set_setting('arrondi', (string)max(0, (float)str_replace(',', '.', $_POST['arrondi'] ?? '1')));
         foreach (['prog_h2', 'prog_h3', 'prog_d2', 'prog_d3'] as $k) if (isset($_POST[$k])) set_setting($k, (string)(float)str_replace(',', '.', $_POST[$k]));
         foreach (q("SELECT DISTINCT base_id FROM bpu_lignes WHERE base_id IS NOT NULL") as $b) appliquer_variantes((int)$b['base_id']);
+        journal('parametres', "Coefficient $avantCoef → " . setting('coef') . ', TVA ' . setting('tva') . ' %, arrondi ' . setting('arrondi') . ' €, progression ' . setting('prog_h2') . '/' . setting('prog_h3') . '/' . setting('prog_d2') . '/' . setting('prog_d3') . ' %'); flash('Règles de calcul enregistrées : tous les prix non figés sont recalculés.');
+    } elseif ($action === 'liens') {
         foreach (['lien_drive', 'lien_extrabat', 'lien_urgence', 'lien_arbogestion'] as $k) set_setting($k, trim($_POST[$k] ?? ''));
-        journal('parametres', 'Coefficient ' . setting('coef') . ' → ' . $_POST['coef'] . ', TVA ' . $_POST['tva'] . ', arrondi ' . $_POST['arrondi']); flash('Paramètres enregistrés.');
+        flash('Liens du tableau de bord enregistrés.');
     } elseif ($action === 'taux') {
         foreach ($_POST['taux'] ?? [] as $id => $t) q("UPDATE ressources SET taux = ? WHERE id = ?", [(float)str_replace(',', '.', $t), (int)$id]);
         foreach ($_POST['nom'] ?? [] as $id => $n) if (trim($n) !== '') q("UPDATE ressources SET nom = ? WHERE id = ?", [trim($n), (int)$id]);
@@ -77,6 +80,7 @@ page_start('Paramètres', 'parametres.php');
 
 <section class="card">
   <h2>Règles de calcul</h2>
+  <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="generaux">
     <div class="grille-champs">
       <label for="coef">Coefficient de marge et d'aléas<small>1,25 = coût × 1,25. Couvre marge, frais généraux, aléas météo.</small></label><div><input id="coef" class="num" name="coef" value="<?= e(setting('coef')) ?>" inputmode="decimal"></div>
       <label for="tva">TVA (%)</label><div><input id="tva" class="num" name="tva" value="<?= e(setting('tva')) ?>" inputmode="decimal"></div>

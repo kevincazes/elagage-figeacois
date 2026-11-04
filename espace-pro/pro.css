@@ -161,13 +161,13 @@ input.tiny{width:60px}
 input[readonly].h{background:#eef2e6;color:var(--sapin);font-weight:700}.tbl.bpu th:nth-last-child(2),.tbl.bpu th:nth-last-child(3),.tbl.bpu th:nth-last-child(4),.tbl.bpu th:nth-last-child(5){min-width:92px}.tbl.bpu th.pu{min-width:110px}
 .tbl .out{font-variant-numeric:tabular-nums;white-space:nowrap}
 .tbl .pu{font-weight:900;color:var(--sapin);background:#fff}
-.scroll{overflow-x:scroll;-webkit-overflow-scrolling:touch;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
+.scroll.fenetre{overflow-x:scroll;-webkit-overflow-scrolling:touch;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
 .scroll::-webkit-scrollbar{height:12px}.scroll::-webkit-scrollbar-thumb{background:var(--sapin);border-radius:6px}.scroll::-webkit-scrollbar-track{background:var(--clair)}
 .defil{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--blanc);border-top:1px solid #e0e5da;box-shadow:0 -4px 14px rgba(28,59,43,.08);border-radius:0 0 var(--rayon) var(--rayon)}
 .defil .piste{flex:1;overflow-x:scroll;overflow-y:hidden;height:18px;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
 .defil .piste>div{height:1px}.defil .piste::-webkit-scrollbar{height:14px}.defil .piste::-webkit-scrollbar-thumb{background:var(--sapin);border-radius:7px}.defil .piste::-webkit-scrollbar-track{background:var(--clair);border-radius:7px}
 .defil button{font-size:1.1rem;line-height:1;padding:4px 10px}
-.scroll{cursor:grab}.scroll.grab{cursor:grabbing;user-select:none}.scroll input,.scroll textarea{cursor:text}.scroll select,.scroll button,.scroll a{cursor:pointer}
+.scroll.fenetre{cursor:grab}.scroll.grab{cursor:grabbing;user-select:none}.scroll input,.scroll textarea{cursor:text}.scroll select,.scroll button,.scroll a{cursor:pointer}
 .scroll-aide{font-size:.82rem;color:var(--doux);margin:4px 0 0}
 main.large{max-width:1800px}
 .tbl th.pu{background:#f8f9f4}
@@ -192,7 +192,7 @@ tr.sousgrp td{background:var(--clair);font-weight:700;color:var(--sapin);font-si
 .tbl.bord td input:not(.num):not(.tiny){min-width:300px}
 @media print{.top,.bottom,.btn,.mini,details,.cols,form.card button,th:nth-last-child(2),td:nth-last-child(2){display:none!important}body{background:#fff;font-size:12px}main{padding:0}.scroll{box-shadow:none;overflow:visible}input,select{border:0;background:transparent;padding:2px}.tbl .pu{position:static;box-shadow:none}h1{font-size:1.3rem}}
 /* Grands tableaux : fenêtre qui défile dans les deux sens, en-tête figé en haut */
-.scroll{overflow-x:scroll;overflow-y:auto;max-height:max(420px,calc(100vh - 150px));overscroll-behavior:contain}
+.scroll.fenetre{overflow-x:scroll;overflow-y:auto;max-height:max(420px,calc(100vh - 60px));overscroll-behavior:contain}
 .scroll thead th{position:sticky;top:0;z-index:3;background:#2f4f3a;color:#fff;font-weight:700;letter-spacing:.07em;padding:10px 6px;box-shadow:0 2px 0 var(--anis)}.scroll thead th .muted{color:#cfe39a}
 /* Catalogue : la colonne Désignation reste visible pendant le défilement horizontal */
 @media(min-width:1000px){
@@ -200,3 +200,48 @@ tr.sousgrp td{background:var(--clair);font-weight:700;color:var(--sapin);font-si
 .tbl.bpu th:nth-child(3){background:#2f4f3a;z-index:4}
 .tbl.bpu tr.grp .togg{z-index:2}
 }
+
+/* Assistant flottant */
+.bulle-ia{position:fixed;right:18px;bottom:18px;z-index:50;background:var(--sapin);color:#fff;border:0;border-radius:999px;padding:12px 18px;font:inherit;font-weight:900;font-size:1rem;cursor:pointer;box-shadow:0 6px 20px rgba(28,59,43,.35);display:flex;align-items:center;gap:8px}
+.bulle-ia:hover,.bulle-ia.on{background:#2f5f44}.bulle-ia span{font-weight:700}
+.pan-ia{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);z-index:60;background:var(--blanc);box-shadow:-8px 0 30px rgba(28,59,43,.25);display:flex;flex-direction:column}
+.pan-ia[hidden]{display:none}
+.pan-ia iframe{flex:1;border:0;width:100%;height:100%}
+.pan-fermer{position:absolute;top:8px;right:10px;z-index:2;background:transparent;border:0;font-size:1.6rem;line-height:1;cursor:pointer;color:var(--doux);padding:4px 8px}
+body.panneau{background:var(--blanc);margin:0;padding:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body.panneau .pan-tete{padding:12px 48px 10px 16px;border-bottom:1px solid #edf0e8;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+body.panneau .chat-layout.seul{display:flex;flex:1;min-height:0;padding:0}
+body.panneau .chat-main{box-shadow:none;border-radius:0;min-height:0;height:auto;flex:1}
+body.panneau .chat-fil{max-height:none}
+body.panneau .flash{margin:10px}
+@media(max-width:900px){.bulle-ia span{display:none}.bulle-ia{padding:12px 14px;bottom:70px}}
+/* Bordereau : barre de raccourcis, rattachement */
+.barre-ajout{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 10px}
+.tbl.bord input.catsel{font-size:.85rem}
+.tbl.bord td.calc a{text-decoration:none;color:inherit;border-bottom:1px dotted var(--doux)}
+@media print{
+  .bulle-ia,.pan-ia,.barre-ajout,.defil,#ajout,.fil,.scroll-aide,.no-print{display:none!important}
+  .scroll{max-height:none!important;overflow:visible!important}
+  .scroll thead th{position:static;background:#fff;color:#000;box-shadow:none}
+  .tbl.bord th:nth-child(1),.tbl.bord td:nth-child(1),.tbl.bord th:nth-child(7),.tbl.bord td:nth-child(7),.tbl.bord th:nth-child(8),.tbl.bord td:nth-child(8),.tbl.bord th:nth-child(9),.tbl.bord td:nth-child(9){display:none}
+  .tbl.bord tr.section td[colspan]{display:table-cell!important}
+}
+
+/* Bordereau : désignation lisible en entier et figée à gauche, unité lisible */
+.tbl.bord textarea.lib{width:100%;min-width:420px;resize:none;overflow:hidden;line-height:1.35;padding:6px 8px;margin:0;font:inherit;font-size:.95rem}
+.tbl.bord td input[name$='[unite]']{width:130px!important}
+@media(min-width:1000px){
+.tbl.bord th:nth-child(4),.tbl.bord tbody tr:not(.section) td:nth-child(4){position:sticky;left:0;z-index:2;background:var(--blanc);box-shadow:6px 0 10px -6px rgba(28,59,43,.25)}
+.tbl.bord th:nth-child(4){background:#2f4f3a;z-index:4}
+}
+.bulle-ia.on{display:none}
+/* Le bouton Assistant se pose au-dessus de la barre de défilement des grands tableaux */
+body:has(.scroll.fenetre) .bulle-ia{bottom:66px}
+@media(max-width:1000px){.guide .retour{right:auto;left:16px}}
+@media(max-width:700px){.packs-liste td.r{white-space:normal!important}.packs-liste td.r .mini{display:inline-block;margin:2px 0}}
+/* Pages à grand tableau : le bandeau ne reste pas collé en haut, pour ne pas masquer l'en-tête des colonnes */
+body:has(.scroll.fenetre) .top{position:relative}
+.scroll thead th.pu{background:#2f4f3a!important;color:#fff}
+body.panneau .pan-tete{flex:none}body.panneau .bulle.outil pre{font-family:inherit;font-size:.88rem;color:var(--texte)}
+@media(min-width:1200px){body.ia-ouvert{padding-right:min(520px,40vw)}body.ia-ouvert .pan-ia{width:min(520px,40vw)}}
+html{scroll-padding-top:var(--bandeau,0px)}

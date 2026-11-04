@@ -55,7 +55,7 @@ page_start('Comptes', 'utilisateurs.php');
     </div>
     <button class="btn" type="submit">Créer le compte et envoyer le lien</button>
   </form>
-  <p class="muted">La personne reçoit un e-mail avec un lien pour choisir elle-même son mot de passe. Un utilisateur peut tout faire sauf gérer les comptes et supprimer des grilles.</p>
+  <p class="muted">La personne reçoit un e-mail avec un lien pour choisir elle-même son mot de passe. Un utilisateur peut tout faire sauf gérer les comptes, supprimer un bordereau, importer le catalogue de démarrage et forcer le verrou d'un dossier.</p>
 </section>
 
 <h2>Comptes existants</h2>

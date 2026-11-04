@@ -19,6 +19,8 @@ function assistant_tables(): void {
 function assistant_contexte(?int $bordereauId): string {
     $u = user(); $lignes = [];
     $lignes[] = "Utilisateur connecté : {$u['prenom']} (" . ($u['role'] === 'admin' ? 'administrateur' : 'utilisateur') . "). Date : " . date('d/m/Y H:i') . ".";
+    $PAGES = ['index.php' => 'Tableau de bord', 'parametres.php' => 'Paramètres (taux horaires des ressources, coefficient, arrondi, progression par taille)', 'actions.php' => 'Actions dans l\'arbre', 'bpu.php' => 'Catalogue des prestations', 'packs.php' => 'Packs', 'bordereaux.php' => 'Liste des bordereaux', 'bordereau.php' => 'Un bordereau ouvert', 'importer.php' => 'Import d\'un bordereau reçu', 'historique.php' => 'Historique', 'guide.php' => 'Guide d\'utilisation', 'utilisateurs.php' => 'Comptes', 'compte.php' => 'Mon compte'];
+    if (!empty($GLOBALS['assistant_page']) && isset($PAGES[$GLOBALS['assistant_page']])) $lignes[] = "Page où se trouve l'utilisateur : " . $PAGES[$GLOBALS['assistant_page']] . ". Si sa question porte sur l'écran, explique ce qu'il voit et où agir (menus : Tableau de bord, Paramètres, Actions, Catalogue, Packs, Bordereaux, Historique, Guide, Comptes).";
     $lignes[] = "Règles de calcul : PU HT = (Σ heures × taux horaire + forfait) × coefficient " . setting('coef') . ", arrondi à " . setting('arrondi') . " €, TVA " . setting('tva') . " %.";
     $lignes[] = "Progression du temps par taille : 10–20 m +" . setting('prog_h2', '80') . " %, > 20 m +" . setting('prog_h3', '200') . " %, houppier 5–10 m +" . setting('prog_d2', '50') . " %, houppier > 10 m +" . setting('prog_d3', '120') . " %.";
     $r = []; foreach (ressources() as $x) $r[] = "#{$x['id']} {$x['nom']} : {$x['taux']} €/h" . ($x['role'] ? " [{$x['role']}]" : '');
@@ -134,4 +136,22 @@ function assistant_appel(array $messages, ?int $bordereauId): array {
     $in = (int)($j['usage']['input_tokens'] ?? 0) + (int)($j['usage']['cache_creation_input_tokens'] ?? 0) + (int)($j['usage']['cache_read_input_tokens'] ?? 0); $out = (int)($j['usage']['output_tokens'] ?? 0);
     q("INSERT INTO assistant_usage (mois, echanges, tokens_in, tokens_out) VALUES (?,1,?,?) ON DUPLICATE KEY UPDATE echanges = echanges + 1, tokens_in = tokens_in + VALUES(tokens_in), tokens_out = tokens_out + VALUES(tokens_out)", [$mois, $in, $out]);
     return $j;
+}
+
+/** Résumé lisible d'une action proposée par l'assistant (noms au lieu de numéros) */
+function assistant_resume(string $nom, array $i): string {
+    $lig = fn($id) => ($l = q("SELECT code, libelle FROM bpu_lignes WHERE id = ?", [(int)$id])->fetch()) ? trim($l['code'] . ' – ' . $l['libelle'], ' –') : "prestation n° $id";
+    $res = fn($id) => q("SELECT nom FROM ressources WHERE id = ?", [(int)$id])->fetch()['nom'] ?? "ressource n° $id";
+    $bl = fn($id) => ($l = q("SELECT numero, libelle FROM bordereau_lignes WHERE id = ?", [(int)$id])->fetch()) ? trim(($l['numero'] ? $l['numero'] . ' ' : '') . $l['libelle']) : "ligne n° $id";
+    $h = fn($v) => str_replace('.', ',', (string)(float)$v) . ' h';
+    $t = match ($nom) {
+        'modifier_temps_catalogue' => $lig($i['ligne_id'] ?? 0) . "\n" . $res($i['ressource_id'] ?? 0) . ' : ' . (($a = q("SELECT heures FROM bpu_temps WHERE ligne_id = ? AND ressource_id = ?", [(int)($i['ligne_id'] ?? 0), (int)($i['ressource_id'] ?? 0)])->fetch()) ? $h($a['heures']) : '—') . ' → ' . $h($i['heures'] ?? 0),
+        'creer_ligne_catalogue' => ($i['code'] ?? '') . ' – ' . ($i['libelle'] ?? '') . (isset($i['famille']) ? ' (' . $i['famille'] . ')' : ''),
+        'modifier_ligne_bordereau' => $bl($i['ligne_bordereau_id'] ?? 0) . (array_key_exists('quantite', $i) ? "\nQuantité → " . ($i['quantite'] ?? '—') : '') . (array_key_exists('pu_manuel', $i) ? "\nPU imposé → " . ($i['pu_manuel'] === null ? 'prix du catalogue' : $i['pu_manuel'] . ' €') : '') . (array_key_exists('catalogue_id', $i) ? "\nPrestation → " . ($i['catalogue_id'] ? $lig($i['catalogue_id']) : 'aucune') : ''),
+        'ajouter_ligne_bordereau' => ($i['libelle'] ?? '') . (!empty($i['quantite']) ? ' × ' . $i['quantite'] : '') . (!empty($i['pu_manuel']) ? ' à ' . $i['pu_manuel'] . ' €' : ''),
+        'creer_action' => ($i['nom'] ?? '') . ' (' . $h($i['duree'] ?? 0) . ')',
+        'memoriser' => '« ' . ($i['texte'] ?? '') . ' »',
+        default => json_encode($i, JSON_UNESCAPED_UNICODE),
+    };
+    return $t . (!empty($i['motif']) ? "\nMotif : " . $i['motif'] : '');
 }

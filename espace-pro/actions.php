@@ -45,6 +45,7 @@ $equipes = ressources_equipes();
 $eq = equipe_choisie(isset($_GET['equipe']) ? (int)$_GET['equipe'] : null);
 page_start('Actions dans l\'arbre', 'actions.php');
 ?>
+<p class="muted small">Facultatif : tu peux aussi saisir directement les heures d'équipe d'une prestation dans le catalogue. Les actions servent à construire ce temps geste par geste : dans le catalogue, menu « + action… » sur une ligne.</p>
 <p class="lead">Une action = un geste dans l'arbre et sa durée en heures d'équipe (<?= $eq ? e($eq['nom']) . ' à ' . money((float)$eq['taux']) . '/h' : 'ressource « Équipe » à créer dans Paramètres' ?>). Les actions sont indépendantes : dans le catalogue, chaque prestation combine celles dont elle a besoin, et son temps d'équipe est la somme. Le coût affiché est indicatif : l'équipe réellement appliquée se choisit dans chaque bordereau, et les taux se modifient dans <a href="parametres.php">Paramètres</a>.</p>
 <?php if (count($equipes) > 1): ?><form method="get" class="inline" style="margin:0 0 10px"><select name="equipe" onchange="this.form.submit()"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= (int)$eq['id'] === (int)$x['id'] ? 'selected' : '' ?>>Coût avec : <?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select></form><?php endif; ?>
 <?php if (!$actions): ?><form method="post" class="card"><?= csrf_field() ?><input type="hidden" name="action" value="exemples"><p>Aucune action pour l'instant. Tu peux partir d'une douzaine d'actions types et les adapter.</p><button class="btn" type="submit">Charger des actions d'exemple</button></form><?php endif; ?>
@@ -58,7 +59,7 @@ page_start('Actions dans l\'arbre', 'actions.php');
   <td class="r"><input class="num" name="a[<?= $x['id'] ?>][duree]" value="<?= e((string)(float)$x['duree']) ?>" inputmode="decimal"></td>
   <td><input name="a[<?= $x['id'] ?>][description]" value="<?= e($x['description']) ?>" style="min-width:420px;width:100%"></td>
   <td class="r out"><?= $eq ? money((float)$x['duree'] * (float)$eq['taux']) : '—' ?></td>
-  <td class="muted"><?= $x['nb'] ?> prestation<?= $x['nb'] > 1 ? 's' : '' ?></td>
+  <td class="muted"><?php if ($x['nb']): ?><a href="bpu.php?action_id=<?= $x['id'] ?>" title="Voir les prestations qui utilisent cette action"><?= $x['nb'] ?> prestation<?= $x['nb'] > 1 ? 's' : '' ?></a><?php else: ?>0 prestation<?php endif; ?></td>
   <td><button class="mini danger" type="submit" form="d<?= $x['id'] ?>" onclick="return confirm('Supprimer cette action ?')">×</button></td>
 </tr>
 <?php endforeach; ?>

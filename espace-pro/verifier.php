@@ -25,7 +25,7 @@ page_simple_start('Vérification');
 <?php if (!empty($_SESSION['flash'])) { [$m, $t] = $_SESSION['flash']; unset($_SESSION['flash']); echo '<div class="flash ' . e($t) . '">' . e($m) . '</div>'; } ?>
 <?php if ($err): ?><div class="flash err"><?= e($err) ?></div><?php endif; ?>
 <?php if ($u['mfa_type'] === 'totp'): ?>
-  <p class="muted">Saisissez le code à 6 chiffres affiché par votre application d'authentification.</p>
+  <p class="muted">Saisis le code à 6 chiffres affiché par ton application d'authentification.</p>
 <?php else: ?>
   <p class="muted">Un code à 6 chiffres vient d'être envoyé à <strong><?= e($u['email']) ?></strong> (valable 10 minutes).</p>
 <?php endif; ?>

@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <a class="btn" href="login.php">Retour à la connexion</a>
 <?php else: ?>
   <form method="post"><?= csrf_field() ?>
-    <label>Votre e-mail <input type="email" name="email" required autofocus></label>
+    <label>Ton e-mail <input type="email" name="email" required autofocus></label>
     <button class="btn" type="submit">Recevoir un lien</button>
   </form>
   <p class="muted"><a href="login.php">← Retour à la connexion</a></p>

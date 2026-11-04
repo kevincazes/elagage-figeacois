@@ -88,17 +88,17 @@ page_start('Importer un bordereau reçu', 'bordereaux.php', ['bordereaux.php', '
   <p class="muted">Les corrections que tu fais à l'étape suivante sont mémorisées : la même formulation sera reconnue au bordereau suivant.</p>
 </section>
 <?php else: $nbOk = count(array_filter($lignes, fn($l) => !$l['section'] && $l['score'] >= 60)); $nbL = count(array_filter($lignes, fn($l) => !$l['section'])); ?>
-<form method="post" id="fv"><?= csrf_field() ?><input type="hidden" name="action" value="creer"><input type="hidden" name="fichier" value="<?= e($nomFichier) ?>">
+<form method="post" id="fv" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="creer"><input type="hidden" name="fichier" value="<?= e($nomFichier) ?>">
 <section class="card">
   <div class="cols">
     <label>Nom du marché <input name="nom" value="<?= e(preg_replace('/\.[a-z0-9]+$/i', '', $nomFichier)) ?>" required></label>
     <label>Collectivité / client <input name="client"></label>
-    <?php if ($equipes): ?><label>Équipe appliquée aux prix <select name="equipe_id"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> – <?= money((float)$x['taux']) ?>/h</option><?php endforeach; ?></select></label><?php endif; ?>
+    <?php if ($equipes): ?><label>Équipe appliquée aux prix <select name="equipe_id" id="eqimp"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> – <?= money((float)$x['taux']) ?>/h</option><?php endforeach; ?></select></label><?php endif; ?>
   </div>
   <p><strong><?= $nbL ?> lignes</strong> lues, <?= $nbOk ?> appariées avec confiance. Vérifie les lignes <span class="conf c2"></span>orange et <span class="conf c3"></span>rouge, corrige avec le menu, ou coche « ignorer » pour les lignes qui n'ont rien à faire dans le bordereau. Les prix du fichier (s'il y en a) sont proposés en « PU imposé ».</p>
 </section>
 <div class="scroll"><table class="tbl imp">
-<thead><tr><th>N°</th><th class="w">Ligne du fichier</th><th>Unité</th><th class="r">Qté</th><th>Prestation du catalogue proposée</th><th class="r">Prix catalogue</th><th class="r">PU imposé</th><th>Ignorer</th></tr></thead>
+<thead><tr><th>N°</th><th class="w">Ligne du fichier</th><th>Unité</th><th class="r">Qté</th><th>Prestation du catalogue proposée</th><th class="r" title="Prix calculé avec l'équipe choisie en haut">Prix catalogue</th><th class="r">PU imposé</th><th>Ignorer</th></tr></thead>
 <tbody>
 <?php foreach ($lignes as $i => $l): ?>
 <?php if ($l['section']): ?>
@@ -112,7 +112,7 @@ page_start('Importer un bordereau reçu', 'bordereaux.php', ['bordereaux.php', '
   <td><span class="conf <?= $cl ?>" title="Confiance <?= (int)$l['score'] ?> %"></span>
     <select name="r[<?= $i ?>][ligne_id]" class="selcat" data-i="<?= $i ?>"><option value="">— Sans prestation (prix à saisir) —</option>
     <?php $fam = null; foreach ($catalogue as $c): if ($c['famille'] !== $fam) { if ($fam !== null) echo '</optgroup>'; $fam = $c['famille']; echo '<optgroup label="' . e($fam ?: 'Sans famille') . '">'; } ?>
-      <option value="<?= $c['id'] ?>" data-pu="<?= prix_catalogue($c) ?>" <?= $l['ligne_id'] === (int)$c['id'] ? 'selected' : '' ?>><?= e($c['code']) ?> · <?= e(mb_substr($c['libelle'], 0, 70)) ?></option>
+      <option value="<?= $c['id'] ?>" <?= $l['ligne_id'] === (int)$c['id'] ? 'selected' : '' ?>><?= e($c['code']) ?> · <?= e(mb_substr($c['libelle'], 0, 70)) ?></option>
     <?php endforeach; if ($fam !== null) echo '</optgroup>'; ?></select>
     <?php if ($l['raison']): ?><div class="small"><?= e($l['raison']) ?></div><?php endif; ?></td>
   <td class="r out puc"><?= $cat ? money(prix_catalogue($cat)) : '—' ?></td>
@@ -125,7 +125,13 @@ page_start('Importer un bordereau reçu', 'bordereaux.php', ['bordereaux.php', '
 </form>
 <script>
 const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
-document.querySelectorAll('select.selcat').forEach(s => s.addEventListener('change', () => { const o = s.selectedOptions[0]; const tr = s.closest('tr'); tr.querySelector('.puc').textContent = o.dataset.pu ? fmt(parseFloat(o.dataset.pu)) : '—'; tr.className = o.value ? 'c1' : 'c3'; }));
+// Prix de chaque prestation pour chaque équipe : suit le choix d'équipe en haut de page
+const PU = <?php $m = []; foreach ($catalogue as $c) foreach ($equipes ?: [['id' => 0]] as $x) $m[$c['id']][$x['id']] = prix_catalogue($c, $x['id'] ? (int)$x['id'] : null); echo json_encode($m); ?>;
+const eqSel = document.getElementById('eqimp');
+const eqCour = () => eqSel ? eqSel.value : '0';
+function majPrix(s) { const tr = s.closest('tr'), v = s.value; tr.querySelector('.puc').textContent = v && PU[v] ? fmt(PU[v][eqCour()]) : '—'; }
+document.querySelectorAll('select.selcat').forEach(s => { majPrix(s); s.addEventListener('change', () => { majPrix(s); s.closest('tr').className = s.value ? 'c1' : 'c3'; }); });
+if (eqSel) eqSel.addEventListener('change', () => document.querySelectorAll('select.selcat').forEach(majPrix));
 function ajuster(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 document.querySelectorAll('textarea.lib').forEach(t => { ajuster(t); t.addEventListener('input', () => ajuster(t)); });
 </script>

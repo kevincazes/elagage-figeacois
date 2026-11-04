@@ -2,6 +2,20 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.4', '2026-11-04', [
+        'Assistant disponible sur toutes les pages : bouton ✦ en bas à droite, panneau latéral qui reste ouvert d\'une page à l\'autre ; il sait sur quel écran tu es ; ses propositions affichent les noms (prestation, ressource, temps avant → après) ; le menu « Assistant » disparaît (page complète via « Historique ↗ »)',
+        'Guide entièrement refait, avec 24 captures d\'écran annotées : chaque bouton et chaque colonne expliqués, parcours pas à pas',
+        'Paramètres : correction de l\'enregistrement des règles de calcul (coefficient, TVA, arrondi, progression) et des liens du tableau de bord, qui ne s\'enregistraient pas',
+        'Grands tableaux (catalogue, bordereau, import) : envoi groupé pour ne jamais perdre de lignes à l\'enregistrement, même avec plusieurs centaines de lignes',
+        'Bordereaux : liste en premier, colonne équipe ; création avec choix de l\'équipe et départ depuis un pack (prix calculés) ou copie complète d\'un bordereau',
+        'Bordereau : colonne « Prestation du catalogue » pour rattacher ou changer la prestation d\'une ligne (prix mis à jour aussitôt) ; clic sur le PU calculé pour ouvrir la prestation dans le catalogue ; désignations en entier et figées à gauche ; raccourcis « Ajouter » ; impression épurée',
+        'Import : les prix proposés suivent l\'équipe choisie',
+        'Packs : l\'ordre des lignes est conservé à l\'enregistrement ; boutons « Régler les temps » et « → Bordereau »',
+        'Catalogue : filtres Pack, prestation seule, action ; l\'équipe de « Prix avec » est conservée après enregistrement ; une ligne ajoutée s\'affiche aussitôt',
+        'Actions : clic sur « N prestations » pour les voir dans le catalogue',
+        'Tableau de bord : tuile « Importer un bordereau reçu »',
+        'Pages à grand tableau : le bandeau ne recouvre plus l\'en-tête des colonnes ; le tableau occupe tout l\'écran',
+    ]],
     ['2.3.5', '2026-11-04', ['Catalogue : filtre « Pack » pour n\'afficher et ne régler que les lignes d\'un pack', 'En-tête des colonnes en vert foncé, bien distinct des lignes', 'Titres de famille et de hauteur toujours visibles à gauche, même tableau poussé tout à droite sur grand écran', 'Catalogue et bordereaux : le tableau est une fenêtre qui défile dans les deux sens (molette, barre, souris) sans entraîner la page ; l\'en-tête des colonnes reste figé en haut, la désignation à gauche', 'Le menu « Prix avec » s\'applique dès le choix ; position de la page et du tableau conservée après un rechargement']],
     ['2.3.4', '2026-11-04', ['Catalogue : une seule colonne « Heures d\'équipe » (les colonnes par équipe ont disparu : les heures sont les mêmes quelle que soit l\'équipe, seul le taux change, via « Prix avec » ici ou « Équipe appliquée aux prix » dans le bordereau)']],
     ['2.3.3', '2026-11-04', ['Catalogue et bordereaux : on peut faire glisser le tableau à la souris (clic maintenu hors des champs) pour le déplacer à droite, à gauche, en haut ou en bas']],

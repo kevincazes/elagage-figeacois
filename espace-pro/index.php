@@ -21,9 +21,10 @@ page_start('Tableau de bord', 'index.php');
 <p class="lead">Bonjour <?= e(user()['prenom']) ?>. Que veux-tu faire ?</p>
 <div class="tiles">
   <a class="tile" href="bpu.php"><strong><?= $nbLignes ?></strong><span>prestations au catalogue</span><em>Temps, taux, prix de référence</em></a>
-  <a class="tile" href="bordereaux.php?nouveau=1"><strong>+</strong><span>Nouveau bordereau</span><em>Composer au format de la collectivité</em></a>
+  <a class="tile" href="importer.php"><strong>⇪</strong><span>Importer un bordereau reçu</span><em>Le BPU / DQE de la collectivité, chiffré automatiquement</em></a>
+  <a class="tile" href="bordereaux.php#nouveau"><strong>+</strong><span>Nouveau bordereau</span><em>Vide ou à partir d'un pack</em></a>
   <a class="tile" href="bordereaux.php"><strong><?= $nbBord ?></strong><span>bordereaux</span><em><?= $dernier ? 'Dernier : ' . e($dernier['nom']) : 'Aucun pour l\'instant' ?></em></a>
-  <a class="tile" href="parametres.php"><strong><?= e(setting('coef')) ?></strong><span>coefficient actuel</span><em>Taux horaires, TVA, arrondi</em></a>
+  <a class="tile" href="parametres.php"><strong><?= e(setting('coef')) ?></strong><span>coefficient actuel</span><em>Taux des équipes, marge, arrondi</em></a>
 </div>
 <h2>Outils de l'entreprise</h2>
 <div class="tiles">
