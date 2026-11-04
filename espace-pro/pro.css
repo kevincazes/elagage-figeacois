@@ -182,18 +182,21 @@ body.centered{display:flex;align-items:center;justify-content:center;min-height:
 
 tr.section td{background:var(--clair)}
 tr.grp td{background:var(--sapin);padding:0}
-tr.grp .togg,tr.sousgrp td{position:sticky;left:0;max-width:calc(100vw - 80px)}
+tr.grp .togg,tr.sousgrp td>span{position:sticky;left:0;max-width:calc(100vw - 80px)}tr.sousgrp td>span{display:inline-block;padding-left:12px}
 .togg{width:100%;text-align:left;background:var(--sapin);color:#fff;border:0;font:inherit;font-weight:900;padding:10px 12px;cursor:pointer;border-radius:8px}
 .togg .muted{color:#cfe39a;font-weight:400}
 tr.grp .togg{border-radius:0}
 .chev{display:inline-block;width:14px}
-tr.sousgrp td{background:var(--clair);font-weight:700;color:var(--sapin);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:6px 12px}
+tr.sousgrp td{background:var(--clair);font-weight:700;color:var(--sapin);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:6px 0}
 .fam-titre{margin:8px 0 4px}.sous-titre{font-size:.78rem;font-weight:700;color:var(--sapin);text-transform:uppercase;letter-spacing:.06em;margin:6px 0 2px 22px}
 .tbl.bord td input:not(.num):not(.tiny){min-width:300px}
 @media print{.top,.bottom,.btn,.mini,details,.cols,form.card button,th:nth-last-child(2),td:nth-last-child(2){display:none!important}body{background:#fff;font-size:12px}main{padding:0}.scroll{box-shadow:none;overflow:visible}input,select{border:0;background:transparent;padding:2px}.tbl .pu{position:static;box-shadow:none}h1{font-size:1.3rem}}
+/* Grands tableaux : fenêtre qui défile dans les deux sens, en-tête figé en haut */
+.scroll{overflow-x:scroll;overflow-y:auto;max-height:max(420px,calc(100vh - 150px));overscroll-behavior:contain}
+.scroll thead th{position:sticky;top:0;z-index:3;background:#f8f9f4;box-shadow:0 1px 0 #e0e5da}
 /* Catalogue : la colonne Désignation reste visible pendant le défilement horizontal */
 @media(min-width:1000px){
 .tbl.bpu th:nth-child(3),.tbl.bpu tbody tr:not(.grp):not(.sousgrp) td:nth-child(3){position:sticky;left:0;z-index:2;background:var(--blanc);box-shadow:6px 0 10px -6px rgba(28,59,43,.25)}
-.tbl.bpu th:nth-child(3){background:#f8f9f4;z-index:3}
+.tbl.bpu th:nth-child(3){background:#f8f9f4;z-index:4}
 .tbl.bpu tr.grp .togg{z-index:2}
 }

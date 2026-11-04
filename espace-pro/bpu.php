@@ -104,7 +104,7 @@ page_start('Catalogue des prestations', 'bpu.php');
 
 <form method="post" id="f"><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>">
-<p class="scroll-aide">Le tableau est plus large que l'écran : fais-le défiler avec la barre verte qui reste visible en bas de l'écran (ou ses boutons ⇤ ⇥ pour aller au début ou à la fin), ou en faisant glisser le tableau avec la souris (clic maintenu hors des champs), ou ⇧ + molette, pour voir les actions, les heures, le forfait et la référence.</p>
+<p class="scroll-aide">Le tableau défile dans sa propre fenêtre, dans les deux sens : molette pour descendre, barre du bas ou ⇤ ⇥ ou ⇧ + molette pour aller à droite, ou clic maintenu hors des champs pour le faire glisser. L'en-tête et la désignation restent visibles, pour voir les actions, les heures, le forfait et la référence.</p>
 <div class="scroll">
 <table class="tbl bpu">
 <thead><tr><th>Ord.</th><th>Code</th><th class="w">Désignation</th><th>Famille</th><th>Haut.</th><th>Houp.</th><th>Circ.</th><th>Unité</th><th class="acts">Actions dans l'arbre</th>
@@ -115,7 +115,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   if ($f !== $famCour): $famCour = $f; $hautCour = null; $r = $resume[$f]; $grp = md5($f); ?>
 <tr class="grp" data-grp="<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><button type="button" class="togg" onclick="toggle('<?= $grp ?>')"><span class="chev">▸</span> <?= e($f) ?> <span class="muted">· <?= $r['n'] ?> ligne<?= $r['n'] > 1 ? 's' : '' ?> · de <?= money($r['min']) ?> à <?= money($r['max']) ?></span></button></td></tr>
 <?php endif; if ($l['hauteur'] !== $hautCour && count(array_unique(array_map(fn($x) => $x['hauteur'], array_filter($lignes, fn($x) => ($x['famille'] ?: 'Sans famille') === $f)))) > 1): $hautCour = $l['hauteur']; ?>
-<tr class="sousgrp g-<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><?= e($HLIB[$l['hauteur']] ?? $l['hauteur']) ?></td></tr>
+<tr class="sousgrp g-<?= $grp ?>"><td colspan="<?= 14 + count($res) ?>"><span><?= e($HLIB[$l['hauteur']] ?? $l['hauteur']) ?></span></td></tr>
 <?php endif; ?>
 <tr class="g-<?= $grp ?>" data-id="<?= $id ?>" data-ref="<?= $l['prix_ref'] !== null ? (float)$l['prix_ref'] : '' ?>" title="<?= e($l['source']) ?>">
   <td><input class="tiny" name="l[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>"></td>
@@ -170,7 +170,7 @@ function calc(tr) {
 }
 document.querySelectorAll('tr[data-id]').forEach(tr => { calc(tr); tr.addEventListener('input', () => calc(tr)); });
 // Désignations : hauteur ajustée au texte
-function ajuster(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+function ajuster(t) { if (!t.offsetParent) return; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 document.querySelectorAll('textarea.lib').forEach(t => { ajuster(t); t.addEventListener('input', () => ajuster(t)); });
 new ResizeObserver(() => document.querySelectorAll('textarea.lib').forEach(ajuster)).observe(document.body);
 function actSend(a, l, x) { document.getElementById('fact_a').value = a; document.getElementById('fact_l').value = l; document.getElementById('fact_x').value = x; document.getElementById('fact').submit(); }
@@ -179,7 +179,7 @@ function varSend(a, id, h) { document.getElementById('fvar_a').value = a; docume
 document.querySelectorAll('select.actsel').forEach(s => s.addEventListener('change', () => { if (s.value) actSend('act_add', s.dataset.l, s.value); }));
 // Blocs repliables (état mémorisé dans le navigateur)
 let ouverts = {}; try { ouverts = JSON.parse(localStorage.getItem('cat_ouverts') || '{}'); } catch (e) {}
-function appliquer(g, on) { document.querySelectorAll('.g-' + g).forEach(tr => tr.style.display = on ? '' : 'none'); const c = document.querySelector('tr[data-grp="' + g + '"] .chev'); if (c) c.textContent = on ? '▾' : '▸'; }
+function appliquer(g, on) { document.querySelectorAll('.g-' + g).forEach(tr => { tr.style.display = on ? '' : 'none'; if (on) tr.querySelectorAll('textarea.lib').forEach(ajuster); }); const c = document.querySelector('tr[data-grp="' + g + '"] .chev'); if (c) c.textContent = on ? '▾' : '▸'; }
 function toggle(g) { ouverts[g] = !ouverts[g]; appliquer(g, ouverts[g]); try { localStorage.setItem('cat_ouverts', JSON.stringify(ouverts)); } catch (e) {} }
 function toutes(on) { document.querySelectorAll('tr[data-grp]').forEach(tr => { ouverts[tr.dataset.grp] = on; appliquer(tr.dataset.grp, on); }); try { localStorage.setItem('cat_ouverts', JSON.stringify(ouverts)); } catch (e) {} }
 const filtre = <?= json_encode($fFam !== '' || $fQ !== '') ?>;

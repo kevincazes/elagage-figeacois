@@ -415,11 +415,11 @@ function page_end(): void { echo '</main>' . <<<'JS'
   try{
     var sv=JSON.parse(sessionStorage.getItem(cle)||'null');
     if(sv && Date.now()-sv.t<600000){
-      requestAnimationFrame(function(){ window.scrollTo(0,sv.y); document.querySelectorAll('.scroll').forEach(function(sc,i){ if(sv.x[i]!=null) sc.scrollLeft=sv.x[i]; }); });
+      requestAnimationFrame(function(){ window.scrollTo(0,sv.y); document.querySelectorAll('.scroll').forEach(function(sc,i){ if(sv.x[i]!=null) sc.scrollLeft=sv.x[i]; if(sv.v&&sv.v[i]!=null) sc.scrollTop=sv.v[i]; }); });
     }
     sessionStorage.removeItem(cle);
   }catch(e){}
-  function memoPos(){ try{ sessionStorage.setItem(cle, JSON.stringify({t:Date.now(), y:window.scrollY, x:[].map.call(document.querySelectorAll('.scroll'),function(sc){return sc.scrollLeft;})})); }catch(e){} }
+  function memoPos(){ try{ sessionStorage.setItem(cle, JSON.stringify({t:Date.now(), y:window.scrollY, x:[].map.call(document.querySelectorAll('.scroll'),function(sc){return sc.scrollLeft;}), v:[].map.call(document.querySelectorAll('.scroll'),function(sc){return sc.scrollTop;})})); }catch(e){} }
   document.addEventListener('submit',memoPos,true);
   window.addEventListener('beforeunload',memoPos);
   document.querySelectorAll('.scroll').forEach(function(sc){
@@ -427,9 +427,9 @@ function page_end(): void { echo '</main>' . <<<'JS'
     var dep=null;
     sc.addEventListener('mousedown',function(e){
       if(e.button!==0 || e.target.closest('input,select,textarea,button,a,label')) return;
-      dep={x:e.pageX,y:e.pageY,sl:sc.scrollLeft,st:window.scrollY}; sc.classList.add('grab'); e.preventDefault();
+      dep={x:e.pageX,y:e.pageY,sl:sc.scrollLeft,st:sc.scrollTop}; sc.classList.add('grab'); e.preventDefault();
     });
-    document.addEventListener('mousemove',function(e){ if(!dep) return; sc.scrollLeft=dep.sl-(e.pageX-dep.x); window.scrollTo(0,dep.st-(e.pageY-dep.y)); });
+    document.addEventListener('mousemove',function(e){ if(!dep) return; sc.scrollLeft=dep.sl-(e.pageX-dep.x); sc.scrollTop=dep.st-(e.pageY-dep.y); });
     document.addEventListener('mouseup',function(){ if(dep){dep=null; sc.classList.remove('grab');} });
     if (sc.scrollWidth <= sc.clientWidth + 4) return;
     var bar=document.createElement('div'); bar.className='defil';
