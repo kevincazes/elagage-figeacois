@@ -52,9 +52,9 @@ page_start('Actions dans l\'arbre', 'actions.php');
 <?php foreach ($actions as $x): ?>
 <tr>
   <td><input class="tiny" name="a[<?= $x['id'] ?>][ordre]" value="<?= $x['ordre'] ?>"></td>
-  <td><input name="a[<?= $x['id'] ?>][nom]" value="<?= e($x['nom']) ?>" style="min-width:320px"></td>
+  <td><input name="a[<?= $x['id'] ?>][nom]" value="<?= e($x['nom']) ?>" style="min-width:300px;width:100%"></td>
   <td class="r"><input class="num" name="a[<?= $x['id'] ?>][duree]" value="<?= e((string)(float)$x['duree']) ?>" inputmode="decimal"></td>
-  <td><input name="a[<?= $x['id'] ?>][description]" value="<?= e($x['description']) ?>" style="min-width:260px"></td>
+  <td><input name="a[<?= $x['id'] ?>][description]" value="<?= e($x['description']) ?>" style="min-width:420px;width:100%"></td>
   <td class="r out"><?= $eq ? money((float)$x['duree'] * (float)$eq['taux']) : '—' ?></td>
   <td class="muted"><?= $x['nb'] ?> prestation<?= $x['nb'] > 1 ? 's' : '' ?></td>
   <td><button class="mini danger" type="submit" form="d<?= $x['id'] ?>" onclick="return confirm('Supprimer cette action ?')">×</button></td>
