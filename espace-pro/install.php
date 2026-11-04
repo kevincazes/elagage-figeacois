@@ -20,7 +20,8 @@ if (!$err && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->exec("CREATE TABLE IF NOT EXISTS utilisateurs (
             id INT AUTO_INCREMENT PRIMARY KEY, prenom VARCHAR(80) NOT NULL, nom VARCHAR(80) NOT NULL DEFAULT '', email VARCHAR(190) NOT NULL UNIQUE,
-            mdp VARCHAR(255) NOT NULL, token VARCHAR(64) NULL, token_expire DATETIME NULL, role ENUM('admin','user') NOT NULL DEFAULT 'user', actif TINYINT NOT NULL DEFAULT 1,
+            mdp VARCHAR(255) NOT NULL, token VARCHAR(64) NULL, token_expire DATETIME NULL,
+            mfa_type VARCHAR(10) NOT NULL DEFAULT 'none', mfa_secret VARCHAR(64) NULL, mfa_code VARCHAR(255) NULL, mfa_expire DATETIME NULL, role ENUM('admin','user') NOT NULL DEFAULT 'user', actif TINYINT NOT NULL DEFAULT 1,
             cree_le DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $pdo->exec("CREATE TABLE IF NOT EXISTS parametres (cle VARCHAR(60) PRIMARY KEY, valeur TEXT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $pdo->exec("CREATE TABLE IF NOT EXISTS ressources (

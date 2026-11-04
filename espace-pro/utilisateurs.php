@@ -25,6 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)$_POST['id'];
         if ($id === (int)user()['id']) flash('Tu ne peux pas changer ton propre rôle.', 'err');
         else { q("UPDATE utilisateurs SET role = ? WHERE id = ?", [($_POST['role'] ?? 'user') === 'admin' ? 'admin' : 'user', $id]); flash('Rôle modifié.'); }
+    } elseif ($a === 'mfa_reset') {
+        q("UPDATE utilisateurs SET mfa_type = 'none', mfa_secret = NULL WHERE id = ?", [(int)$_POST['id']]);
+        flash('Double authentification réinitialisée : la personne choisira une nouvelle méthode à sa prochaine connexion.');
     } elseif ($a === 'toggle') {
         $id = (int)$_POST['id'];
         if ($id === (int)user()['id']) flash('Tu ne peux pas désactiver ton propre compte.', 'err');
@@ -57,7 +60,7 @@ page_start('Comptes', 'utilisateurs.php');
 
 <h2>Comptes existants</h2>
 <div class="scroll"><table class="tbl">
-<tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>Mot de passe</th><th></th></tr>
+<tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>2FA</th><th>Mot de passe</th><th></th></tr>
 <?php foreach ($users as $u): $moi = (int)$u['id'] === (int)user()['id']; $enAttente = $u['token'] && strtotime($u['token_expire']) > time(); ?>
 <tr>
   <td><strong><?= e($u['prenom'] . ' ' . $u['nom']) ?></strong><?= $moi ? ' <span class="muted">(toi)</span>' : '' ?></td>
@@ -66,6 +69,8 @@ page_start('Comptes', 'utilisateurs.php');
     <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="role"><input type="hidden" name="id" value="<?= $u['id'] ?>">
     <select name="role" onchange="this.form.submit()"><option value="user" <?= $u['role'] === 'user' ? 'selected' : '' ?>>Utilisateur</option><option value="admin" <?= $u['role'] === 'admin' ? 'selected' : '' ?>>Administrateur</option></select></form><?php endif; ?></td>
   <td><?= $u['actif'] ? '<span class="ok">Actif</span>' : '<span class="off">Désactivé</span>' ?><?= $enAttente ? '<br><span class="muted">lien en attente</span>' : '' ?></td>
+  <td><?= ['none' => '<span class="off">à configurer</span>', 'totp' => 'Application', 'email' => 'E-mail'][$u['mfa_type']] ?>
+    <?php if ($u['mfa_type'] !== 'none' && !$moi): ?><form method="post" class="inline" onsubmit="return confirm('Réinitialiser la double authentification de cette personne ?')"><?= csrf_field() ?><input type="hidden" name="action" value="mfa_reset"><input type="hidden" name="id" value="<?= $u['id'] ?>"><button class="mini" type="submit">Réinitialiser</button></form><?php endif; ?></td>
   <td><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="renvoyer"><input type="hidden" name="id" value="<?= $u['id'] ?>"><button class="mini" type="submit">Envoyer un lien de (ré)initialisation</button></form></td>
   <td><?php if (!$moi): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $u['id'] ?>"><button class="mini <?= $u['actif'] ? 'danger' : '' ?>" type="submit"><?= $u['actif'] ? 'Désactiver' : 'Réactiver' ?></button></form><?php endif; ?></td>
 </tr>

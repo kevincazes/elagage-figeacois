@@ -38,6 +38,7 @@ p{margin:.4em 0 1em}
 .main-nav a:hover,.main-nav a.active{background:var(--vert-clair)}
 .main-nav{display:flex;align-items:center;gap:14px}
 .nav-client{font-size:.85rem;padding:7px 12px}
+.nav-pro{margin-left:4px}
 .burger{display:none;background:none;border:0;width:40px;height:40px;cursor:pointer}
 .burger span{display:block;height:3px;background:var(--vert-sapin);margin:7px 0;border-radius:2px}
 @media(max-width:900px){

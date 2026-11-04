@@ -14,18 +14,14 @@ if ($u && $_SERVER['REQUEST_METHOD'] === 'POST') {
     else {
         q("UPDATE utilisateurs SET mdp = ?, token = NULL, token_expire = NULL WHERE id = ?", [password_hash($mdp, PASSWORD_DEFAULT), $u['id']]);
         session_regenerate_id(true);
-        $_SESSION['user'] = ['id' => $u['id'], 'prenom' => $u['prenom'], 'email' => $u['email'], 'role' => $u['role']];
-        $ok = true;
+        $_SESSION['pending'] = $u['id'];
+        redirect($u['mfa_type'] === 'none' ? 'securite.php' : 'verifier.php');
     }
 }
 ?><!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Choisir un mot de passe – <?= e(APP_NAME) ?></title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css"></head>
 <body class="centered"><main class="box">
 <img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois" class="box-logo">
-<?php if ($ok): ?>
-  <h1>C'est enregistré</h1>
-  <p>Bienvenue <?= e($u['prenom']) ?>, votre mot de passe est en place et vous êtes connecté·e.</p>
-  <a class="btn" href="index.php">Accéder à l'espace pro</a>
-<?php elseif (!$u): ?>
+<?php if (!$u): ?>
   <h1>Lien invalide ou expiré</h1>
   <p class="muted">Ce lien n'est plus valable (il dure 48 heures). Demandez-en un nouveau à un administrateur, ou utilisez « Mot de passe oublié » sur la page de connexion.</p>
   <a class="btn" href="login.php">Page de connexion</a>
