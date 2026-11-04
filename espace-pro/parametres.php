@@ -91,13 +91,21 @@ page_start('Paramètres', 'parametres.php');
       <label for="pd2">Houppier de 5 à 10 m</label><div>+ <input id="pd2" class="num" name="prog_d2" value="<?= e(setting('prog_d2', '50')) ?>" inputmode="decimal"> %</div>
       <label for="pd3">Houppier de plus de 10 m</label><div>+ <input id="pd3" class="num" name="prog_d3" value="<?= e(setting('prog_d3', '120')) ?>" inputmode="decimal"> %</div>
     </div>
-    <h2>Liens du tableau de bord</h2>
-    <label>Google Drive <input name="lien_drive" value="<?= e(setting('lien_drive')) ?>" placeholder="https://drive.google.com/…"></label>
-    <label>Extrabat <input name="lien_extrabat" value="<?= e(setting('lien_extrabat')) ?>" placeholder="https://…"></label>
-    <label>Urgence Élagage <input name="lien_urgence" value="<?= e(setting('lien_urgence')) ?>"></label>
-    <label>Arbogestion <input name="lien_arbogestion" value="<?= e(setting('lien_arbogestion')) ?>"></label>
-    <button class="btn" type="submit">Enregistrer</button>
+    <button class="btn" type="submit">Enregistrer les règles</button>
   </form>
 </section>
 </div>
+<section class="card">
+  <h2>Liens du tableau de bord</h2>
+  <p class="muted">Adresses ouvertes par les tuiles « Outils de l'entreprise ». Sans rapport avec le chiffrage.</p>
+  <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="liens">
+    <div class="cols">
+      <label>Google Drive <input name="lien_drive" value="<?= e(setting('lien_drive')) ?>" placeholder="https://drive.google.com/…"></label>
+      <label>Extrabat <input name="lien_extrabat" value="<?= e(setting('lien_extrabat')) ?>" placeholder="https://…"></label>
+      <label>Urgence Élagage <input name="lien_urgence" value="<?= e(setting('lien_urgence')) ?>"></label>
+      <label>Arbogestion <input name="lien_arbogestion" value="<?= e(setting('lien_arbogestion')) ?>"></label>
+    </div>
+    <button class="btn secondary" type="submit">Enregistrer les liens</button>
+  </form>
+</section>
 <?php page_end(); ?>

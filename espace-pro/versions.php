@@ -2,6 +2,7 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.0.2', '2026-11-04', ['Paramètres : champs chiffrés alignés en bout de ligne ; liens du tableau de bord séparés des règles de calcul']],
     ['2.0.1', '2026-11-04', ['Paramètres : mise en page sur deux colonnes, champs chiffrés alignés sur une même colonne, noms de ressources lisibles ; la conversion réutilise une ressource « équipe » créée à la main']],
     ['2.0', '2026-11-04', [
         'Nouveau modèle de chiffrage : heures d\'équipe (tout compris) + rognage + moyens spécifiques (enlèvement du bois, grue…) ; conversion du catalogue en un clic dans Paramètres, prix inchangés',
