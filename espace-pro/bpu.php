@@ -91,7 +91,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   <select name="famille"><option value="">Toutes les familles</option><?php foreach ($familles as $f): ?><option <?= $f === $fFam ? 'selected' : '' ?>><?= e($f) ?></option><?php endforeach; ?></select>
   <select name="hauteur"><?php foreach ($HAUT as $k => $v): ?><option value="<?= $k ?>" <?= $k === $fHaut ? 'selected' : '' ?>><?= $k === '' ? 'Toutes hauteurs' : $v ?></option><?php endforeach; ?></select>
   <input name="q" value="<?= e($fQ) ?>" placeholder="Rechercher (libellé, code)">
-  <?php if (count($equipes) > 1): ?><select name="equipe" title="Équipe utilisée pour afficher les prix"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= ($eqApercu ?? (int)$equipes[0]['id']) === (int)$x['id'] ? 'selected' : '' ?>>Prix avec : <?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select><?php endif; ?>
+  <?php if (count($equipes) > 1): ?><select name="equipe" title="Équipe utilisée pour afficher les prix" onchange="this.form.submit()"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= ($eqApercu ?? (int)$equipes[0]['id']) === (int)$x['id'] ? 'selected' : '' ?>>Prix avec : <?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select><?php endif; ?>
   <button class="btn secondary" type="submit">Filtrer</button>
   <a class="mini" href="bpu.php">Tout afficher</a>
   <span class="muted"><?= count($lignes) ?> / <?= $total ?> lignes</span>
