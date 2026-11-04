@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         journal('taux', 'Taux horaires : ' . implode(', ', array_map(fn($id, $t) => (q("SELECT nom FROM ressources WHERE id = ?", [(int)$id])->fetch()['nom'] ?? $id) . " $t €/h", array_keys($_POST['taux'] ?? []), $_POST['taux'] ?? []))); flash('Taux horaires enregistrés.');
     } elseif ($action === 'simplifier') {
         require_admin();
-        [$n, $old] = simplifier_en_equipe(max(1, (float)str_replace(',', '.', $_POST['taux_equipe'] ?? '190')), max(1, (float)str_replace(',', '.', $_POST['taux_rognage'] ?? '80')), (float)str_replace(',', '.', $_POST['taux_equipe2'] ?? '0'));
+        [$n, $old] = simplifier_en_equipe(max(1, (float)str_replace(',', '.', $_POST['taux_equipe'] ?? '190')), 80.0, (float)str_replace(',', '.', $_POST['taux_equipe2'] ?? '0'));
         journal('taux', "Passage au modèle Équipe + Rognage : $n lignes converties, $old anciennes ressources retirées");
         flash("Modèle simplifié : $n lignes converties en heures d'équipe (prix inchangés), $old anciennes ressources retirées.");
     } elseif ($action === 'ajout_ressource' && trim($_POST['nom_new'] ?? '') !== '') {
@@ -42,11 +42,10 @@ page_start('Paramètres', 'parametres.php');
 <?php if (!ressource_equipe() && user()['role'] === 'admin'): ?>
 <section class="card" style="border-left:5px solid var(--anis)">
   <h2>Passer au modèle « Équipe + Rognage »</h2>
-  <p>Le catalogue stocke des <strong>heures d'équipe</strong> (temps des actions dans l'arbre). Chaque bordereau choisit ensuite l'équipe qui s'applique : l'équipe standard (coût complet) ou une équipe à taux réduit pour les marchés publics. Le rognage est à part, et tu pourras ajouter des moyens spécifiques (enlèvement du bois sur gros sujets, grue…) comme ressources supplémentaires. Les lignes existantes sont converties en heures au taux de l'équipe standard, <strong>sans changer leurs prix</strong> ; les anciennes ressources sont retirées.</p>
+  <p>Le catalogue stocke des <strong>heures d'équipe</strong> (temps des actions dans l'arbre). Chaque bordereau choisit ensuite l'équipe qui s'applique : l'équipe standard (coût complet) ou une équipe à taux réduit pour les marchés publics. Le rognage et les moyens spécifiques (enlèvement du bois sur gros sujets, grue…) sont des ressources à part, réglées ensuite dans « Taux horaires des ressources ». Les lignes existantes sont converties en heures au taux de l'équipe standard, <strong>sans changer leurs prix</strong> ; les anciennes ressources sont retirées.</p>
   <form method="post" class="inline" onsubmit="return confirm('Convertir tout le catalogue au modèle Équipe + Rognage ?')"><?= csrf_field() ?><input type="hidden" name="action" value="simplifier">
     <span>Équipe standard</span> <input class="num" name="taux_equipe" value="190" inputmode="decimal"> <span>€/h</span>
     <span style="margin-left:14px">Équipe marché public</span> <input class="num" name="taux_equipe2" value="60" inputmode="decimal"> <span>€/h</span>
-    <span style="margin-left:14px">Rognage</span> <input class="num" name="taux_rognage" value="80" inputmode="decimal"> <span>€/h</span>
     <button class="btn" type="submit">Convertir</button>
   </form>
 </section>
