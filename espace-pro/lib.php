@@ -78,6 +78,7 @@ function migrate(): void {
     }
     try { foreach (q("SHOW COLUMNS FROM utilisateurs LIKE 'mfa_code'") as $c) if (stripos($c['Type'], '255') === false) db()->exec("ALTER TABLE utilisateurs MODIFY mfa_code VARCHAR(255) NULL"); } catch (Throwable $t) {}
     // 2.4 : colonnes élargies (codes de variantes, libellés de BPU très longs, numéros de prix)
+    if (setting('schema_roles') !== '1') { try { db()->exec("ALTER TABLE utilisateurs MODIFY role VARCHAR(20) NOT NULL DEFAULT 'user'"); set_setting('schema_roles', '1'); } catch (Throwable $t) {} }
     if (setting('schema') !== '2.4') {
         foreach (["ALTER TABLE bpu_lignes MODIFY code VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE bpu_lignes MODIFY libelle VARCHAR(1000) NOT NULL",
                   "ALTER TABLE bpu_lignes MODIFY unite VARCHAR(60) NOT NULL DEFAULT 'U'", "ALTER TABLE bordereau_lignes MODIFY numero VARCHAR(40) NOT NULL DEFAULT ''",
@@ -294,7 +295,17 @@ function csrf(): string { if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2
 function csrf_field(): string { return '<input type="hidden" name="csrf" value="' . csrf() . '">'; }
 function check_csrf(): void { if ($_SERVER['REQUEST_METHOD'] === 'POST' && !hash_equals(csrf(), $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF'] ?? ''))) { http_response_code(403); exit('Formulaire expiré, recharge la page.'); } }
 function user(): ?array {
-    if (!empty($_SESSION['user'])) return $_SESSION['user'];
+    if (!empty($_SESSION['user'])) {
+        if (empty($GLOBALS['__user_verifie'])) {
+            $GLOBALS['__user_verifie'] = true;
+            try {
+                $u = q("SELECT role, actif, prenom FROM utilisateurs WHERE id = ?", [(int)$_SESSION['user']['id']])->fetch();
+                if (!$u || !(int)$u['actif']) { $_SESSION = []; return null; }
+                $_SESSION['user']['role'] = $u['role']; $_SESSION['user']['prenom'] = $u['prenom'];
+            } catch (Throwable $t) {}
+        }
+        return $_SESSION['user'];
+    }
     // Reconnexion automatique : cookie « rester connecté » (id:jeton), jeton haché en base, 30 jours
     if (!empty($_COOKIE['ef_souvenir']) && str_contains($_COOKIE['ef_souvenir'], ':')) {
         [$id, $jeton] = explode(':', $_COOKIE['ef_souvenir'], 2);
@@ -320,7 +331,17 @@ function souvenir_effacer(?int $uid): void {
     setcookie('ef_souvenir', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
 }
 function require_login(): void { if (!user()) redirect('login.php'); migrate(); check_csrf(); }
-function require_admin(): void { require_login(); if (user()['role'] !== 'admin') { http_response_code(403); exit('Réservé aux administrateurs.'); } }
+/** Rôles : admin (tout), secretaire (chiffrage complet, sans les réglages de prix ni les comptes), user (tableau de bord et son compte) */
+const ROLES = ['admin' => 'Administrateur', 'secretaire' => 'Secrétaire', 'user' => 'Utilisateur'];
+function role_libelle(string $r): string { return ROLES[$r] ?? 'Utilisateur'; }
+function est_admin(): bool { return (user()['role'] ?? '') === 'admin'; }
+function acces_chiffrage(): bool { return in_array(user()['role'] ?? '', ['admin', 'secretaire'], true); }
+/** Pages du calculateur (catalogue, bordereaux, import, assistant…) : administrateurs et secrétariat */
+function require_chiffrage(): void {
+    require_login();
+    if (!acces_chiffrage()) { http_response_code(403); page_start('Accès réservé', 'index.php'); echo '<p class="lead">Le calculateur de prix est réservé à l\'administration et au secrétariat.</p><p><a class="btn" href="index.php">Retour au tableau de bord</a></p>'; page_end(); exit; }
+}
+function require_admin(): void { require_login(); if (!est_admin()) { http_response_code(403); page_start('Accès réservé', 'index.php'); echo '<p class="lead">Cette page est réservée aux administrateurs.</p><p><a class="btn" href="index.php">Retour au tableau de bord</a></p>'; page_end(); exit; } }
 function flash(string $msg, string $type = 'ok'): void { $_SESSION['flash'] = [$msg, $type]; }
 
 // ---- Double authentification ----
@@ -417,6 +438,8 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         'historique.php' => 'Historique',
         'guide.php' => 'Guide',
     ];
+    if ($u && !in_array($u['role'], ['admin', 'secretaire'], true)) $nav = ['index.php' => 'Tableau de bord']; // utilisateur : pas de calculateur
+    elseif ($u && $u['role'] !== 'admin') unset($nav['parametres.php']);                   // secrétariat : pas de réglages de prix
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
     $nav['compte.php'] = 'Mon compte';
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
@@ -453,7 +476,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
 }
 function page_end(): void {
     $self = basename($_SERVER['SCRIPT_NAME'] ?? '');
-    if ($self !== 'assistant.php') {
+    if ($self !== 'assistant.php' && user() && acces_chiffrage()) {
         $ctx = 'page=' . $self . ($self === 'bordereau.php' && isset($_GET['id']) ? '&bordereau=' . (int)$_GET['id'] : '');
         echo '<button type="button" class="bulle-ia" id="bulleIA" title="Assistant : pose une question sur cet écran ou sur un chiffrage">✦<span>Assistant</span></button>'
            . '<aside class="pan-ia" id="panIA" hidden><button type="button" class="pan-fermer" title="Fermer">×</button><iframe data-src="assistant.php?panneau=1&' . e($ctx) . '" title="Assistant"></iframe></aside>';

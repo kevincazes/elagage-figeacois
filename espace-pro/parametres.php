@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_admin();
 $pdo = db();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $res = q("SELECT * FROM ressources WHERE actif = 1 ORDER BY ordre, id")->fetchAll();
 page_start('Paramètres', 'parametres.php');
 ?>
-<?php if (!ressource_equipe() && user()['role'] === 'admin'): ?>
+<?php if (!ressource_equipe() && est_admin()): ?>
 <section class="card" style="border-left:5px solid var(--anis)">
   <h2>Passer au modèle « Équipe + Rognage »</h2>
   <p>Le catalogue stocke des <strong>heures d'équipe</strong> (temps des actions dans l'arbre). Chaque bordereau choisit ensuite l'équipe qui s'applique : l'équipe standard (coût complet) ou une équipe à taux réduit pour les marchés publics. Le rognage et les moyens spécifiques (enlèvement du bois sur gros sujets, grue…) sont des ressources à part, réglées ensuite dans « Taux horaires des ressources ». Les lignes existantes sont converties en heures au taux de l'équipe standard, <strong>sans changer leurs prix</strong> ; les anciennes ressources sont retirées.</p>

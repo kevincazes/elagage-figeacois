@@ -2,7 +2,7 @@
 // Journal global : bordereaux, catalogue, taux, paramètres
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 $noms = []; foreach (q("SELECT id, prenom, nom FROM utilisateurs") as $u) $noms[$u['id']] = trim($u['prenom'] . ' ' . $u['nom']);
 $bords = []; foreach (q("SELECT id, nom FROM bordereaux") as $b) $bords[$b['id']] = $b['nom'];
 $hist = q("SELECT * FROM historique ORDER BY quand DESC, id DESC LIMIT 300")->fetchAll();

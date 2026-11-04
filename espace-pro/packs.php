@@ -2,7 +2,7 @@
 // Packs : groupes de lignes du catalogue à ajouter d'un coup dans un bordereau
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 $pdo = db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';

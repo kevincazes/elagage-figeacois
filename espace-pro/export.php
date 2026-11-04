@@ -2,7 +2,7 @@
 // Export CSV (point-virgule, UTF-8 avec BOM) d'un bordereau : s'ouvre directement dans Excel en français.
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 $b = q("SELECT * FROM bordereaux WHERE id = ?", [(int)($_GET['id'] ?? 0)])->fetch();
 if (!$b) exit('Bordereau introuvable.');
 $fige = $b['statut'] === 'fige';

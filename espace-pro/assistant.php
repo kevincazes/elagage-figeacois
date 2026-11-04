@@ -3,7 +3,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/assistant_lib.php';
-require_login();
+require_chiffrage();
 assistant_tables();
 $uid = (int)user()['id'];
 $bordereauId = isset($_GET['bordereau']) ? (int)$_GET['bordereau'] : (isset($_POST['bordereau']) ? (int)$_POST['bordereau'] : null);

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 $pdo = db();
 $eqPrincipale = ressource_equipe();
 // Une seule colonne d'heures d'équipe : celles de l'équipe principale. Les autres équipes ne changent que le taux (menu « Prix avec » ici, « Équipe appliquée » dans le bordereau).
@@ -106,11 +106,11 @@ page_start('Catalogue des prestations', 'bpu.php');
   <a class="mini" href="bpu.php">Tout afficher</a>
   <span class="muted"><?= count($lignes) ?> / <?= $total ?> lignes</span>
   <button class="mini" type="button" onclick="toutes(true)">Tout déplier</button> <button class="mini" type="button" onclick="toutes(false)">Tout replier</button>
-  <?php if (user()['role'] === 'admin'): ?><a class="mini" href="bpu.php?import=1">Importer le catalogue</a><?php endif; ?>
+  <?php if (est_admin()): ?><a class="mini" href="bpu.php?import=1">Importer le catalogue</a><?php endif; ?>
 </form>
 <?php if ($fLigne || $fAction || $fPack): ?><p class="flash ok" style="margin:0 0 10px">Affichage filtré : <?= $fLigne ? 'une seule prestation' : ($fAction ? 'les prestations qui utilisent l\'action « ' . e(q("SELECT nom FROM actions WHERE id = ?", [$fAction])->fetch()['nom'] ?? '') . ' »' : 'les lignes du pack « ' . e(q("SELECT nom FROM packs WHERE id = ?", [$fPack])->fetch()['nom'] ?? '') . ' »') ?>. <a href="bpu.php">Tout afficher</a></p><?php endif; ?>
 <?php if ($eqApercu && $eqPrincipale && $eqApercu !== (int)$eqPrincipale['id']): ?><p class="muted small">Prix affichés avec une autre équipe que l'équipe standard : la colonne « Écart » compare à des prix de référence remis, en général, avec l'équipe standard.</p><?php endif; ?>
-<?php $nbEx = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1 AND famille = '' AND source = ''")->fetch()['c']; if ($nbEx && user()['role'] === 'admin'): ?>
+<?php $nbEx = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1 AND famille = '' AND source = ''")->fetch()['c']; if ($nbEx && est_admin()): ?>
 <form method="post" class="inline" onsubmit="return confirm('Supprimer les <?= $nbEx ?> lignes d\'exemple (sans famille) ?')"><?= csrf_field() ?><input type="hidden" name="action" value="purge_exemples"><span class="muted"><?= $nbEx ?> lignes d'exemple du premier jour sont encore là (bloc « Sans famille »).</span> <button class="mini danger" type="submit">Les supprimer</button></form>
 <?php endif; ?>
 

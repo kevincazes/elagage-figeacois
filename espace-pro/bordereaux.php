@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 $pdo = db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';
@@ -53,7 +53,7 @@ page_start('Bordereaux de prix', 'bordereaux.php');
     <?php if ($b['verrou_par'] && strtotime($b['verrou_le']) > time() - VERROU_MINUTES * 60): ?><br><?php if ((int)$b['verrou_par'] === (int)user()['id']): ?><span class="muted small">ouvert par toi</span><?php else: ?><span class="off">ouvert par <?= e($b['vprenom'] . ' ' . $b['vnom']) ?> depuis <?= date('H:i', strtotime($b['verrou_le'])) ?> : lecture seule</span><?php endif; ?><?php endif; ?></td>
   <td><?= e($b['prenom'] ?? '') ?></td>
   <td class="r" style="white-space:nowrap"><a class="btn secondary" style="padding:6px 14px" href="bordereau.php?id=<?= $b['id'] ?>">Ouvrir</a> <a class="mini" href="export.php?id=<?= $b['id'] ?>">Excel</a>
-  <?php if (user()['role'] === 'admin'): ?><form method="post" class="inline" onsubmit="return confirm('Supprimer ce bordereau ?')"><?= csrf_field() ?><input type="hidden" name="action" value="suppr"><input type="hidden" name="id" value="<?= $b['id'] ?>"><button class="mini danger" title="Supprimer">×</button></form><?php endif; ?></td>
+  <?php if (est_admin()): ?><form method="post" class="inline" onsubmit="return confirm('Supprimer ce bordereau ?')"><?= csrf_field() ?><input type="hidden" name="action" value="suppr"><input type="hidden" name="id" value="<?= $b['id'] ?>"><button class="mini danger" title="Supprimer">×</button></form><?php endif; ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody></table></div>

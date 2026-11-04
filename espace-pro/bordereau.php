@@ -2,7 +2,7 @@
 // Composition d'un bordereau : sections, lignes du catalogue, packs, lignes libres, quantités (DQE), prix figés
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 $pdo = db();
 $b = q("SELECT * FROM bordereaux WHERE id = ?", [(int)($_GET['id'] ?? 0)])->fetch();
 if (!$b) { flash('Bordereau introuvable.', 'err'); redirect('bordereaux.php'); }
@@ -105,7 +105,7 @@ $HLIB = ['' => '', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 
 page_start($b['nom'], 'bordereau.php', ['bordereaux.php', 'Bordereaux']);
 if ($lecture): ?>
 <div class="flash err">Dossier ouvert par <strong><?= e($detenteur['prenom'] . ' ' . $detenteur['nom']) ?></strong> depuis <?= date('H:i', strtotime($detenteur['verrou_le'])) ?> : tu peux le consulter, pas le modifier. Il se libérera quand cette personne quittera la page, ou après <?= VERROU_MINUTES ?> min sans activité.
-  <?php if (user()['role'] === 'admin'): ?><form method="post" class="inline" onsubmit="return confirm('Forcer la libération ? Les modifications non enregistrées de cette personne seront perdues.')"><?= csrf_field() ?><input type="hidden" name="action" value="forcer"><button class="mini danger">Forcer la libération (admin)</button></form><?php endif; ?>
+  <?php if (est_admin()): ?><form method="post" class="inline" onsubmit="return confirm('Forcer la libération ? Les modifications non enregistrées de cette personne seront perdues.')"><?= csrf_field() ?><input type="hidden" name="action" value="forcer"><button class="mini danger">Forcer la libération (admin)</button></form><?php endif; ?>
 </div>
 <?php else: ?>
 <p class="muted no-print">Tu as la main sur ce dossier. <a href="bordereaux.php" onclick="navigator.sendBeacon('bordereau.php?id=<?= $bid ?>&liberer=1')">Libérer et revenir à la liste</a></p>

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
-require_login();
+require_chiffrage();
 page_start('Guide d\'utilisation', 'guide.php');
 /** Figure du guide : capture annotée + légende numérotée (les numéros correspondent aux pastilles orange) */
 function fig(string $img, string $titre, array $legende = [], string $classe = ''): void {
@@ -89,7 +89,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <div class="att"><strong>À retenir :</strong> le catalogue stocke des <em>heures</em>, pas des prix. Changer un taux dans Paramètres change tous les prix (sauf les bordereaux figés) ; changer un temps dans le catalogue ne change qu'une prestation. L'équipe (standard ou marché public) se choisit <strong>par bordereau</strong>.</div>
 
 <h2 id="parametres">3. Paramètres</h2>
-<p>Réglés une fois au départ, puis à chaque révision de tarifs. Tout ce qui est réglé ici est commun à tous les comptes.</p>
+<p>Réglés une fois au départ, puis à chaque révision de tarifs. Tout ce qui est réglé ici est commun à tous les comptes. <strong>Page réservée aux administrateurs.</strong></p>
 <?php fig('parametres', 'La page Paramètres', [
     '<strong>Taux horaires des ressources</strong> : une ligne par ressource, avec son nom (modifiable) et son prix de l\'heure HT. La première ressource de type « Équipe » est l\'équipe standard.',
     '<strong>Type</strong> : <em>Équipe</em> (tout compris, choisie par bordereau), <em>Rognage</em>, ou <em>Moyen spécifique</em> (évacuation du bois, grue… ajoutés ligne par ligne au catalogue).',
@@ -279,7 +279,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <?php fig('historique', 'La page Historique'); ?>
 <?php fig('comptes', 'Comptes (administrateurs)', [
     '<strong>Inviter une personne</strong> : prénom, nom, e-mail, rôle. Elle reçoit un lien (valable 48 h) pour choisir elle-même son mot de passe, puis configure sa double authentification. Si l\'e-mail n\'arrive pas, le lien s\'affiche aussi pour que tu le lui transmettes.',
-    '<strong>Rôle</strong> : <em>Utilisateur</em> peut tout faire sauf gérer les comptes, supprimer un bordereau, importer le catalogue de démarrage et forcer un verrou ; <em>Administrateur</em> peut tout faire.',
+    '<strong>Rôle</strong> : <em>Administrateur</em> a accès à tout ; <em>Secrétaire</em> a tout le calculateur (bordereaux, import, export, catalogue, actions, packs, historique, assistant, guide) mais pas Paramètres ni les comptes ; <em>Utilisateur</em> ne voit que le tableau de bord (liens vers les outils) et son compte, sans aucun prix. Un changement de rôle s\'applique dès la page suivante de la personne.',
     '<strong>Comptes existants</strong> : modifier (clic sur le nom), changer le rôle, réinitialiser la double authentification, renvoyer un lien de mot de passe, désactiver un compte.',
 ]); ?>
 <p><strong>Mon compte</strong> : chacun modifie son prénom, son nom, son e-mail et son mot de passe, et peut changer sa méthode de double authentification (application ou code par e-mail). L'option « Rester connecté sur cet appareil » à la connexion évite de se reconnecter pendant 30 jours.</p>

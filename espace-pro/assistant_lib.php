@@ -18,7 +18,7 @@ function assistant_tables(): void {
 /** Contexte de l'entreprise injecté dans chaque échange (compact) */
 function assistant_contexte(?int $bordereauId): string {
     $u = user(); $lignes = [];
-    $lignes[] = "Utilisateur connecté : {$u['prenom']} (" . ($u['role'] === 'admin' ? 'administrateur' : 'utilisateur') . "). Date : " . date('d/m/Y H:i') . ".";
+    $lignes[] = "Utilisateur connecté : {$u['prenom']} (" . mb_strtolower(role_libelle($u['role'])) . "). Date : " . date('d/m/Y H:i') . ".";
     $PAGES = ['index.php' => 'Tableau de bord', 'parametres.php' => 'Paramètres (taux horaires des ressources, coefficient, arrondi, progression par taille)', 'actions.php' => 'Actions dans l\'arbre', 'bpu.php' => 'Catalogue des prestations', 'packs.php' => 'Packs', 'bordereaux.php' => 'Liste des bordereaux', 'bordereau.php' => 'Un bordereau ouvert', 'importer.php' => 'Import d\'un bordereau reçu', 'historique.php' => 'Historique', 'guide.php' => 'Guide d\'utilisation', 'utilisateurs.php' => 'Comptes', 'compte.php' => 'Mon compte'];
     if (!empty($GLOBALS['assistant_page']) && isset($PAGES[$GLOBALS['assistant_page']])) $lignes[] = "Page où se trouve l'utilisateur : " . $PAGES[$GLOBALS['assistant_page']] . ". Si sa question porte sur l'écran, explique ce qu'il voit et où agir (menus : Tableau de bord, Paramètres, Actions, Catalogue, Packs, Bordereaux, Historique, Guide, Comptes).";
     $lignes[] = "Règles de calcul : PU HT = (Σ heures × taux horaire + forfait) × coefficient " . setting('coef') . ", arrondi à " . setting('arrondi') . " €, TVA " . setting('tva') . " %.";

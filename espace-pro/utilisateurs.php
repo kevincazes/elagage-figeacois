@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';
     if ($a === 'inviter') {
         $prenom = trim($_POST['prenom'] ?? ''); $nom = trim($_POST['nom'] ?? ''); $email = trim($_POST['email'] ?? '');
-        $role = ($_POST['role'] ?? 'user') === 'admin' ? 'admin' : 'user';
+        $role = isset(ROLES[$_POST['role'] ?? '']) ? $_POST['role'] : 'user';
         if ($prenom === '' || $nom === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) flash('Prénom, nom et e-mail valide sont obligatoires.', 'err');
         elseif (q("SELECT id FROM utilisateurs WHERE email = ?", [$email])->fetch()) flash('Cet e-mail existe déjà.', 'err');
         else {
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'role') {
         $id = (int)$_POST['id'];
         if ($id === (int)user()['id']) flash('Tu ne peux pas changer ton propre rôle.', 'err');
-        else { q("UPDATE utilisateurs SET role = ? WHERE id = ?", [($_POST['role'] ?? 'user') === 'admin' ? 'admin' : 'user', $id]); flash('Rôle modifié.'); }
+        else { q("UPDATE utilisateurs SET role = ? WHERE id = ?", [isset(ROLES[$_POST['role'] ?? '']) ? $_POST['role'] : 'user', $id]); flash('Rôle modifié.'); }
     } elseif ($a === 'mfa_reset') {
         q("UPDATE utilisateurs SET mfa_type = 'none', mfa_secret = NULL WHERE id = ?", [(int)$_POST['id']]);
         flash('Double authentification réinitialisée : la personne choisira une nouvelle méthode à sa prochaine connexion.');
@@ -51,11 +51,15 @@ page_start('Comptes', 'utilisateurs.php');
       <label>Prénom <input name="prenom" required></label>
       <label>Nom <input name="nom" required></label>
       <label>E-mail (servira d'identifiant) <input type="email" name="email" required></label>
-      <label>Rôle <select name="role"><option value="user">Utilisateur</option><option value="admin">Administrateur</option></select></label>
+      <label>Rôle <select name="role"><option value="user">Utilisateur</option><option value="secretaire">Secrétaire</option><option value="admin">Administrateur</option></select></label>
     </div>
     <button class="btn" type="submit">Créer le compte et envoyer le lien</button>
   </form>
-  <p class="muted">La personne reçoit un e-mail avec un lien pour choisir elle-même son mot de passe. Un utilisateur peut tout faire sauf gérer les comptes, supprimer un bordereau, importer le catalogue de démarrage et forcer le verrou d'un dossier.</p>
+  <p class="muted">La personne reçoit un e-mail avec un lien pour choisir elle-même son mot de passe.</p>
+  <table class="tbl" style="max-width:760px"><tr><th>Rôle</th><th>Accès</th></tr>
+  <tr><td><strong>Administrateur</strong></td><td>Tout : calculateur, Paramètres (taux, coefficient, TVA, ressources, liens), comptes, suppression de bordereaux, forçage d'un verrou.</td></tr>
+  <tr><td><strong>Secrétaire</strong></td><td>Tout le calculateur (bordereaux, import, export, catalogue, actions, packs, historique, assistant, guide), sans Paramètres ni comptes.</td></tr>
+  <tr><td><strong>Utilisateur</strong></td><td>Tableau de bord (liens Drive, Extrabat, Urgence Élagage, Arbogestion) et son compte. Pas d'accès aux prix.</td></tr></table>
 </section>
 
 <h2>Comptes existants</h2>
@@ -65,9 +69,9 @@ page_start('Comptes', 'utilisateurs.php');
 <tr>
   <td><a href="compte.php<?= $moi ? '' : '?id=' . $u['id'] ?>"><strong><?= e($u['prenom'] . ' ' . $u['nom']) ?></strong></a><?= $moi ? ' <span class="muted">(toi)</span>' : '' ?><br><a class="mini" href="compte.php<?= $moi ? '' : '?id=' . $u['id'] ?>">Modifier</a></td>
   <td><?= e($u['email']) ?></td>
-  <td><?php if ($moi): ?><?= $u['role'] === 'admin' ? 'Administrateur' : 'Utilisateur' ?><?php else: ?>
+  <td><?php if ($moi): ?><?= e(role_libelle($u['role'])) ?><?php else: ?>
     <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="role"><input type="hidden" name="id" value="<?= $u['id'] ?>">
-    <select name="role" onchange="this.form.submit()"><option value="user" <?= $u['role'] === 'user' ? 'selected' : '' ?>>Utilisateur</option><option value="admin" <?= $u['role'] === 'admin' ? 'selected' : '' ?>>Administrateur</option></select></form><?php endif; ?></td>
+    <select name="role" onchange="this.form.submit()"><?php foreach (ROLES as $k => $lib): ?><option value="<?= $k ?>" <?= $u['role'] === $k ? 'selected' : '' ?>><?= $lib ?></option><?php endforeach; ?></select></form><?php endif; ?></td>
   <td><?= $u['actif'] ? '<span class="ok">Actif</span>' : '<span class="off">Désactivé</span>' ?><?= $enAttente ? '<br><span class="muted">lien en attente</span>' : '' ?></td>
   <td><?= ['none' => '<span class="off">à configurer</span>', 'totp' => 'Application', 'email' => 'E-mail'][$u['mfa_type']] ?>
     <?php if ($u['mfa_type'] !== 'none' && !$moi): ?><form method="post" class="inline" onsubmit="return confirm('Réinitialiser la double authentification de cette personne ?')"><?= csrf_field() ?><input type="hidden" name="action" value="mfa_reset"><input type="hidden" name="id" value="<?= $u['id'] ?>"><button class="mini" type="submit">Réinitialiser</button></form><?php endif; ?></td>

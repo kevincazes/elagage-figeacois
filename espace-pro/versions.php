@@ -2,6 +2,12 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.5', '2026-11-04', [
+        'Nouveau rôle Secrétaire : tout le calculateur (bordereaux, import, export, catalogue, actions, packs, historique, assistant, guide), sans Paramètres ni comptes',
+        'Paramètres (taux, coefficient, TVA, ressources, liens) réservés aux administrateurs',
+        'Rôle Utilisateur : tableau de bord (liens vers les outils) et son compte uniquement, aucun prix visible',
+        'Un changement de rôle ou une désactivation de compte s\'applique immédiatement, sans attendre une reconnexion',
+    ]],
     ['2.4.1', '2026-11-04', [
         'Contrôle complet des calculs : 14 000 vérifications automatiques (catalogue, blocs, actions, variantes, bordereaux, totaux, export, figement) sur plusieurs réglages ; correction d\'un arrondi qui donnait certains prix 1 € trop bas (ex. 85,50 € affiché 85 € au lieu de 86 €)',
         'Import de BPU : colonnes reconnues par leur intitulé, dans n\'importe quel ordre (Excel, Word, CSV) ; codes de toute forme ; quantités du DQE toutes récupérées ; classe de hauteur juste quand le libellé décrit aussi le houppier ; « Ignorer » respecté pour les titres ; mémoire des choix par rubrique',

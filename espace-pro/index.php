@@ -19,18 +19,20 @@ $liens = [
 page_start('Tableau de bord', 'index.php');
 ?>
 <p class="lead">Bonjour <?= e(user()['prenom']) ?>. Que veux-tu faire ?</p>
+<?php if (acces_chiffrage()): ?>
 <div class="tiles">
   <a class="tile" href="bpu.php"><strong><?= $nbLignes ?></strong><span>prestations au catalogue</span><em>Temps, taux, prix de référence</em></a>
   <a class="tile" href="importer.php"><strong>⇪</strong><span>Importer un bordereau reçu</span><em>Le BPU / DQE de la collectivité, chiffré automatiquement</em></a>
   <a class="tile" href="bordereaux.php#nouveau"><strong>+</strong><span>Nouveau bordereau</span><em>Vide ou à partir d'un pack</em></a>
   <a class="tile" href="bordereaux.php"><strong><?= $nbBord ?></strong><span>bordereaux</span><em><?= $dernier ? 'Dernier : ' . e($dernier['nom']) : 'Aucun pour l\'instant' ?></em></a>
-  <a class="tile" href="parametres.php"><strong><?= e(setting('coef')) ?></strong><span>coefficient actuel</span><em>Taux des équipes, marge, arrondi</em></a>
+  <?php if (est_admin()): ?><a class="tile" href="parametres.php"><strong><?= e(setting('coef')) ?></strong><span>coefficient actuel</span><em>Taux des équipes, marge, arrondi</em></a><?php endif; ?>
 </div>
+<?php endif; ?>
 <h2>Outils de l'entreprise</h2>
 <div class="tiles">
 <?php foreach ($liens as [$n, $url, $d, $ic]): $img = $ic ? '<img class="tile-ico" src="' . e($ic) . '" alt="" loading="lazy">' : ''; ?>
   <?php if ($url): ?><a class="tile link" href="<?= e($url) ?>" target="_blank" rel="noopener"><?= $img ?><span><?= e($n) ?></span><em><?= e($d) ?></em></a>
-  <?php else: ?><div class="tile link off"><?= $img ?><span><?= e($n) ?></span><em>Lien à renseigner dans Paramètres</em></div><?php endif; ?>
+  <?php else: ?><div class="tile link off"><?= $img ?><span><?= e($n) ?></span><em><?= est_admin() ? 'Lien à renseigner dans Paramètres' : 'Lien pas encore renseigné' ?></em></div><?php endif; ?>
 <?php endforeach; ?>
 </div>
 <?php page_end(); ?>
