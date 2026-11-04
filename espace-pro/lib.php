@@ -411,6 +411,14 @@ function page_end(): void { echo '</main>' . <<<'JS'
 <script>
 (function(){
   document.querySelectorAll('.scroll').forEach(function(sc){
+    // Glisser le tableau à la souris en dehors des champs
+    var dep=null;
+    sc.addEventListener('mousedown',function(e){
+      if(e.button!==0 || e.target.closest('input,select,textarea,button,a,label')) return;
+      dep={x:e.pageX,y:e.pageY,sl:sc.scrollLeft,st:window.scrollY}; sc.classList.add('grab'); e.preventDefault();
+    });
+    document.addEventListener('mousemove',function(e){ if(!dep) return; sc.scrollLeft=dep.sl-(e.pageX-dep.x); window.scrollTo(0,dep.st-(e.pageY-dep.y)); });
+    document.addEventListener('mouseup',function(){ if(dep){dep=null; sc.classList.remove('grab');} });
     if (sc.scrollWidth <= sc.clientWidth + 4) return;
     var bar=document.createElement('div'); bar.className='defil';
     bar.innerHTML='<button type="button" class="mini" title="Tout à gauche">⇤</button><div class="piste"><div></div></div><button type="button" class="mini" title="Tout à droite">⇥</button>';

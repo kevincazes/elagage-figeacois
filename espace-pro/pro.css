@@ -167,6 +167,7 @@ input[readonly].h{background:#eef2e6;color:var(--sapin);font-weight:700}.tbl.bpu
 .defil .piste{flex:1;overflow-x:scroll;overflow-y:hidden;height:18px;scrollbar-width:auto;scrollbar-color:var(--sapin) var(--clair)}
 .defil .piste>div{height:1px}.defil .piste::-webkit-scrollbar{height:14px}.defil .piste::-webkit-scrollbar-thumb{background:var(--sapin);border-radius:7px}.defil .piste::-webkit-scrollbar-track{background:var(--clair);border-radius:7px}
 .defil button{font-size:1.1rem;line-height:1;padding:4px 10px}
+.scroll{cursor:grab}.scroll.grab{cursor:grabbing;user-select:none}.scroll input,.scroll textarea{cursor:text}.scroll select,.scroll button,.scroll a{cursor:pointer}
 .scroll-aide{font-size:.82rem;color:var(--doux);margin:4px 0 0}
 main.large{max-width:1800px}
 .tbl th.pu{background:#f8f9f4}
