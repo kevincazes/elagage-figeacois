@@ -12,8 +12,8 @@ $icone = function (string $url, string $local = ''): string {
 };
 $liens = [
     ['Google Drive', setting('lien_drive'), 'Dossiers, devis, photos de chantier', $icone(setting('lien_drive') ?: 'https://drive.google.com')],
-    ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client', $icone(setting('lien_extrabat') ?: 'https://www.myextrabat.com')],
-    ['Urgence Élagage', setting('lien_urgence'), 'Dispositif collectivités', $icone(setting('lien_urgence') ?: 'https://urgence-elagage.fr')],
+    ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client', '../images/logo-extrabat.png'],
+    ['Urgence Élagage', setting('lien_urgence'), 'Dispositif collectivités', '../images/logo-urgence-elagage.png'],
     ['Arbogestion', setting('lien_arbogestion'), 'Gestion du patrimoine arboré', '../images/logo-arbogestion.png'],
 ];
 page_start('Tableau de bord', 'index.php');
