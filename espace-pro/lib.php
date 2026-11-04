@@ -375,7 +375,9 @@ function page_start(string $title, string $active = ''): void {
     $nav['compte.php'] = 'Mon compte';
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '"></head><body>';
-    echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span><nav>';
+    echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span>';
+    if ($u) { $nn0 = nouveautes_non_lues(); echo '<a class="bell mob' . ($nn0 ? ' has' : '') . '" href="nouveautes.php">&#128276;' . ($nn0 ? '<b>' . $nn0 . '</b>' : '') . '</a>'; }
+    echo '<button class="burger" type="button" aria-label="Menu" onclick="document.body.classList.toggle(\'nav-open\')"><span></span><span></span><span></span></button><nav>';
     if ($u) {
         if ($active === 'securite.php') $active = 'compte.php';
         if ($active === 'bordereau.php') $active = 'bordereaux.php';
