@@ -360,7 +360,7 @@ function nouveautes_non_lues(): int {
 }
 
 // ---- Mise en page ----
-function page_start(string $title, string $active = ''): void {
+function page_start(string $title, string $active = '', ?array $parent = null): void {
     $u = user();
     $nav = [
         'index.php' => 'Tableau de bord',
@@ -384,9 +384,24 @@ function page_start(string $title, string $active = ''): void {
         foreach ($nav as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
         $nn = nouveautes_non_lues();
         echo '<a class="bell' . ($nn ? ' has' : '') . '" href="nouveautes.php" title="Nouveautés de l\'espace pro">&#128276;' . ($nn ? '<b>' . $nn . '</b>' : '') . '</a>';
+        echo '<a class="out site" href="../index.html" title="Ouvrir le site elagage-figeacois.com">Site ↗</a>';
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
-    echo '</nav></header><main>';
+    echo '</nav></header>';
+    // Fil d'Ariane
+    if ($u) {
+        $fil = [['index.php', 'Tableau de bord']];
+        if ($parent) $fil[] = $parent;
+        elseif ($active && $active !== 'index.php' && isset($nav[$active]) && $active !== 'compte.php' . '_') $fil[] = [$active, $nav[$active]];
+        $html = '<nav class="fil" aria-label="Fil d\'Ariane">';
+        foreach ($fil as [$href, $lib]) { if ($lib === $title && !$parent) break; $html .= '<a href="' . e($href) . '">' . e($lib) . '</a><span>›</span>'; }
+        $html .= '<strong>' . e($title) . '</strong></nav>';
+        echo $html;
+        // Panneau des nouveautés (ouvert par la cloche)
+        echo '<div id="nouv" class="modal" hidden><div class="modal-box"><button class="modal-x" type="button" onclick="fermerNouv()" aria-label="Fermer">×</button><h2>Nouveautés – version ' . e(app_version()) . '</h2><div id="nouv-corps" class="muted">Chargement…</div></div></div>';
+        echo '<script>function ouvrirNouv(e){e.preventDefault();const m=document.getElementById("nouv");m.hidden=false;fetch("nouveautes.php?panneau=1").then(r=>r.text()).then(h=>{document.getElementById("nouv-corps").innerHTML=h;document.querySelectorAll(".bell b").forEach(b=>b.remove());});}function fermerNouv(){document.getElementById("nouv").hidden=true;}document.addEventListener("keydown",e=>{if(e.key==="Escape")fermerNouv();});document.addEventListener("click",e=>{if(e.target.id==="nouv")fermerNouv();});document.querySelectorAll("a.bell").forEach(a=>a.addEventListener("click",ouvrirNouv));</script>';
+    }
+    echo '<main>';
     if (!empty($_SESSION['flash'])) { [$m, $t] = $_SESSION['flash']; unset($_SESSION['flash']); echo '<div class="flash ' . e($t) . '">' . e($m) . '</div>'; }
     echo '<h1>' . e($title) . '</h1>';
 }

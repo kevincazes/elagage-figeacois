@@ -36,7 +36,7 @@ if ($etape === 'totp_start') {
 $otpauth = '';
 if ($etape === 'totp') $otpauth = 'otpauth://totp/' . rawurlencode('Élagage Figeacois:' . $u['email']) . '?secret=' . $_SESSION['totp_tmp'] . '&issuer=' . rawurlencode('Élagage Figeacois') . '&digits=6&period=30';
 
-if ($connecte) page_start('Sécurité', 'securite.php'); else { page_simple_start('Sécurité'); echo '<h1>Sécuriser votre compte</h1>'; }
+if ($connecte) page_start('Sécurité', 'securite.php', ['compte.php', 'Mon compte']); else { page_simple_start('Sécurité'); echo '<h1>Sécuriser votre compte</h1>'; }
 if ($err) echo '<div class="flash err">' . e($err) . '</div>';
 ?>
 <?php if ($etape === 'choix'): ?>

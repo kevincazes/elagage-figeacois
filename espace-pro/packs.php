@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = p.id) nb FROM packs p ORDER BY nom")->fetchAll();
 $pack = isset($_GET['id']) ? q("SELECT * FROM packs WHERE id = ?", [(int)$_GET['id']])->fetch() : null;
-page_start('Packs de lignes', 'packs.php');
+page_start($pack ? $pack['nom'] : 'Packs de lignes', 'packs.php', $pack ? ['packs.php', 'Packs'] : null);
 ?>
 <div class="cols">
 <section class="card">

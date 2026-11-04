@@ -116,7 +116,7 @@ page_start('Catalogue des prestations', 'bpu.php');
 <tr class="g-<?= $grp ?>" data-id="<?= $id ?>" data-ref="<?= $l['prix_ref'] !== null ? (float)$l['prix_ref'] : '' ?>" title="<?= e($l['source']) ?>">
   <td><input class="tiny" name="l[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>"></td>
   <td><input class="tiny" style="width:110px" name="l[<?= $id ?>][code]" value="<?= e($l['code']) ?>"></td>
-  <td><input name="l[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>"></td>
+  <td><textarea class="lib" name="l[<?= $id ?>][libelle]" rows="1" title="<?= e($l['libelle']) ?>"><?= e($l['libelle']) ?></textarea></td>
   <td><input class="tiny" style="width:150px" name="l[<?= $id ?>][famille]" value="<?= e($l['famille']) ?>" list="familles"></td>
   <td><select name="l[<?= $id ?>][hauteur]"><?php foreach ($HAUT as $k => $v): ?><option value="<?= $k ?>" <?= $k === $l['hauteur'] ? 'selected' : '' ?>><?= $v ?></option><?php endforeach; ?></select></td>
   <td><select name="l[<?= $id ?>][houppier]"><?php foreach ($HOUP as $k => $v): ?><option value="<?= $k ?>" <?= $k === $l['houppier'] ? 'selected' : '' ?>><?= $v ?></option><?php endforeach; ?></select></td>
@@ -165,6 +165,10 @@ function calc(tr) {
   if (ref > 0) { const d = pu - ref; ec.textContent = (d > 0 ? '+' : '') + Math.round(d) + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#b3403a' : '#5b6a60'; } else ec.textContent = '';
 }
 document.querySelectorAll('tr[data-id]').forEach(tr => { calc(tr); tr.addEventListener('input', () => calc(tr)); });
+// Désignations : hauteur ajustée au texte
+function ajuster(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+document.querySelectorAll('textarea.lib').forEach(t => { ajuster(t); t.addEventListener('input', () => ajuster(t)); });
+new ResizeObserver(() => document.querySelectorAll('textarea.lib').forEach(ajuster)).observe(document.body);
 function actSend(a, l, x) { document.getElementById('fact_a').value = a; document.getElementById('fact_l').value = l; document.getElementById('fact_x').value = x; document.getElementById('fact').submit(); }
 function actDel(l, x) { actSend('act_del', l, x); }
 function varSend(a, id, h) { document.getElementById('fvar_a').value = a; document.getElementById('fvar_id').value = id; document.getElementById('fvar_h').value = h; document.getElementById('fvar').submit(); }

@@ -97,7 +97,7 @@ $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = 
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
 $catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id")->fetchAll();
 $HLIB = ['' => '', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
-page_start($b['nom'], 'bordereau.php');
+page_start($b['nom'], 'bordereau.php', ['bordereaux.php', 'Bordereaux']);
 if ($lecture): ?>
 <div class="flash err">Dossier ouvert par <strong><?= e($detenteur['prenom'] . ' ' . $detenteur['nom']) ?></strong> depuis <?= date('H:i', strtotime($detenteur['verrou_le'])) ?> : tu peux le consulter, pas le modifier. Il se libérera quand cette personne quittera la page, ou après <?= VERROU_MINUTES ?> min sans activité.
   <?php if (user()['role'] === 'admin'): ?><form method="post" class="inline" onsubmit="return confirm('Forcer la libération ? Les modifications non enregistrées de cette personne seront perdues.')"><?= csrf_field() ?><input type="hidden" name="action" value="forcer"><button class="mini danger">Forcer la libération (admin)</button></form><?php endif; ?>

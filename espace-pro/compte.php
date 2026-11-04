@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     redirect($retour);
 }
-page_start($cible ? 'Mon compte' : 'Compte de ' . $u['prenom'] . ' ' . $u['nom'], $cible ? 'compte.php' : 'utilisateurs.php');
+page_start($cible ? 'Mon compte' : 'Compte de ' . $u['prenom'] . ' ' . $u['nom'], $cible ? 'compte.php' : 'utilisateurs.php', $cible ? null : ['utilisateurs.php', 'Comptes']);
 ?>
 <div class="cols">
 <section class="card">

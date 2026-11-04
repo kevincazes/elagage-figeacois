@@ -4,6 +4,12 @@ require_once __DIR__ . '/lib.php';
 require_login();
 $vue = q("SELECT version_vue FROM utilisateurs WHERE id = ?", [user()['id']])->fetch()['version_vue'] ?? '';
 q("UPDATE utilisateurs SET version_vue = ? WHERE id = ?", [app_version(), user()['id']]);
+if (isset($_GET['panneau'])) { // fragment pour le panneau de la cloche
+    foreach (versions() as [$num, $date, $changements]) { $neuf = $vue === '' || version_compare($num, $vue, '>');
+        echo '<div class="nv' . ($neuf ? ' neuf' : '') . '"><strong>Version ' . e($num) . '</strong> <span class="muted">· ' . date('d/m/Y', strtotime($date)) . '</span>' . ($neuf ? ' <span class="ok" style="font-size:.75rem">NOUVEAU</span>' : '') . '<ul class="dots">';
+        foreach ($changements as $c) echo '<li>' . e($c) . '</li>'; echo '</ul></div>'; }
+    exit;
+}
 page_start('Nouveautés', 'nouveautes.php');
 ?>
 <p class="lead">Version actuelle : <strong><?= e(app_version()) ?></strong>. Les versions que tu n'avais pas encore vues sont marquées.</p>
