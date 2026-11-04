@@ -79,9 +79,9 @@ page_start('Paramètres', 'parametres.php');
 <section class="card">
   <h2>Règles de calcul</h2>
     <div class="grille-champs">
-      <label for="coef">Coefficient de marge et d'aléas</label><div><input id="coef" class="num" name="coef" value="<?= e(setting('coef')) ?>" inputmode="decimal"><small>1,25 = coût × 1,25. Couvre marge, frais généraux, aléas météo.</small></div>
+      <label for="coef">Coefficient de marge et d'aléas<small>1,25 = coût × 1,25. Couvre marge, frais généraux, aléas météo.</small></label><div><input id="coef" class="num" name="coef" value="<?= e(setting('coef')) ?>" inputmode="decimal"></div>
       <label for="tva">TVA (%)</label><div><input id="tva" class="num" name="tva" value="<?= e(setting('tva')) ?>" inputmode="decimal"></div>
-      <label for="arrondi">Arrondi des prix unitaires (€)</label><div><input id="arrondi" class="num" name="arrondi" value="<?= e(setting('arrondi')) ?>" inputmode="decimal"><small>1 = à l'euro ; 5 = aux 5 € ; 0 = au centime.</small></div>
+      <label for="arrondi">Arrondi des prix unitaires (€)<small>1 = à l'euro ; 5 = aux 5 € ; 0 = au centime.</small></label><div><input id="arrondi" class="num" name="arrondi" value="<?= e(setting('arrondi')) ?>" inputmode="decimal"></div>
     </div>
     <h2>Progression du temps selon la taille de l'arbre</h2>
     <p class="muted">Pourcentage de temps en plus par rapport à la classe de base (moins de 10 m, houppier ≤ 5 m). Sert à générer et recalculer les variantes du catalogue.</p>
