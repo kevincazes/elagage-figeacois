@@ -45,6 +45,7 @@ function migrate(): void {
         ['bpu_lignes', 'famille', "ALTER TABLE bpu_lignes ADD COLUMN famille VARCHAR(80) NOT NULL DEFAULT '', ADD COLUMN hauteur VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN houppier VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN circonference VARCHAR(12) NOT NULL DEFAULT '', ADD COLUMN prix_ref DECIMAL(10,2) NULL, ADD COLUMN source VARCHAR(120) NOT NULL DEFAULT ''"],
         ['bordereaux', 'verrou_par', "ALTER TABLE bordereaux ADD COLUMN verrou_par INT NULL, ADD COLUMN verrou_le DATETIME NULL"],
         ['utilisateurs', 'souvenir', "ALTER TABLE utilisateurs ADD COLUMN souvenir VARCHAR(255) NULL, ADD COLUMN souvenir_expire DATETIME NULL"],
+        ['utilisateurs', 'version_vue', "ALTER TABLE utilisateurs ADD COLUMN version_vue VARCHAR(10) NOT NULL DEFAULT ''"],
         ['bordereau_lignes', 'numero', "ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre"],
     ];
     foreach ($colonnes as [$table, $col, $sql]) {
@@ -248,6 +249,14 @@ function prix_ligne(array $temps, array $taux, float $forfait, float $coef, floa
     return ['cout' => $cout, 'brut' => $brut, 'pu' => arrondir($brut, $pas)];
 }
 
+function versions(): array { static $v = null; return $v ??= require __DIR__ . '/versions.php'; }
+function app_version(): string { return versions()[0][0]; }
+function nouveautes_non_lues(): int {
+    $vue = ''; try { $vue = q("SELECT version_vue FROM utilisateurs WHERE id = ?", [user()['id']])->fetch()['version_vue'] ?? ''; } catch (Throwable $t) {}
+    $n = 0; foreach (versions() as [$num]) if ($vue === '' || version_compare($num, $vue, '>')) $n++;
+    return $n;
+}
+
 // ---- Mise en page ----
 function page_start(string $title, string $active = ''): void {
     $u = user();
@@ -263,15 +272,17 @@ function page_start(string $title, string $active = ''): void {
     $nav['compte.php'] = 'Mon compte';
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css"></head><body>';
-    echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro</span><nav>';
+    echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span><nav>';
     if ($u) {
         if ($active === 'securite.php') $active = 'compte.php';
         if ($active === 'bordereau.php') $active = 'bordereaux.php';
         foreach ($nav as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
+        $nn = nouveautes_non_lues();
+        echo '<a class="bell' . ($nn ? ' has' : '') . '" href="nouveautes.php" title="Nouveautés de l\'espace pro">&#128276;' . ($nn ? '<b>' . $nn . '</b>' : '') . '</a>';
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
     echo '</nav></header><main>';
     if (!empty($_SESSION['flash'])) { [$m, $t] = $_SESSION['flash']; unset($_SESSION['flash']); echo '<div class="flash ' . e($t) . '">' . e($m) . '</div>'; }
     echo '<h1>' . e($title) . '</h1>';
 }
-function page_end(): void { echo '</main><footer class="bottom">' . e(APP_NAME) . ' · <a href="../index.html">Retour au site</a></footer></body></html>'; }
+function page_end(): void { echo '</main><footer class="bottom">' . e(APP_NAME) . ' · version ' . e(app_version()) . ' · <a href="nouveautes.php">Nouveautés</a> · <a href="../index.html">Retour au site</a></footer></body></html>'; }
