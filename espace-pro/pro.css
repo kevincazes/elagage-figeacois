@@ -35,6 +35,28 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .modal-box h2{margin-top:0}
 .modal-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:1.6rem;cursor:pointer;color:var(--doux)}
 .nv{padding:10px 0;border-bottom:1px solid #edf0e8}
+/* Assistant */
+.chat-layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}
+.chat-side{background:var(--blanc);border-radius:var(--rayon);padding:14px;box-shadow:0 4px 18px rgba(28,59,43,.06)}
+.convs{list-style:none;padding:0;margin:10px 0;max-height:40vh;overflow:auto}
+.convs a{display:block;padding:8px 10px;border-radius:8px;text-decoration:none;color:var(--texte);font-size:.9rem;line-height:1.3}
+.convs a.on,.convs a:hover{background:var(--clair)}
+.memo{list-style:none;padding:0;margin:8px 0;font-size:.85rem}.memo li{padding:5px 0;border-bottom:1px solid #edf0e8}
+.chat-main{background:var(--blanc);border-radius:var(--rayon);box-shadow:0 4px 18px rgba(28,59,43,.06);display:flex;flex-direction:column;min-height:70vh}
+.chat-fil{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px;max-height:65vh}
+.bulle{max-width:85%;padding:11px 14px;border-radius:14px;line-height:1.45;white-space:normal}
+.bulle.u{align-self:flex-end;background:var(--sapin);color:#fff;border-bottom-right-radius:4px}
+.bulle.a{align-self:flex-start;background:var(--clair);border-bottom-left-radius:4px}
+.bulle.attente{color:var(--doux)}
+.bulle.err{align-self:center;background:#f7e1df;color:var(--rouge)}
+.bulle.outil{align-self:flex-start;background:#fff8e3;border:1px solid #efd98a;max-width:95%}
+.bulle.outil.fait{opacity:.8;background:#f3f5ee;border-color:#dfe5d4}
+.bulle.outil pre{font-size:.8rem;white-space:pre-wrap;margin:6px 0;color:var(--texte-doux)}
+.bulle.res{align-self:flex-start;font-size:.85rem;color:var(--doux);background:transparent;padding:0 14px}
+.chat-saisie{display:flex;gap:10px;padding:12px;border-top:1px solid #edf0e8;align-items:flex-end}
+.chat-saisie textarea{flex:1;margin:0;resize:vertical}
+.chat-saisie .btn{margin:0}
+@media(max-width:900px){.chat-layout{grid-template-columns:1fr}.chat-fil{max-height:55vh}.bulle{max-width:95%}}
 .conf{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .conf.c1{background:#5a9a3a}.conf.c2{background:#e0a200}.conf.c3{background:var(--rouge)}
 tr.c2 td{background:#fff8e3}tr.c3 td{background:#fbeae8}

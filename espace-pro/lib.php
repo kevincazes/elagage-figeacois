@@ -249,7 +249,7 @@ function set_setting(string $key, string $val): void {
 // ---- Sécurité ----
 function csrf(): string { if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16)); return $_SESSION['csrf']; }
 function csrf_field(): string { return '<input type="hidden" name="csrf" value="' . csrf() . '">'; }
-function check_csrf(): void { if ($_SERVER['REQUEST_METHOD'] === 'POST' && !hash_equals(csrf(), $_POST['csrf'] ?? '')) { http_response_code(403); exit('Formulaire expiré, recharge la page.'); } }
+function check_csrf(): void { if ($_SERVER['REQUEST_METHOD'] === 'POST' && !hash_equals(csrf(), $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF'] ?? ''))) { http_response_code(403); exit('Formulaire expiré, recharge la page.'); } }
 function user(): ?array {
     if (!empty($_SESSION['user'])) return $_SESSION['user'];
     // Reconnexion automatique : cookie « rester connecté » (id:jeton), jeton haché en base, 30 jours
@@ -370,6 +370,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         'packs.php' => 'Packs',
         'bordereaux.php' => 'Bordereaux',
         'historique.php' => 'Historique',
+        'assistant.php' => 'Assistant',
     ];
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
     $nav['compte.php'] = 'Mon compte';

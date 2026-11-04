@@ -2,6 +2,11 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.2', '2026-11-04', [
+        'Assistant intégré (menu « Assistant », bouton ✦ dans chaque bordereau) : questions de chiffrage, temps par action, comparaison aux prix remis ; il connaît le catalogue, les taux, les actions et le bordereau ouvert',
+        'Actions proposées par l\'assistant (modifier un temps, créer une prestation, ajuster une ligne du bordereau, mémoriser une règle) appliquées seulement après ton clic « Appliquer », tracées dans l\'historique',
+        'Mémoire d\'entreprise partagée et conversations conservées par personne ; plafond mensuel d\'échanges',
+    ]],
     ['2.1', '2026-11-04', [
         'Import d\'un bordereau reçu (Excel, Word, CSV, PDF texte) : lecture des lignes, appariement automatique au catalogue avec indice de confiance, validation ligne par ligne, création du bordereau au format de la collectivité',
         'Les corrections d\'appariement sont mémorisées pour les bordereaux suivants',

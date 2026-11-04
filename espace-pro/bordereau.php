@@ -114,7 +114,7 @@ if ($lecture): ?>
   </div>
   <?php if ($fige): ?><p class="ok">Figé le <?= date('d/m/Y à H:i', strtotime($b['fige_le'])) ?> · coefficient <?= e($b['coef']) ?> · TVA <?= e($b['tva']) ?> %</p>
   <?php elseif (!$lecture): ?><button class="btn secondary" type="submit">Enregistrer l'en-tête</button><?php endif; ?>
-  <a class="btn" href="export.php?id=<?= $bid ?>">Excel (CSV)</a> <a class="btn secondary" href="bordereau.php?id=<?= $bid ?>&print=1" target="_blank">Imprimer / PDF</a>
+  <a class="btn" href="export.php?id=<?= $bid ?>">Excel (CSV)</a> <a class="btn secondary" href="assistant.php?bordereau=<?= $bid ?>">Assistant ✦</a> <a class="btn secondary" href="bordereau.php?id=<?= $bid ?>&print=1" target="_blank">Imprimer / PDF</a>
   <?php if ($lecture): ?><?php elseif ($fige): ?><button class="mini" type="submit" form="defiger">Défiger</button><?php else: ?><button class="mini" type="submit" form="figer" onclick="return confirm('Figer les prix de ce bordereau ?')">Figer les prix</button><?php endif; ?>
 </form>
 <form id="figer" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="figer"></form>
