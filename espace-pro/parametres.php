@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $res = q("SELECT * FROM ressources WHERE actif = 1 ORDER BY ordre, id")->fetchAll();
 page_start('Paramètres', 'parametres.php');
 ?>
-<div class="cols">
 <?php if (!ressource_equipe() && user()['role'] === 'admin'): ?>
 <section class="card" style="border-left:5px solid var(--anis)">
   <h2>Passer au modèle « Équipe + Rognage »</h2>
@@ -52,26 +51,28 @@ page_start('Paramètres', 'parametres.php');
   </form>
 </section>
 <?php endif; ?>
+<div class="cols cols-2">
 <section class="card">
   <h2>Taux horaires des ressources</h2>
   <p class="muted">Prix horaire de chaque moyen. « Équipe » couvre tout ce qui est toujours présent ; les autres lignes sont des moyens spécifiques ajoutés ligne par ligne dans le catalogue.</p>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="taux">
-  <table class="tbl">
+  <div class="scroll"><table class="tbl">
     <tr><th>Ressource</th><th>Type</th><th class="r">€ HT / heure</th><th></th></tr>
     <?php foreach ($res as $r): ?>
     <tr>
-      <td><input name="nom[<?= $r['id'] ?>]" value="<?= e($r['nom']) ?>"></td>
-      <td><select name="role[<?= $r['id'] ?>]"><option value="" <?= $r['role'] === '' ? 'selected' : '' ?>>Moyen spécifique</option><option value="equipe" <?= $r['role'] === 'equipe' ? 'selected' : '' ?>>Équipe</option><option value="rognage" <?= $r['role'] === 'rognage' ? 'selected' : '' ?>>Rognage</option></select></td>
+      <td style="min-width:240px"><input name="nom[<?= $r['id'] ?>]" value="<?= e($r['nom']) ?>"></td>
+      <td><select name="role[<?= $r['id'] ?>]" style="width:auto"><option value="" <?= $r['role'] === '' ? 'selected' : '' ?>>Moyen spécifique</option><option value="equipe" <?= $r['role'] === 'equipe' ? 'selected' : '' ?>>Équipe</option><option value="rognage" <?= $r['role'] === 'rognage' ? 'selected' : '' ?>>Rognage</option></select></td>
       <td class="r"><input class="num" name="taux[<?= $r['id'] ?>]" value="<?= e($r['taux']) ?>" inputmode="decimal"></td>
-      <td><button class="mini danger" type="submit" form="del<?= $r['id'] ?>" onclick="return confirm('Retirer cette ressource ? Ses temps seront effacés des lignes.')">×</button></td>
+      <td style="white-space:nowrap"><button class="mini danger" type="submit" form="del<?= $r['id'] ?>" onclick="return confirm('Retirer cette ressource ? Ses temps seront effacés des lignes.')">×</button></td>
     </tr>
     <?php endforeach; ?>
-  </table>
+  </table></div>
   <button class="btn" type="submit">Enregistrer les taux</button>
   </form>
   <?php foreach ($res as $r): ?><form id="del<?= $r['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="suppr_ressource"><input type="hidden" name="id" value="<?= $r['id'] ?>"></form><?php endforeach; ?>
+  <h2>Ajouter une ressource</h2>
   <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="ajout_ressource">
-    <input name="nom_new" placeholder="Nouvelle ressource (ex. Évacuation du bois – camion grappin)"> <select name="role_new"><option value="">Moyen spécifique</option><option value="equipe">Équipe</option><option value="rognage">Rognage</option></select> <input class="num" name="taux_new" placeholder="€/h" inputmode="decimal"> <button class="btn secondary" type="submit">Ajouter</button>
+    <input name="nom_new" placeholder="Ex. Évacuation du bois – camion grappin" style="min-width:300px"> <select name="role_new"><option value="">Moyen spécifique</option><option value="equipe">Équipe</option><option value="rognage">Rognage</option></select> <input class="num" name="taux_new" placeholder="€/h" inputmode="decimal"> <button class="btn secondary" type="submit">Ajouter</button>
   </form>
 </section>
 

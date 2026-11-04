@@ -97,11 +97,13 @@ function simplifier_en_equipe(float $tauxEquipe, float $tauxRognage, float $taux
     $pdo->beginTransaction();
     // Ressources cibles : équipe principale (porte les heures), seconde équipe optionnelle, rognage
     $eq = ressource_equipe();
+    // Une ressource déjà nommée « équipe » (créée à la main) devient l'équipe standard
+    if (!$eq) foreach ($res as $r) if ($r['role'] === '' && stripos($r['nom'], 'quipe') !== false) { q("UPDATE ressources SET role = 'equipe', ordre = 0 WHERE id = ?", [$r['id']]); $eq = $r; $res = array_values(array_filter($res, fn($x) => $x['id'] !== $r['id'])); break; }
     if (!$eq) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe standard (personnel + nacelle + broyeur + matériel)', ?, 0, 'equipe')", [$tauxEquipe]); $eqId = (int)$pdo->lastInsertId(); } else { $eqId = (int)$eq['id']; q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxEquipe, $eqId]); }
     if ($tauxEquipe2 > 0 && count(ressources_equipes()) < 2) q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Équipe marché public', ?, 1, 'equipe')", [$tauxEquipe2]);
     $ro = null; foreach ($res as $r) if ($r['role'] === 'rognage') $ro = $r;
     if (!$ro) { q("INSERT INTO ressources (nom, taux, ordre, role) VALUES ('Rognage (opérateur + rogneuse)', ?, 2, 'rognage')", [$tauxRognage]); $roId = (int)$pdo->lastInsertId(); } else { $roId = (int)$ro['id']; q("UPDATE ressources SET taux = ? WHERE id = ?", [$tauxRognage, $roId]); }
-    $anciennes = array_filter($res, fn($r) => !in_array($r['role'], ['equipe', 'rognage']));
+    $anciennes = array_filter($res, fn($r) => !in_array($r['role'], ['equipe', 'rognage']) && (int)$r['id'] !== $eqId);
     $taux = []; foreach ($anciennes as $r) $taux[$r['id']] = (float)$r['taux'];
     $rogneuseIds = []; foreach ($anciennes as $r) if (stripos($r['nom'], 'rogn') !== false) $rogneuseIds[] = (int)$r['id'];
     $n = 0;
