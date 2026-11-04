@@ -1,0 +1,117 @@
+/* Élagage Figeacois – charte reprise de la plaquette */
+:root{
+  --vert-sapin:#1c3b2b;
+  --vert-sapin-2:#254d38;
+  --vert-anis:#8fb339;
+  --vert-clair:#e4ecd7;
+  --creme:#f5f6f1;
+  --blanc:#ffffff;
+  --texte:#1d2a22;
+  --texte-doux:#5b6a60;
+  --rayon:14px;
+  --ombre:0 6px 24px rgba(28,59,43,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Lato,system-ui,sans-serif;color:var(--texte);background:var(--creme);line-height:1.55;font-size:17px}
+img{max-width:100%;display:block}
+a{color:var(--vert-sapin)}
+h1,h2,h3{font-weight:900;line-height:1.15;margin:.2em 0 .5em;color:var(--vert-sapin)}
+h1{font-size:clamp(2rem,5vw,3.4rem);color:#fff}
+h2{font-size:clamp(1.6rem,3.5vw,2.4rem)}
+h3{font-size:1.2rem}
+p{margin:.4em 0 1em}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+.section{padding:56px 20px}
+.section-alt{background:var(--blanc)}
+.narrow{max-width:800px}
+.kicker{color:var(--vert-anis);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:.8rem;margin-bottom:.4em}
+.lead{font-size:1.15rem;color:var(--texte-doux)}
+.muted{color:var(--texte-doux);font-size:.95rem}
+.big a{font-size:1.9rem;font-weight:900;text-decoration:none}
+
+/* Header */
+.site-header{position:sticky;top:0;z-index:50;background:rgba(245,246,241,.95);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #e3e6dc}
+.brand img{height:72px;width:auto}
+.main-nav ul{list-style:none;margin:0;padding:0;display:flex;gap:4px;flex-wrap:wrap}
+.main-nav a{text-decoration:none;font-weight:700;font-size:.92rem;padding:8px 10px;border-radius:8px;color:var(--vert-sapin)}
+.main-nav a:hover,.main-nav a.active{background:var(--vert-clair)}
+.main-nav{display:flex;align-items:center;gap:14px}
+.nav-client{font-size:.85rem;padding:7px 12px}
+.burger{display:none;background:none;border:0;width:40px;height:40px;cursor:pointer}
+.burger span{display:block;height:3px;background:var(--vert-sapin);margin:7px 0;border-radius:2px}
+@media(max-width:900px){
+  .burger{display:block}
+  .main-nav{display:none;position:absolute;left:0;right:0;top:100%;background:var(--creme);flex-direction:column;align-items:stretch;padding:12px 20px 20px;border-bottom:1px solid #e3e6dc}
+  .main-nav ul{flex-direction:column}
+  .main-nav a{display:block;padding:12px}
+  .nav-open .main-nav{display:flex}
+}
+
+/* Hero */
+.hero{min-height:62vh;display:flex;align-items:flex-end;background:var(--vert-sapin-2) center/cover no-repeat;position:relative;color:#fff}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(28,59,43,.15) 0%,rgba(28,59,43,.85) 100%)}
+.hero-inner{position:relative;max-width:1120px;margin:0 auto;padding:80px 20px 56px;width:100%}
+.hero .kicker{color:#cfe39a}
+.hero .lead{color:#e8eee2}
+.hero h1::before{content:"";display:block;width:76px;height:5px;background:var(--vert-anis);margin-bottom:22px;border-radius:3px}
+
+/* Boutons */
+.btn{display:inline-block;background:var(--vert-anis);color:#fff;font-weight:700;text-decoration:none;padding:12px 22px;border-radius:999px;border:0;cursor:pointer;font-family:inherit;font-size:1rem;margin:6px 8px 6px 0;transition:transform .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-light{background:#fff;color:var(--vert-sapin)}
+.btn-outline{background:transparent;color:var(--vert-sapin);border:2px solid var(--vert-sapin)}
+.btn-outline-light{background:transparent;color:#fff;border:2px solid #fff}
+
+/* Cartes */
+.grid-2,.grid-3{display:grid;gap:18px;margin:24px 0}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.grid-5{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.card{background:var(--blanc);border-radius:var(--rayon);padding:26px 24px;box-shadow:var(--ombre);text-decoration:none;color:inherit;border-left:5px solid var(--vert-anis);display:block}
+a.card:hover{transform:translateY(-3px);transition:transform .15s}
+.card .num{display:inline-flex;width:34px;height:34px;align-items:center;justify-content:center;background:var(--vert-anis);color:#fff;border-radius:50%;font-weight:700;font-size:.85rem;margin-bottom:10px}
+.card .num:empty{display:none}
+.card h3{margin-top:4px}
+.card p{margin-bottom:0;color:var(--texte-doux)}
+.card-green{background:var(--vert-clair)}
+.dots{list-style:none;padding:0;margin:0}
+.dots li{padding:8px 0 8px 22px;position:relative;border-bottom:1px solid rgba(0,0,0,.06)}
+.dots li::before{content:"";position:absolute;left:0;top:16px;width:9px;height:9px;border-radius:50%;background:var(--vert-anis)}
+.dots li:last-child{border:0}
+
+.tag-band{display:inline-block;background:var(--vert-sapin);color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;padding:10px 16px;border-radius:8px}
+.callout{background:var(--vert-clair);border-radius:var(--rayon);padding:18px 22px;font-weight:700;color:var(--vert-sapin)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+@media(max-width:800px){.two-col{grid-template-columns:1fr}}
+.panel-dark{background:var(--vert-sapin);color:#fff;border-radius:var(--rayon);padding:30px}
+.panel-dark h3{color:#fff;font-size:1.6rem}
+.panel-dark .dots li{border-color:rgba(255,255,255,.12)}
+.panel-logo{background:#fff;border-radius:10px;padding:10px;max-width:180px;margin-bottom:18px}
+.band-dark{background:var(--vert-sapin);color:#fff;border-radius:var(--rayon);padding:36px;display:flex;gap:36px;align-items:center;flex-wrap:wrap;margin:24px auto}
+.band-dark h2,.band-dark h3{color:#fff}
+.badge{max-width:200px}
+
+/* Galerie */
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:20px 0}
+.gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--rayon);background:#d8dfd0}
+.gallery figure{margin:0}
+.gallery figcaption{font-size:.9rem;color:var(--texte-doux);padding:8px 4px}
+
+/* Formulaire */
+.form{background:var(--blanc);border-radius:var(--rayon);padding:28px;box-shadow:var(--ombre);display:grid;gap:14px}
+.form label{display:grid;gap:6px;font-weight:700;font-size:.92rem}
+.form input,.form textarea{font:inherit;padding:11px 12px;border:1px solid #cfd6c8;border-radius:8px;background:#fafbf7}
+.form .check{grid-template-columns:auto 1fr;font-weight:400}
+.hp{position:absolute;left:-9999px}
+
+/* CTA + footer */
+.cta-band{background:var(--vert-sapin);color:#fff;padding:56px 20px}
+.cta-inner{display:flex;gap:36px;align-items:center;flex-wrap:wrap}
+.cta-logo{background:#fff;border-radius:12px;padding:14px;max-width:220px}
+.cta-band h2{color:#fff;font-size:2.2rem}
+.site-footer{background:#14291e;color:#cfd8cc;padding:36px 20px 20px;font-size:.92rem}
+.site-footer a{color:#e8eee2;text-decoration:none}
+.site-footer a:hover{text-decoration:underline}
+.foot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;line-height:1.8}
+.foot-base{text-align:center;margin-top:28px;font-style:italic;color:#8fa392}

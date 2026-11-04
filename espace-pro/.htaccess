@@ -1,0 +1,5 @@
+# Protège les fichiers internes de l'espace pro
+<FilesMatch "^(config|lib)\.php$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
