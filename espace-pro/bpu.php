@@ -3,7 +3,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/lib.php';
 require_login();
 $pdo = db();
-$res = ressources(); $eqApercu = isset($_GET['equipe']) ? (int)$_GET['equipe'] : null; $taux = taux_courants($eqApercu); $equipes = ressources_equipes();
+$eqPrincipale = ressource_equipe();
+// Une seule colonne d'heures d'équipe : celles de l'équipe principale. Les autres équipes ne changent que le taux (menu « Prix avec » ici, « Équipe appliquée » dans le bordereau).
+$res = array_values(array_filter(ressources(), fn($r) => $r['role'] !== 'equipe' || ($eqPrincipale && (int)$r['id'] === (int)$eqPrincipale['id'])));
+$eqApercu = isset($_GET['equipe']) ? (int)$_GET['equipe'] : null; $taux = taux_courants($eqApercu); $equipes = ressources_equipes();
 $coef = (float)setting('coef', '1'); $pas = (float)setting('arrondi', '1'); $tva = (float)setting('tva', '20');
 $HAUT = ['' => '—', '<10' => '< 10 m', '10-20' => '10–20 m', '>20' => '> 20 m'];
 $HOUP = ['' => '—', '<=5' => '≤ 5 m', '5-10' => '5–10 m', '>10' => '> 10 m'];
@@ -105,7 +108,7 @@ page_start('Catalogue des prestations', 'bpu.php');
 <div class="scroll">
 <table class="tbl bpu">
 <thead><tr><th>Ord.</th><th>Code</th><th class="w">Désignation</th><th>Famille</th><th>Haut.</th><th>Houp.</th><th>Circ.</th><th>Unité</th><th class="acts">Actions dans l'arbre</th>
-<?php foreach ($res as $r): ?><th class="r rot" title="<?= e($r['nom']) ?> – <?= money((float)$r['taux']) ?>/h"><span><?= e($r['nom']) ?></span></th><?php endforeach; ?>
+<?php foreach ($res as $r): ?><th class="r rot" title="<?= $r['role'] === 'equipe' ? 'Heures d\'équipe (toute équipe : le taux dépend de l\'équipe choisie)' : e($r['nom']) . ' – ' . money((float)$r['taux']) . '/h' ?>"><span><?= $r['role'] === 'equipe' ? 'Heures d\'équipe' : e($r['nom']) ?></span></th><?php endforeach; ?>
 <th class="r">Forfait €</th><th class="r">Réf. €</th><th class="r">Écart</th><th></th><th class="r pu">PU HT</th></tr></thead>
  <tbody>
 <?php $famCour = null; $hautCour = null; $nbFam = count($resume); foreach ($lignes as $l): $id = $l['id']; $f = $l['famille'] ?: 'Sans famille';

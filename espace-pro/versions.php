@@ -2,6 +2,7 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.3.4', '2026-11-04', ['Catalogue : une seule colonne « Heures d\'équipe » (les colonnes par équipe ont disparu : les heures sont les mêmes quelle que soit l\'équipe, seul le taux change, via « Prix avec » ici ou « Équipe appliquée aux prix » dans le bordereau)']],
     ['2.3.3', '2026-11-04', ['Catalogue et bordereaux : on peut faire glisser le tableau à la souris (clic maintenu hors des champs) pour le déplacer à droite, à gauche, en haut ou en bas']],
     ['2.3.2', '2026-11-04', ['Catalogue : la colonne Désignation reste figée à gauche pendant le défilement horizontal, on voit toujours quelle ligne on modifie', 'Actions : menu « Coût avec » pour afficher le coût indicatif avec une autre équipe ; champ Précision élargi']],
     ['2.3.1', '2026-11-04', [
