@@ -73,6 +73,10 @@ input.tiny{width:60px}
 .tbl.bpu td input[name*='[code]']{width:120px!important}
 .tbl.bpu input.num{width:72px}
 .tbl th.rot span{display:inline-block;max-width:90px;white-space:normal;font-size:.72rem;line-height:1.15}
+/* Largeurs stables du catalogue, bloc ouvert ou fermé */
+.tbl.bpu th:nth-child(1){min-width:62px}.tbl.bpu th:nth-child(2){min-width:130px}.tbl.bpu th:nth-child(3){min-width:440px}.tbl.bpu th:nth-child(4){min-width:200px}
+.tbl.bpu th:nth-child(5),.tbl.bpu th:nth-child(6){min-width:100px}.tbl.bpu th:nth-child(7){min-width:95px}.tbl.bpu th:nth-child(8){min-width:70px}
+.tbl.bpu th.rot{min-width:96px}.tbl.bpu th:nth-last-child(2),.tbl.bpu th:nth-last-child(3),.tbl.bpu th:nth-last-child(4),.tbl.bpu th:nth-last-child(5){min-width:92px}.tbl.bpu th.pu{min-width:110px}
 .tbl .out{font-variant-numeric:tabular-nums;white-space:nowrap}
 .tbl .pu{font-weight:900;color:var(--sapin);position:sticky;right:0;background:#fff;box-shadow:-8px 0 10px -8px rgba(0,0,0,.2)}
 .tbl th.pu{background:#f8f9f4}

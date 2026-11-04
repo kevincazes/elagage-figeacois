@@ -4,7 +4,7 @@
 return [
     ['1.10', '2026-11-04', [
         'Logos Extrabat et Urgence Élagage sur le tableau de bord',
-        'Catalogue : menus Hauteur / Houppier lisibles ; bouton pour supprimer les lignes d\'exemple du premier jour',
+        'Catalogue : menus Hauteur / Houppier lisibles ; bouton pour supprimer les lignes d\'exemple du premier jour ; en-tête de colonnes stable, blocs ouverts ou fermés',
     ]],
     ['1.9', '2026-11-04', [
         'Catalogue en blocs repliables par famille, avec sous-titres par hauteur d\'arbre (état mémorisé) ; même présentation dans le sélecteur de lignes d\'un bordereau',
