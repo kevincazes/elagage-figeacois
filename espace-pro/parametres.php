@@ -11,11 +11,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_setting('tva', (string)max(0, (float)str_replace(',', '.', $_POST['tva'] ?? '20')));
         set_setting('arrondi', (string)max(0, (float)str_replace(',', '.', $_POST['arrondi'] ?? '1')));
         foreach (['lien_drive', 'lien_extrabat', 'lien_urgence', 'lien_arbogestion'] as $k) set_setting($k, trim($_POST[$k] ?? ''));
-        flash('Paramètres enregistrés.');
+        journal('parametres', 'Coefficient ' . setting('coef') . ' → ' . $_POST['coef'] . ', TVA ' . $_POST['tva'] . ', arrondi ' . $_POST['arrondi']); flash('Paramètres enregistrés.');
     } elseif ($action === 'taux') {
         foreach ($_POST['taux'] ?? [] as $id => $t) q("UPDATE ressources SET taux = ? WHERE id = ?", [(float)str_replace(',', '.', $t), (int)$id]);
         foreach ($_POST['nom'] ?? [] as $id => $n) if (trim($n) !== '') q("UPDATE ressources SET nom = ? WHERE id = ?", [trim($n), (int)$id]);
-        flash('Taux horaires enregistrés.');
+        journal('taux', 'Taux horaires : ' . implode(', ', array_map(fn($id, $t) => (q("SELECT nom FROM ressources WHERE id = ?", [(int)$id])->fetch()['nom'] ?? $id) . " $t €/h", array_keys($_POST['taux'] ?? []), $_POST['taux'] ?? []))); flash('Taux horaires enregistrés.');
     } elseif ($action === 'ajout_ressource' && trim($_POST['nom_new'] ?? '') !== '') {
         $ordre = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM ressources")->fetch()['o'];
         q("INSERT INTO ressources (nom, taux, ordre) VALUES (?,?,?)", [trim($_POST['nom_new']), (float)str_replace(',', '.', $_POST['taux_new'] ?? '0'), $ordre]);

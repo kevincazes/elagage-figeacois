@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q("DELETE FROM bpu_temps WHERE ligne_id = ?", [$id]);
             foreach ($d['h'] ?? [] as $rid => $h) { $h = (float)str_replace(',', '.', $h); if ($h > 0) q("INSERT INTO bpu_temps (ligne_id, ressource_id, heures) VALUES (?,?,?)", [$id, (int)$rid, $h]); }
         }
-        $pdo->commit(); flash('Lignes enregistrées.');
+        $pdo->commit(); journal('catalogue', count($_POST['l'] ?? []) . ' ligne(s) du catalogue enregistrée(s)'); flash('Lignes enregistrées.');
     } elseif ($action === 'add') {
         $ordre = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bpu_lignes")->fetch()['o'];
         q("INSERT INTO bpu_lignes (code, libelle, unite, ordre, famille) VALUES (?,?,?,?,?)", [trim($_POST['code'] ?? ''), trim($_POST['libelle'] ?? 'Nouvelle ligne'), trim($_POST['unite'] ?? 'U'), $ordre, trim($_POST['famille'] ?? '')]);
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         q("UPDATE bpu_lignes SET actif = 0 WHERE id = ?", [(int)$_POST['id']]); flash('Ligne supprimée.');
     } elseif ($action === 'import') {
         require_admin();
-        [$n, $np] = importer_catalogue(); flash("Catalogue importé : $n lignes et $np packs ajoutés.");
+        [$n, $np] = importer_catalogue(); journal('catalogue', "Import du catalogue : $n lignes, $np packs"); flash("Catalogue importé : $n lignes et $np packs ajoutés.");
     }
     $qs = http_build_query(array_filter(['famille' => $_POST['f_famille'] ?? '', 'hauteur' => $_POST['f_hauteur'] ?? '', 'q' => $_POST['f_q'] ?? '']));
     redirect('bpu.php' . ($qs ? "?$qs" : ''));

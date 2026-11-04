@@ -8,39 +8,62 @@ $b = q("SELECT * FROM bordereaux WHERE id = ?", [(int)($_GET['id'] ?? 0)])->fetc
 if (!$b) { flash('Bordereau introuvable.', 'err'); redirect('bordereaux.php'); }
 $bid = (int)$b['id']; $fige = $b['statut'] === 'fige';
 $retour = "bordereau.php?id=$bid";
+$noms = []; foreach (q("SELECT id, prenom, nom FROM utilisateurs") as $u) $noms[$u['id']] = trim($u['prenom'] . ' ' . $u['nom']);
+
+// Verrou : battement de cœur (JS), libération, prise forcée
+if (isset($_GET['ping'])) { $d = verrou_prendre($bid); http_response_code($d ? 409 : 204); exit; }
+if (isset($_GET['liberer'])) { verrou_liberer($bid); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'forcer') { check_csrf(); require_admin(); verrou_prendre($bid, true); flash('Verrou libéré de force : tu as la main.'); redirect($retour); }
+$detenteur = verrou_prendre($bid);
+$lecture = $detenteur !== null; // quelqu'un d'autre a le dossier ouvert
 $next = fn() => (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bordereau_lignes WHERE bordereau_id = ?", [$bid])->fetch()['o'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';
+    if ($lecture) { flash("Dossier ouvert par {$detenteur['prenom']} : lecture seule.", 'err'); redirect($retour); }
     if ($fige && !in_array($a, ['defiger'])) { flash('Bordereau figé : défige-le pour le modifier.', 'err'); redirect($retour); }
     if ($a === 'entete') {
-        q("UPDATE bordereaux SET nom = ?, client = ?, notes = ? WHERE id = ?", [trim($_POST['nom']), trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), $bid]); flash('En-tête enregistré.');
+        q("UPDATE bordereaux SET nom = ?, client = ?, notes = ? WHERE id = ?", [trim($_POST['nom']), trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), $bid]); journal('entete', 'En-tête modifié', $bid); flash('En-tête enregistré.');
     } elseif ($a === 'section') {
-        q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, $next(), trim($_POST['libelle'] ?? 'Section')]);
+        q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, $next(), trim($_POST['libelle'] ?? 'Section')]); journal('ajout', 'Section « ' . trim($_POST['libelle'] ?? '') . ' »', $bid);
     } elseif ($a === 'libre') {
-        q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, pu_manuel) VALUES (?,?,'ligne',?,?,?,?)", [$bid, $next(), trim($_POST['code'] ?? ''), trim($_POST['libelle'] ?? 'Ligne'), trim($_POST['unite'] ?? 'U'), ($_POST['pu'] ?? '') === '' ? null : (float)str_replace(',', '.', $_POST['pu'])]);
+        q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, pu_manuel) VALUES (?,?,'ligne',?,?,?,?)", [$bid, $next(), trim($_POST['code'] ?? ''), trim($_POST['libelle'] ?? 'Ligne'), trim($_POST['unite'] ?? 'U'), ($_POST['pu'] ?? '') === '' ? null : (float)str_replace(',', '.', $_POST['pu'])]); journal('ajout', 'Ligne libre « ' . trim($_POST['libelle'] ?? '') . ' »', $bid);
     } elseif ($a === 'catalogue') {
         $o = $next(); $n = 0;
         foreach ($_POST['l'] ?? [] as $lid => $on) { $l = q("SELECT * FROM bpu_lignes WHERE id = ?", [(int)$lid])->fetch(); if (!$l) continue;
             q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, ligne_id) VALUES (?,?,'ligne',?,?,?,?)", [$bid, $o++, $l['code'], $l['libelle'], $l['unite'], $l['id']]); $n++; }
-        flash("$n ligne(s) ajoutée(s).");
+        journal('ajout', "$n ligne(s) du catalogue", $bid); flash("$n ligne(s) ajoutée(s).");
     } elseif ($a === 'pack') {
         $o = $next(); $n = 0; $pack = q("SELECT * FROM packs WHERE id = ?", [(int)$_POST['pack_id']])->fetch();
         if ($pack && !empty($_POST['avec_section'])) q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, $o++, $pack['nom']]);
         foreach (q("SELECT l.* FROM pack_lignes pl JOIN bpu_lignes l ON l.id = pl.ligne_id WHERE pl.pack_id = ? AND l.actif = 1 ORDER BY pl.ordre", [(int)$_POST['pack_id']]) as $l) {
             q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, ligne_id) VALUES (?,?,'ligne',?,?,?,?)", [$bid, $o++, $l['code'], $l['libelle'], $l['unite'], $l['id']]); $n++; }
-        flash("Pack ajouté : $n lignes.");
+        journal('ajout', 'Pack « ' . ($pack['nom'] ?? '') . "» ($n lignes)", $bid); flash("Pack ajouté : $n lignes.");
     } elseif ($a === 'save') {
+        $avant = []; foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ?", [$bid]) as $x) $avant[$x['id']] = $x;
+        $modifs = [];
         foreach ($_POST['r'] ?? [] as $id => $d) {
+            $o = $avant[(int)$id] ?? null;
+            if ($o) {
+                $nv = ['ordre' => (int)($d['ordre'] ?? 0), 'numero' => trim($d['numero'] ?? ''), 'code' => trim($d['code'] ?? ''), 'libelle' => trim($d['libelle'] ?? ''), 'unite' => trim($d['unite'] ?? ''),
+                       'quantite' => ($d['qte'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['qte']), 'pu_manuel' => ($d['pu'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['pu'])];
+                $ch = [];
+                foreach ($nv as $k => $v) { $ov = $o[$k]; if (in_array($k, ['quantite', 'pu_manuel'])) { $ov = $ov === null ? null : (float)$ov; } elseif ($k === 'ordre') $ov = (int)$ov;
+                    if ($ov !== $v) $ch[] = ['numero' => 'N°', 'code' => 'code', 'libelle' => 'libellé', 'unite' => 'unité', 'quantite' => 'quantité', 'pu_manuel' => 'PU imposé', 'ordre' => 'tri'][$k] . " : " . ($ov === null || $ov === '' ? '—' : $ov) . " → " . ($v === null || $v === '' ? '—' : $v); }
+                if ($ch) $modifs[] = '[' . ($o['numero'] ?: $o['ordre']) . ' ' . mb_substr($o['libelle'], 0, 40) . '] ' . implode(', ', $ch);
+            }
             q("UPDATE bordereau_lignes SET ordre = ?, numero = ?, code = ?, libelle = ?, unite = ?, quantite = ?, pu_manuel = ? WHERE id = ? AND bordereau_id = ?",
               [(int)($d['ordre'] ?? 0), trim($d['numero'] ?? ''), trim($d['code'] ?? ''), trim($d['libelle'] ?? ''), trim($d['unite'] ?? ''), ($d['qte'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['qte']), ($d['pu'] ?? '') === '' ? null : (float)str_replace(',', '.', $d['pu']), (int)$id, $bid]);
         }
+        if ($modifs) journal('modif', count($modifs) . " ligne(s) modifiée(s) :\n" . implode("\n", $modifs), $bid);
         flash('Bordereau enregistré.');
     } elseif ($a === 'del') {
+        $x = q("SELECT * FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid])->fetch();
         q("DELETE FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid]);
+        if ($x) journal('suppression', ($x['type'] === 'section' ? 'Section' : 'Ligne') . ' « ' . $x['libelle'] . ' »', $bid);
     } elseif ($a === 'renum') {
         $o = 0; foreach (q("SELECT id FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$bid]) as $l) { ++$o; q("UPDATE bordereau_lignes SET ordre = ?, numero = ? WHERE id = ?", [$o, (string)$o, $l['id']]); }
-        flash('Numérotation remise à plat.');
+        journal('modif', 'Renumérotation 1, 2, 3…', $bid); flash('Numérotation remise à plat.');
     } elseif ($a === 'figer') {
         $taux = []; foreach (ressources() as $r) $taux[$r['id']] = ['nom' => $r['nom'], 'taux' => (float)$r['taux']];
         foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne'", [$bid]) as $l) {
@@ -48,14 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q("UPDATE bordereau_lignes SET pu_fige = ? WHERE id = ?", [$pu, $l['id']]);
         }
         q("UPDATE bordereaux SET statut = 'fige', fige_le = NOW(), coef = ?, tva = ?, taux_json = ? WHERE id = ?", [(float)setting('coef'), (float)setting('tva'), json_encode($taux, JSON_UNESCAPED_UNICODE), $bid]);
-        flash('Bordereau figé : les prix ne bougeront plus, même si les taux changent.');
+        journal('figer', 'Prix figés (coef ' . setting('coef') . ')', $bid); flash('Bordereau figé : les prix ne bougeront plus, même si les taux changent.');
     } elseif ($a === 'defiger') {
-        q("UPDATE bordereaux SET statut = 'brouillon', fige_le = NULL WHERE id = ?", [$bid]); flash('Bordereau remis en brouillon (les prix suivent à nouveau le catalogue).');
+        q("UPDATE bordereaux SET statut = 'brouillon', fige_le = NULL WHERE id = ?", [$bid]); journal('defiger', 'Remis en brouillon', $bid); flash('Bordereau remis en brouillon (les prix suivent à nouveau le catalogue).');
     }
     redirect($retour);
 }
 
 $lignes = q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$bid])->fetchAll();
+$ro = $fige || $lecture; // champs non modifiables
 $cat = []; foreach (q("SELECT * FROM bpu_lignes WHERE actif = 1") as $c) $cat[$c['id']] = $c;
 $tva = $fige ? (float)$b['tva'] : (float)setting('tva', '20');
 $puDe = function (array $l) use ($fige, $cat): float {
@@ -69,17 +93,23 @@ $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = 
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
 $catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, ordre, id")->fetchAll();
 page_start($b['nom'], 'bordereau.php');
-?>
+if ($lecture): ?>
+<div class="flash err">Dossier ouvert par <strong><?= e($detenteur['prenom'] . ' ' . $detenteur['nom']) ?></strong> depuis <?= date('H:i', strtotime($detenteur['verrou_le'])) ?> : tu peux le consulter, pas le modifier. Il se libérera quand cette personne quittera la page, ou après <?= VERROU_MINUTES ?> min sans activité.
+  <?php if (user()['role'] === 'admin'): ?><form method="post" class="inline" onsubmit="return confirm('Forcer la libération ? Les modifications non enregistrées de cette personne seront perdues.')"><?= csrf_field() ?><input type="hidden" name="action" value="forcer"><button class="mini danger">Forcer la libération (admin)</button></form><?php endif; ?>
+</div>
+<?php else: ?>
+<p class="muted">Tu as la main sur ce dossier. <a href="bordereaux.php" onclick="navigator.sendBeacon('bordereau.php?id=<?= $bid ?>&liberer=1')">Libérer et revenir à la liste</a></p>
+<?php endif; ?>
 <form method="post" class="card"><?= csrf_field() ?><input type="hidden" name="action" value="entete">
   <div class="cols">
-    <label>Marché <input name="nom" value="<?= e($b['nom']) ?>" required <?= $fige ? 'readonly' : '' ?>></label>
-    <label>Collectivité / client <input name="client" value="<?= e($b['client']) ?>" <?= $fige ? 'readonly' : '' ?>></label>
-    <label>Notes <input name="notes" value="<?= e($b['notes']) ?>" <?= $fige ? 'readonly' : '' ?>></label>
+    <label>Marché <input name="nom" value="<?= e($b['nom']) ?>" required <?= $ro ? 'readonly' : '' ?>></label>
+    <label>Collectivité / client <input name="client" value="<?= e($b['client']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
+    <label>Notes <input name="notes" value="<?= e($b['notes']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
   </div>
   <?php if ($fige): ?><p class="ok">Figé le <?= date('d/m/Y à H:i', strtotime($b['fige_le'])) ?> · coefficient <?= e($b['coef']) ?> · TVA <?= e($b['tva']) ?> %</p>
-  <?php else: ?><button class="btn secondary" type="submit">Enregistrer l'en-tête</button><?php endif; ?>
+  <?php elseif (!$lecture): ?><button class="btn secondary" type="submit">Enregistrer l'en-tête</button><?php endif; ?>
   <a class="btn" href="export.php?id=<?= $bid ?>">Excel (CSV)</a> <a class="btn secondary" href="bordereau.php?id=<?= $bid ?>&print=1" target="_blank">Imprimer / PDF</a>
-  <?php if ($fige): ?><button class="mini" type="submit" form="defiger">Défiger</button><?php else: ?><button class="mini" type="submit" form="figer" onclick="return confirm('Figer les prix de ce bordereau ?')">Figer les prix</button><?php endif; ?>
+  <?php if ($lecture): ?><?php elseif ($fige): ?><button class="mini" type="submit" form="defiger">Défiger</button><?php else: ?><button class="mini" type="submit" form="figer" onclick="return confirm('Figer les prix de ce bordereau ?')">Figer les prix</button><?php endif; ?>
 </form>
 <form id="figer" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="figer"></form>
 <form id="defiger" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="defiger"></form>
@@ -90,32 +120,32 @@ page_start($b['nom'], 'bordereau.php');
 <tbody>
 <?php $n = 0; foreach ($lignes as $l): $id = $l['id']; ?>
 <?php if ($l['type'] === 'section'): ?>
-<tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $fige ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $fige ? 'readonly' : '' ?>></td><td colspan="7"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $fige ? 'readonly' : '' ?>></td>
-<td><?php if (!$fige): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
+<tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="7"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
+<td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
 <?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']]) : null; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
 <tr data-calc="<?= $calc ?? '' ?>" title="<?= e($src) ?>">
-  <td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $fige ? 'readonly' : '' ?>></td>
-  <td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" placeholder="<?= $l['ordre'] ?>" <?= $fige ? 'readonly' : '' ?>></td>
-  <td><input class="tiny" style="width:100px" name="r[<?= $id ?>][code]" value="<?= e($l['code']) ?>" <?= $fige ? 'readonly' : '' ?>></td>
-  <td><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" <?= $fige ? 'readonly' : '' ?>><?php if ($l['ligne_id'] && !isset($cat[$l['ligne_id']])): ?><br><span class="off">ligne du catalogue supprimée</span><?php endif; ?></td>
-  <td><input class="tiny" style="width:70px" name="r[<?= $id ?>][unite]" value="<?= e($l['unite']) ?>" <?= $fige ? 'readonly' : '' ?>></td>
-  <td class="r"><input class="num qte" name="r[<?= $id ?>][qte]" value="<?= $l['quantite'] !== null ? e((string)(float)$l['quantite']) : '' ?>" inputmode="decimal" placeholder="–" <?= $fige ? 'readonly' : '' ?>></td>
+  <td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
+  <td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" placeholder="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
+  <td><input class="tiny" style="width:100px" name="r[<?= $id ?>][code]" value="<?= e($l['code']) ?>" <?= $ro ? 'readonly' : '' ?>></td>
+  <td><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" <?= $ro ? 'readonly' : '' ?>><?php if ($l['ligne_id'] && !isset($cat[$l['ligne_id']])): ?><br><span class="off">ligne du catalogue supprimée</span><?php endif; ?></td>
+  <td><input class="tiny" style="width:70px" name="r[<?= $id ?>][unite]" value="<?= e($l['unite']) ?>" <?= $ro ? 'readonly' : '' ?>></td>
+  <td class="r"><input class="num qte" name="r[<?= $id ?>][qte]" value="<?= $l['quantite'] !== null ? e((string)(float)$l['quantite']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
   <td class="r out calc"><?= $calc !== null ? money($calc) : '<span class="muted">—</span>' ?></td>
-  <td class="r"><input class="num manuel" name="r[<?= $id ?>][pu]" value="<?= $l['pu_manuel'] !== null ? e((string)(float)$l['pu_manuel']) : '' ?>" inputmode="decimal" placeholder="–" <?= $fige ? 'readonly' : '' ?>></td>
+  <td class="r"><input class="num manuel" name="r[<?= $id ?>][pu]" value="<?= $l['pu_manuel'] !== null ? e((string)(float)$l['pu_manuel']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
   <td class="r out tot"></td>
-  <td><?php if (!$fige): ?><button class="mini danger" type="submit" form="x<?= $id ?>" onclick="return confirm('Retirer cette ligne ?')">×</button><?php endif; ?></td>
+  <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>" onclick="return confirm('Retirer cette ligne ?')">×</button><?php endif; ?></td>
   <td class="r out pu" data-fige="<?= $fige ? $pu : '' ?>"></td>
 </tr>
 <?php endif; endforeach; ?>
 </tbody>
 <tfoot><tr><td colspan="8" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr></tfoot>
 </table></div>
-<?php if (!$fige): ?><p><button class="btn" type="submit">Enregistrer le bordereau</button> <button class="mini" type="submit" form="renum">Renuméroter 1, 2, 3…</button> <span class="muted">« Tri » ordonne les lignes ; « N° » est le numéro affiché sur le bordereau (ex. 2.1.1), libre ; « PU imposé » remplace le prix calculé.</span></p><?php endif; ?>
+<?php if (!$ro): ?><p><button class="btn" type="submit">Enregistrer le bordereau</button> <button class="mini" type="submit" form="renum">Renuméroter 1, 2, 3…</button> <span class="muted">« Tri » ordonne les lignes ; « N° » est le numéro affiché sur le bordereau (ex. 2.1.1), libre ; « PU imposé » remplace le prix calculé.</span></p><?php endif; ?>
 </form>
 <form id="renum" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="renum"></form>
 <?php foreach ($lignes as $l): ?><form id="x<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="del"><input type="hidden" name="id" value="<?= $l['id'] ?>"></form><?php endforeach; ?>
 
-<?php if (!$fige): ?>
+<?php if (!$ro): ?>
 <div class="cols">
 <section class="card">
   <h2>Ajouter un pack</h2>
@@ -154,7 +184,19 @@ page_start($b['nom'], 'bordereau.php');
 </section>
 </div>
 <?php endif; ?>
+<section class="card">
+  <h2>Historique du dossier</h2>
+  <?php $hist = q("SELECT * FROM historique WHERE bordereau_id = ? ORDER BY quand DESC, id DESC LIMIT 100", [$bid])->fetchAll(); if (!$hist): ?><p class="muted">Aucune action enregistrée.</p><?php else: ?>
+  <table class="tbl"><tr><th>Quand</th><th>Qui</th><th>Action</th><th>Détail</th></tr>
+  <?php foreach ($hist as $h): ?><tr><td style="white-space:nowrap"><?= date('d/m/Y H:i', strtotime($h['quand'])) ?></td><td><?= e($noms[$h['utilisateur_id']] ?? '—') ?></td><td><?= e(['creation' => 'Création', 'entete' => 'En-tête', 'ajout' => 'Ajout', 'modif' => 'Modification', 'suppression' => 'Suppression', 'figer' => 'Figé', 'defiger' => 'Défigé', 'verrou_force' => 'Verrou forcé'][$h['action']] ?? $h['action']) ?></td><td class="small" style="white-space:pre-line"><?= e($h['detail']) ?></td></tr><?php endforeach; ?>
+  </table><?php endif; ?>
+</section>
 <script>
+<?php if (!$lecture): ?>
+// Garde le verrou tant que la page est ouverte ; le libère en partant
+setInterval(() => fetch('bordereau.php?id=<?= $bid ?>&ping=1').then(r => { if (r.status === 409) location.reload(); }), 60000);
+window.addEventListener('pagehide', () => navigator.sendBeacon('bordereau.php?id=<?= $bid ?>&liberer=1'));
+<?php endif; ?>
 const num = v => parseFloat(String(v).replace(',', '.')) || 0;
 const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 const TVA = <?= json_encode($tva) ?>;

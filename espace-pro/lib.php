@@ -37,12 +37,32 @@ function migrate(): void {
         if (!in_array('famille', $cols)) db()->exec("ALTER TABLE bpu_lignes ADD COLUMN famille VARCHAR(80) NOT NULL DEFAULT '', ADD COLUMN hauteur VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN houppier VARCHAR(10) NOT NULL DEFAULT '', ADD COLUMN circonference VARCHAR(12) NOT NULL DEFAULT '', ADD COLUMN prix_ref DECIMAL(10,2) NULL, ADD COLUMN source VARCHAR(120) NOT NULL DEFAULT ''");
         db()->exec("CREATE TABLE IF NOT EXISTS packs (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         db()->exec("CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        db()->exec("CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        db()->exec("CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL, verrou_par INT NULL, verrou_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $cols = array_column(q("SHOW COLUMNS FROM bordereau_lignes")->fetchAll(), 'Field');
         if ($cols && !in_array('numero', $cols)) db()->exec("ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre");
+        $cols = array_column(q("SHOW COLUMNS FROM bordereaux")->fetchAll(), 'Field');
+        if ($cols && !in_array('verrou_par', $cols)) db()->exec("ALTER TABLE bordereaux ADD COLUMN verrou_par INT NULL, ADD COLUMN verrou_le DATETIME NULL");
+        db()->exec("CREATE TABLE IF NOT EXISTS historique (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NULL, utilisateur_id INT NULL, quand DATETIME DEFAULT CURRENT_TIMESTAMP, action VARCHAR(40) NOT NULL, detail TEXT, INDEX (bordereau_id), INDEX (quand)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         db()->exec("CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $t) { /* tables pas encore créées : install.php s'en charge */ }
 }
+
+// ---- Historique et verrous ----
+const VERROU_MINUTES = 10;
+function journal(string $action, string $detail = '', ?int $bordereau = null): void {
+    try { q("INSERT INTO historique (bordereau_id, utilisateur_id, action, detail) VALUES (?,?,?,?)", [$bordereau, user()['id'] ?? null, $action, $detail]); } catch (Throwable $t) {}
+}
+/** Tente de prendre le verrou du bordereau. Retourne null si obtenu, sinon le détenteur (prenom, nom, verrou_le). */
+function verrou_prendre(int $bid, bool $forcer = false): ?array {
+    $b = q("SELECT b.verrou_par, b.verrou_le, u.prenom, u.nom FROM bordereaux b LEFT JOIN utilisateurs u ON u.id = b.verrou_par WHERE b.id = ?", [$bid])->fetch();
+    $moi = (int)user()['id'];
+    $actif = $b['verrou_par'] && strtotime($b['verrou_le']) > time() - VERROU_MINUTES * 60;
+    if ($actif && (int)$b['verrou_par'] !== $moi && !$forcer) return $b;
+    if ($actif && (int)$b['verrou_par'] !== $moi && $forcer) journal('verrou_force', "Verrou de {$b['prenom']} {$b['nom']} libéré de force", $bid);
+    q("UPDATE bordereaux SET verrou_par = ?, verrou_le = NOW() WHERE id = ?", [$moi, $bid]);
+    return null;
+}
+function verrou_liberer(int $bid): void { q("UPDATE bordereaux SET verrou_par = NULL, verrou_le = NULL WHERE id = ? AND verrou_par = ?", [$bid, user()['id']]); }
 
 // ---- Catalogue : prix d'une ligne à partir des temps courants ----
 function ressources(): array { static $r = null; return $r ??= q("SELECT * FROM ressources WHERE actif = 1 ORDER BY ordre, id")->fetchAll(); }
@@ -205,6 +225,7 @@ function page_start(string $title, string $active = ''): void {
         'bpu.php' => 'Catalogue',
         'packs.php' => 'Packs',
         'bordereaux.php' => 'Bordereaux',
+        'historique.php' => 'Historique',
     ];
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
     $nav['compte.php'] = 'Mon compte';

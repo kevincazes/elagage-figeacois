@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$src]) as $l)
                 q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, code, libelle, unite, ligne_id, quantite, pu_manuel) VALUES (?,?,?,?,?,?,?,?,?)", [$bid, $l['ordre'], $l['type'], $l['code'], $l['libelle'], $l['unite'], $l['ligne_id'], $l['quantite'], $l['pu_manuel']]);
         }
+        journal('creation', 'Bordereau créé' . (!empty($_POST['modele']) ? ' à partir d\'un modèle' : ''), $bid);
         redirect('bordereau.php?id=' . $bid);
     } elseif ($a === 'suppr') {
         require_admin();
@@ -22,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('Bordereau supprimé.'); redirect('bordereaux.php');
     }
 }
-$bords = q("SELECT b.*, u.prenom, (SELECT COUNT(*) FROM bordereau_lignes l WHERE l.bordereau_id = b.id AND l.type = 'ligne') nb FROM bordereaux b LEFT JOIN utilisateurs u ON u.id = b.cree_par ORDER BY b.cree_le DESC")->fetchAll();
+$bords = q("SELECT b.*, u.prenom, v.prenom vprenom, v.nom vnom, (SELECT COUNT(*) FROM bordereau_lignes l WHERE l.bordereau_id = b.id AND l.type = 'ligne') nb FROM bordereaux b LEFT JOIN utilisateurs u ON u.id = b.cree_par LEFT JOIN utilisateurs v ON v.id = b.verrou_par ORDER BY b.cree_le DESC")->fetchAll();
 page_start('Bordereaux de prix', 'bordereaux.php');
 ?>
 <section class="card">
@@ -48,7 +49,8 @@ page_start('Bordereaux de prix', 'bordereaux.php');
   <td><?= date('d/m/Y', strtotime($b['cree_le'])) ?></td>
   <td><a href="bordereau.php?id=<?= $b['id'] ?>"><strong><?= e($b['nom']) ?></strong></a></td>
   <td><?= e($b['client']) ?></td><td class="r"><?= $b['nb'] ?></td>
-  <td><?= $b['statut'] === 'fige' ? '<span class="ok">Figé le ' . date('d/m/Y', strtotime($b['fige_le'])) . '</span>' : 'Brouillon' ?></td>
+  <td><?= $b['statut'] === 'fige' ? '<span class="ok">Figé le ' . date('d/m/Y', strtotime($b['fige_le'])) . '</span>' : 'Brouillon' ?>
+    <?php if ($b['verrou_par'] && strtotime($b['verrou_le']) > time() - VERROU_MINUTES * 60): ?><br><span class="off">ouvert par <?= e($b['vprenom'] . ' ' . $b['vnom']) ?> (<?= date('H:i', strtotime($b['verrou_le'])) ?>)</span><?php endif; ?></td>
   <td><?= e($b['prenom'] ?? '') ?></td>
   <td class="r"><a class="mini" href="bordereau.php?id=<?= $b['id'] ?>">Ouvrir</a> <a class="mini" href="export.php?id=<?= $b['id'] ?>">Excel</a>
   <?php if (user()['role'] === 'admin'): ?><form method="post" class="inline" onsubmit="return confirm('Supprimer ce bordereau ?')"><?= csrf_field() ?><input type="hidden" name="action" value="suppr"><input type="hidden" name="id" value="<?= $b['id'] ?>"><button class="mini danger">×</button></form><?php endif; ?></td>
