@@ -5,11 +5,16 @@ require_login();
 $nbLignes = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
 $nbBord = (int)q("SELECT COUNT(*) c FROM bordereaux")->fetch()['c'];
 $dernier = q("SELECT * FROM bordereaux ORDER BY cree_le DESC LIMIT 1")->fetch();
+// Icône d'un outil : logo local si on l'a, sinon l'icône officielle du site (service de favicons de Google)
+$icone = function (string $url, string $local = ''): string {
+    if ($local) return $local;
+    $h = parse_url($url, PHP_URL_HOST); return $h ? 'https://www.google.com/s2/favicons?sz=64&domain=' . rawurlencode($h) : '';
+};
 $liens = [
-    ['Google Drive', setting('lien_drive'), 'Dossiers, devis, photos de chantier'],
-    ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client'],
-    ['Urgence Élagage', setting('lien_urgence'), 'Dispositif collectivités'],
-    ['Arbogestion', setting('lien_arbogestion'), 'Gestion du patrimoine arboré'],
+    ['Google Drive', setting('lien_drive'), 'Dossiers, devis, photos de chantier', $icone(setting('lien_drive') ?: 'https://drive.google.com')],
+    ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client', $icone(setting('lien_extrabat') ?: 'https://www.myextrabat.com')],
+    ['Urgence Élagage', setting('lien_urgence'), 'Dispositif collectivités', $icone(setting('lien_urgence') ?: 'https://urgence-elagage.fr')],
+    ['Arbogestion', setting('lien_arbogestion'), 'Gestion du patrimoine arboré', '../images/logo-arbogestion.png'],
 ];
 page_start('Tableau de bord', 'index.php');
 ?>
@@ -22,9 +27,9 @@ page_start('Tableau de bord', 'index.php');
 </div>
 <h2>Outils de l'entreprise</h2>
 <div class="tiles">
-<?php foreach ($liens as [$n, $url, $d]): ?>
-  <?php if ($url): ?><a class="tile link" href="<?= e($url) ?>" target="_blank" rel="noopener"><span><?= e($n) ?></span><em><?= e($d) ?></em></a>
-  <?php else: ?><div class="tile link off"><span><?= e($n) ?></span><em>Lien à renseigner dans Paramètres</em></div><?php endif; ?>
+<?php foreach ($liens as [$n, $url, $d, $ic]): $img = $ic ? '<img class="tile-ico" src="' . e($ic) . '" alt="" loading="lazy">' : ''; ?>
+  <?php if ($url): ?><a class="tile link" href="<?= e($url) ?>" target="_blank" rel="noopener"><?= $img ?><span><?= e($n) ?></span><em><?= e($d) ?></em></a>
+  <?php else: ?><div class="tile link off"><?= $img ?><span><?= e($n) ?></span><em>Lien à renseigner dans Paramètres</em></div><?php endif; ?>
 <?php endforeach; ?>
 </div>
 <?php page_end(); ?>

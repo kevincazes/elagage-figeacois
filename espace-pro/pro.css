@@ -30,7 +30,8 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .tile strong{display:block;font-size:2rem;font-weight:900;color:var(--sapin);line-height:1}
 .tile span{display:block;font-weight:700;margin-top:4px}
 .tile em{display:block;font-style:normal;color:var(--doux);font-size:.88rem;margin-top:4px}
-.tile.link{border-left-color:var(--sapin)}
+.tile.link{border-left-color:var(--sapin);position:relative;padding-right:72px}
+.tile-ico{position:absolute;right:18px;top:18px;width:44px;height:44px;object-fit:contain;background:#fff;border-radius:10px;padding:4px;box-shadow:0 2px 8px rgba(28,59,43,.12)}
 .tile.off{opacity:.55;border-left-color:#bbb}
 a.tile:hover{transform:translateY(-2px);transition:.15s}
 
