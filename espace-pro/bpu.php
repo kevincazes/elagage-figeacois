@@ -50,7 +50,11 @@ $where = ['actif = 1']; $p = [];
 if ($fFam !== '') { $where[] = 'famille = ?'; $p[] = $fFam; }
 if ($fHaut !== '') { $where[] = 'hauteur = ?'; $p[] = $fHaut; }
 if ($fQ !== '') { $where[] = '(libelle LIKE ? OR code LIKE ?)'; $p[] = "%$fQ%"; $p[] = "%$fQ%"; }
-$lignes = q("SELECT * FROM bpu_lignes WHERE " . implode(' AND ', $where) . " ORDER BY famille, ordre, id", $p)->fetchAll();
+$lignes = q("SELECT * FROM bpu_lignes WHERE " . implode(' AND ', $where) . " ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id", $p)->fetchAll();
+$HLIB = ['' => 'Sans classe de hauteur', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
+// Résumé par famille (nombre, prix mini/maxi) pour les en-têtes de bloc
+$resume = [];
+foreach ($lignes as $l) { $f = $l['famille'] ?: 'Sans famille'; $pu = prix_catalogue($l); $r = &$resume[$f]; $r['n'] = ($r['n'] ?? 0) + 1; $r['min'] = isset($r['min']) ? min($r['min'], $pu) : $pu; $r['max'] = isset($r['max']) ? max($r['max'], $pu) : $pu; unset($r); }
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
 $temps = temps_par_ligne();
 $total = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
@@ -72,6 +76,7 @@ page_start('Catalogue des prestations', 'bpu.php');
   <button class="btn secondary" type="submit">Filtrer</button>
   <a class="mini" href="bpu.php">Tout afficher</a>
   <span class="muted"><?= count($lignes) ?> / <?= $total ?> lignes</span>
+  <button class="mini" type="button" onclick="toutes(true)">Tout déplier</button> <button class="mini" type="button" onclick="toutes(false)">Tout replier</button>
   <?php if (user()['role'] === 'admin'): ?><a class="mini" href="bpu.php?import=1">Importer le catalogue</a><?php endif; ?>
 </form>
 
@@ -82,9 +87,14 @@ page_start('Catalogue des prestations', 'bpu.php');
 <thead><tr><th>Ord.</th><th>Code</th><th class="w">Désignation</th><th>Famille</th><th>Haut.</th><th>Houp.</th><th>Circ.</th><th>Unité</th>
 <?php foreach ($res as $r): ?><th class="r rot" title="<?= e($r['nom']) ?> – <?= money((float)$r['taux']) ?>/h"><span><?= e($r['nom']) ?></span></th><?php endforeach; ?>
 <th class="r">Forfait €</th><th class="r">Réf. €</th><th class="r">Écart</th><th></th><th class="r pu">PU HT</th></tr></thead>
-<tbody>
-<?php foreach ($lignes as $l): $id = $l['id']; ?>
-<tr data-id="<?= $id ?>" data-ref="<?= $l['prix_ref'] !== null ? (float)$l['prix_ref'] : '' ?>" title="<?= e($l['source']) ?>">
+ <tbody>
+<?php $famCour = null; $hautCour = null; $nbFam = count($resume); foreach ($lignes as $l): $id = $l['id']; $f = $l['famille'] ?: 'Sans famille';
+  if ($f !== $famCour): $famCour = $f; $hautCour = null; $r = $resume[$f]; $grp = md5($f); ?>
+<tr class="grp" data-grp="<?= $grp ?>"><td colspan="<?= 13 + count($res) ?>"><button type="button" class="togg" onclick="toggle('<?= $grp ?>')"><span class="chev">▸</span> <?= e($f) ?> <span class="muted">· <?= $r['n'] ?> ligne<?= $r['n'] > 1 ? 's' : '' ?> · de <?= money($r['min']) ?> à <?= money($r['max']) ?></span></button></td></tr>
+<?php endif; if ($l['hauteur'] !== $hautCour && count(array_unique(array_map(fn($x) => $x['hauteur'], array_filter($lignes, fn($x) => ($x['famille'] ?: 'Sans famille') === $f)))) > 1): $hautCour = $l['hauteur']; ?>
+<tr class="sousgrp g-<?= $grp ?>"><td colspan="<?= 13 + count($res) ?>"><?= e($HLIB[$l['hauteur']] ?? $l['hauteur']) ?></td></tr>
+<?php endif; ?>
+<tr class="g-<?= $grp ?>" data-id="<?= $id ?>" data-ref="<?= $l['prix_ref'] !== null ? (float)$l['prix_ref'] : '' ?>" title="<?= e($l['source']) ?>">
   <td><input class="tiny" name="l[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>"></td>
   <td><input class="tiny" style="width:110px" name="l[<?= $id ?>][code]" value="<?= e($l['code']) ?>"></td>
   <td><input name="l[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>"></td>
@@ -132,5 +142,12 @@ function calc(tr) {
   if (ref > 0) { const d = pu - ref; ec.textContent = (d > 0 ? '+' : '') + Math.round(d) + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#b3403a' : '#5b6a60'; } else ec.textContent = '';
 }
 document.querySelectorAll('tr[data-id]').forEach(tr => { calc(tr); tr.addEventListener('input', () => calc(tr)); });
+// Blocs repliables (état mémorisé dans le navigateur)
+let ouverts = {}; try { ouverts = JSON.parse(localStorage.getItem('cat_ouverts') || '{}'); } catch (e) {}
+function appliquer(g, on) { document.querySelectorAll('.g-' + g).forEach(tr => tr.style.display = on ? '' : 'none'); const c = document.querySelector('tr[data-grp="' + g + '"] .chev'); if (c) c.textContent = on ? '▾' : '▸'; }
+function toggle(g) { ouverts[g] = !ouverts[g]; appliquer(g, ouverts[g]); try { localStorage.setItem('cat_ouverts', JSON.stringify(ouverts)); } catch (e) {} }
+function toutes(on) { document.querySelectorAll('tr[data-grp]').forEach(tr => { ouverts[tr.dataset.grp] = on; appliquer(tr.dataset.grp, on); }); try { localStorage.setItem('cat_ouverts', JSON.stringify(ouverts)); } catch (e) {} }
+const filtre = <?= json_encode($fFam !== '' || $fQ !== '') ?>;
+document.querySelectorAll('tr[data-grp]').forEach(tr => appliquer(tr.dataset.grp, filtre || !!ouverts[tr.dataset.grp]));
 </script>
 <?php page_end(); ?>

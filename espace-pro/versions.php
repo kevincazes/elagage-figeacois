@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['1.9', '2026-11-04', [
+        'Catalogue en blocs repliables par famille, avec sous-titres par hauteur d\'arbre (état mémorisé) ; même présentation dans le sélecteur de lignes d\'un bordereau',
+        'Correction de l\'affichage des logos sur le tableau de bord (ancienne feuille de style gardée en cache par le CDN)',
+    ]],
     ['1.8', '2026-11-04', [
         'Numéro de version et cloche de notification des nouveautés dans le bandeau',
         'Catalogue : champs désignation et famille élargis, filtres plus compacts',

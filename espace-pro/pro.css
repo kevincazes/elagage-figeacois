@@ -85,5 +85,12 @@ body.centered{display:flex;align-items:center;justify-content:center;min-height:
 .box .btn{width:100%;text-align:center;margin-top:12px}
 
 tr.section td{background:var(--clair)}
+tr.grp td{background:var(--vert-sapin,#1c3b2b);background:var(--sapin);padding:0}
+.togg{width:100%;text-align:left;background:var(--sapin);color:#fff;border:0;font:inherit;font-weight:900;padding:10px 12px;cursor:pointer;border-radius:8px}
+.togg .muted{color:#cfe39a;font-weight:400}
+tr.grp .togg{border-radius:0}
+.chev{display:inline-block;width:14px}
+tr.sousgrp td{background:var(--clair);font-weight:700;color:var(--sapin);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;padding:6px 12px}
+.fam-titre{margin:8px 0 4px}.sous-titre{font-size:.78rem;font-weight:700;color:var(--sapin);text-transform:uppercase;letter-spacing:.06em;margin:6px 0 2px 22px}
 .tbl.bord td input:not(.num):not(.tiny){min-width:300px}
 @media print{.top,.bottom,.btn,.mini,details,.cols,form.card button,th:nth-last-child(2),td:nth-last-child(2){display:none!important}body{background:#fff;font-size:12px}main{padding:0}.scroll{box-shadow:none;overflow:visible}input,select{border:0;background:transparent;padding:2px}.tbl .pu{position:static;box-shadow:none}h1{font-size:1.3rem}}

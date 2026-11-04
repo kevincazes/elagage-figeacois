@@ -91,7 +91,8 @@ $total = 0; $nbQte = 0;
 foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $total += $puDe($l) * (float)$l['quantite']; $nbQte++; }
 $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = p.id) nb FROM packs p ORDER BY nom")->fetchAll();
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 ORDER BY famille")->fetchAll(), 'famille');
-$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, ordre, id")->fetchAll();
+$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id")->fetchAll();
+$HLIB = ['' => '', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
 page_start($b['nom'], 'bordereau.php');
 if ($lecture): ?>
 <div class="flash err">Dossier ouvert par <strong><?= e($detenteur['prenom'] . ' ' . $detenteur['nom']) ?></strong> depuis <?= date('H:i', strtotime($detenteur['verrou_le'])) ?> : tu peux le consulter, pas le modifier. Il se libérera quand cette personne quittera la page, ou après <?= VERROU_MINUTES ?> min sans activité.
@@ -171,8 +172,9 @@ if ($lecture): ?>
       <input id="rech" placeholder="Rechercher…" oninput="filtrer()">
     </div>
     <div id="choix" style="max-height:420px;overflow:auto;border:1px solid #e0e5da;border-radius:8px;padding:8px;margin:10px 0">
-      <?php $fam = null; foreach ($catalogue as $c): ?>
-      <?php if ($c['famille'] !== $fam) { $fam = $c['famille']; echo '<div class="kicker fam-titre" data-fam="' . e($fam) . '" style="margin-top:8px">' . e($fam ?: 'Sans famille') . '</div>'; } ?>
+      <?php $fam = null; $haut = null; foreach ($catalogue as $c): ?>
+      <?php if ($c['famille'] !== $fam) { $fam = $c['famille']; $haut = null; $nb = count(array_filter($catalogue, fn($x) => $x['famille'] === $fam)); echo '<div class="fam-titre" data-fam="' . e($fam) . '"><button type="button" class="togg" onclick="plier(this)"><span class="chev">▸</span> ' . e($fam ?: 'Sans famille') . ' <span class="muted">· ' . $nb . '</span></button></div>'; } ?>
+      <?php if ($c['hauteur'] !== $haut && $c['hauteur'] !== '') { $haut = $c['hauteur']; echo '<div class="sous-titre choix" data-fam="' . e($fam) . '" data-haut="' . e($c['hauteur']) . '" data-houp="">' . e($HLIB[$c['hauteur']]) . '</div>'; } ?>
       <label class="choix" data-fam="<?= e($c['famille']) ?>" data-haut="<?= e($c['hauteur']) ?>" data-houp="<?= e($c['houppier']) ?>" style="font-weight:400;margin:2px 0;display:flex;gap:8px;align-items:center">
         <input type="checkbox" name="l[<?= $c['id'] ?>]" style="width:auto;margin:0"> <span class="muted" style="min-width:90px"><?= e($c['code']) ?></span> <span style="flex:1"><?= e($c['libelle']) ?></span> <strong style="white-space:nowrap"><?= money(prix_catalogue($c)) ?></strong>
       </label>
@@ -214,14 +216,19 @@ function recalc() {
   document.getElementById('total').textContent = total > 0 ? fmt(total) + ' HT · ' + fmt(total * (1 + TVA / 100)) + ' TTC' : '—';
 }
 document.querySelectorAll('tr[data-calc]').forEach(tr => tr.addEventListener('input', recalc)); recalc();
+const plies = {};
+function plier(btn) { const t = btn.closest('.fam-titre'), f = t.dataset.fam; plies[f] = !(plies[f] ?? true); filtrer(); }
 function filtrer() {
   const f = document.getElementById('fam').value, h = document.getElementById('haut').value, d = document.getElementById('houp').value, r = document.getElementById('rech').value.toLowerCase();
-  document.querySelectorAll('#choix label.choix').forEach(l => {
-    const ok = (!f || l.dataset.fam === f) && (!h || l.dataset.haut === h) && (!d || l.dataset.houp === d) && (!r || l.textContent.toLowerCase().includes(r));
-    l.style.display = ok ? '' : 'none';
+  const actif = f || h || d || r; // avec un filtre, on déplie tout ce qui correspond
+  document.querySelectorAll('#choix .choix').forEach(l => {
+    const sousTitre = l.classList.contains('sous-titre');
+    const ok = (!f || l.dataset.fam === f) && (!h || l.dataset.haut === h) && (sousTitre || !d || l.dataset.houp === d) && (sousTitre || !r || l.textContent.toLowerCase().includes(r));
+    l.style.display = ok && (actif || !(plies[l.dataset.fam] ?? true)) ? '' : 'none';
   });
-  document.querySelectorAll('#choix .fam-titre').forEach(t => t.style.display = (!f || t.dataset.fam === f) ? '' : 'none');
+  document.querySelectorAll('#choix .fam-titre').forEach(t => { t.style.display = (!f || t.dataset.fam === f) ? '' : 'none'; t.querySelector('.chev').textContent = (actif || !(plies[t.dataset.fam] ?? true)) ? '▾' : '▸'; });
 }
+filtrer();
 <?php if (isset($_GET['print'])): ?>window.print();<?php endif; ?>
 </script>
 <?php page_end(); ?>

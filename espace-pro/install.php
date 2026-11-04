@@ -79,7 +79,7 @@ if (!$err && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $done = true;
     }
 }
-?><!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Installation – Espace pro</title><link rel="stylesheet" href="pro.css"></head>
+?><!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Installation – Espace pro</title><link rel="stylesheet" href="pro.css?v=<?= e(app_version()) ?>"></head>
 <body class="centered"><main class="box">
 <h1>Installation de l'espace pro</h1>
 <?php if ($done): ?>
