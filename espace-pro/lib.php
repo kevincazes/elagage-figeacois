@@ -24,6 +24,34 @@ function db(): PDO {
     return $pdo;
 }
 function q(string $sql, array $p = []): PDOStatement { $s = db()->prepare($sql); $s->execute($p); return $s; }
+
+// Mises à jour de structure (exécutées une seule fois)
+function migrate(): void {
+    try {
+        $cols = array_column(q("SHOW COLUMNS FROM utilisateurs")->fetchAll(), 'Field');
+        if (!in_array('nom', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN nom VARCHAR(80) NOT NULL DEFAULT '' AFTER prenom");
+        if (!in_array('token', $cols)) db()->exec("ALTER TABLE utilisateurs ADD COLUMN token VARCHAR(64) NULL, ADD COLUMN token_expire DATETIME NULL");
+    } catch (Throwable $t) { /* tables pas encore créées : install.php s'en charge */ }
+}
+
+// Lien d'invitation / réinitialisation : génère un jeton valable 48 h et envoie l'e-mail
+function envoyer_lien(array $u, string $type = 'invitation'): string {
+    $token = bin2hex(random_bytes(24));
+    q("UPDATE utilisateurs SET token = ?, token_expire = DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id = ?", [$token, $u['id']]);
+    $base = (!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+    $lien = $base . '/definir-mdp.php?token=' . $token;
+    $prenom = $u['prenom'];
+    if ($type === 'invitation') {
+        $sujet = "Votre accès à l'espace pro Élagage Figeacois";
+        $corps = "Bonjour $prenom,\n\nUn compte vient d'être créé pour vous sur l'espace pro d'Élagage Figeacois.\nPour choisir votre mot de passe et vous connecter, cliquez sur ce lien (valable 48 heures) :\n\n$lien\n\nVotre identifiant est votre adresse e-mail : {$u['email']}\n\nÀ bientôt,\nÉlagage Figeacois";
+    } else {
+        $sujet = "Réinitialisation de votre mot de passe – Espace pro Élagage Figeacois";
+        $corps = "Bonjour $prenom,\n\nPour choisir un nouveau mot de passe, cliquez sur ce lien (valable 48 heures) :\n\n$lien\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nÉlagage Figeacois";
+    }
+    $entetes = "From: Espace pro Élagage Figeacois <" . APP_EMAIL . ">\r\nReply-To: " . APP_EMAIL . "\r\nContent-Type: text/plain; charset=UTF-8\r\n";
+    @mail($u['email'], "=?UTF-8?B?" . base64_encode($sujet) . "?=", $corps, $entetes);
+    return $lien;
+}
 function e(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function redirect(string $url): never { header("Location: $url"); exit; }
 
@@ -42,7 +70,7 @@ function csrf(): string { if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2
 function csrf_field(): string { return '<input type="hidden" name="csrf" value="' . csrf() . '">'; }
 function check_csrf(): void { if ($_SERVER['REQUEST_METHOD'] === 'POST' && !hash_equals(csrf(), $_POST['csrf'] ?? '')) { http_response_code(403); exit('Formulaire expiré, recharge la page.'); } }
 function user(): ?array { return $_SESSION['user'] ?? null; }
-function require_login(): void { if (!user()) redirect('login.php'); check_csrf(); }
+function require_login(): void { if (!user()) redirect('login.php'); migrate(); check_csrf(); }
 function require_admin(): void { require_login(); if (user()['role'] !== 'admin') { http_response_code(403); exit('Réservé aux administrateurs.'); } }
 function flash(string $msg, string $type = 'ok'): void { $_SESSION['flash'] = [$msg, $type]; }
 

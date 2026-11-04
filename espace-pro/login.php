@@ -28,5 +28,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <label>Mot de passe <input type="password" name="mdp" required></label>
   <button class="btn" type="submit">Se connecter</button>
 </form>
-<p class="muted"><a href="../index.html">← Retour au site</a></p>
+<p class="muted"><a href="mdp-oublie.php">Mot de passe oublié ?</a> · <a href="../index.html">Retour au site</a></p>
 </main></body></html>
