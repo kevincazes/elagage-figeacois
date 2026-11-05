@@ -34,6 +34,8 @@ const PICTO_ICONES = [
     'calendar'  => '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
     'upload'    => '<path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/>',
     'plus'      => '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    'bell'      => '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+    'megaphone' => '<path d="M3 10v4h3l8 5V5l-8 5z"/><path d="M17 9a4 4 0 0 1 0 6"/><path d="M6 14l1 6h3l-1-6"/>',
     'ladder'    => '<path d="M7 3v18"/><path d="M17 3v18"/><path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h10"/>',
 ];
 /** Feuille de symboles à insérer une fois dans la page */

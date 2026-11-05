@@ -24,7 +24,7 @@ main{max-width:1900px;margin:0 auto;padding:22px clamp(20px,2.5vw,56px) 60px}
 .top nav details.menu>div{position:absolute;top:calc(100% + 4px);left:0;z-index:60;display:flex;flex-direction:column;min-width:230px;background:var(--blanc);border:1px solid #dfe4d8;border-radius:12px;padding:6px;box-shadow:0 12px 28px rgba(28,59,43,.16)}
 .top nav details.menu>div a{padding:9px 12px;border-radius:8px;font-size:.9rem;white-space:nowrap}
 .version{font-size:.7rem;color:var(--doux);text-transform:none;letter-spacing:0;font-weight:700;margin-left:6px}
-.bell{position:relative;font-size:1.1rem;padding:6px 10px!important}
+.bell{position:relative;font-size:1.1rem;padding:6px 10px!important}.bell .pi,.notifs .pi{width:20px;height:20px;vertical-align:-5px;color:var(--sapin)}
 .bell b{position:absolute;top:0;right:2px;background:var(--anis);color:#fff;font-size:.65rem;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
 .dots{list-style:none;padding:0;margin:0}.dots li{padding:6px 0 6px 20px;position:relative}.dots li::before{content:"";position:absolute;left:0;top:13px;width:8px;height:8px;border-radius:50%;background:var(--anis)}
 .cloche{position:relative;font-size:1.1rem;padding:6px 10px}

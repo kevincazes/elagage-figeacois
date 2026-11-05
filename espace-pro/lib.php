@@ -1,6 +1,7 @@
 <?php
 // Fonctions communes : base de données, session, sécurité, mise en page
 declare(strict_types=1);
+require_once __DIR__ . '/pictos.php';
 // Configuration : d'abord espace-pro/config.php, sinon le fichier placé HORS du dossier www
 // (ex. /homez.xxx/jdjhgfg/config-espace-pro.php, au même niveau que www et urgence).
 if (is_file(__DIR__ . '/config.php')) require_once __DIR__ . '/config.php';
@@ -433,18 +434,18 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     $u = user();
     $admin = $u && $u['role'] === 'admin'; $gestion = $u && in_array($u['role'], ['admin', 'secretaire'], true);
     // Menu principal en groupes déroulants : chantiers & agenda / chiffrage / compte
-    $chantiers = ['planning.php' => 'Planning', 'mon-planning.php' => 'Mon planning', 'clients.php' => 'Clients', 'conges.php' => 'Congés', 'materiel.php' => 'Matériel'];
-    if ($gestion) $chantiers += ['contrats.php' => 'Contrats', 'charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes', 'livret.php' => 'Livrets du personnel'];
-    else $chantiers['livret.php'] = 'Mon livret';
+    $planning = ['planning.php' => 'Planning', 'mon-planning.php' => 'Mon planning'] + ($gestion ? ['charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes'] : []);
+    $clients = ['clients.php' => 'Clients'] + ($gestion ? ['contrats.php' => "Contrats d'entretien"] : []);
+    $personnel = ($gestion ? ['livret.php' => 'Livrets du personnel'] : ['livret.php' => 'Mon livret']) + ['conges.php' => 'Congés'];
     $chiffrage = $gestion ? ['bordereaux.php' => 'Bordereaux', 'bpu.php' => 'Catalogue', 'packs.php' => 'Packs', 'actions.php' => 'Actions', 'historique.php' => 'Historique'] + ($admin ? ['parametres.php' => 'Paramètres de prix'] : []) : [];
     $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
-    $nav = [['index.php' => 'Tableau de bord'], ['Chantiers & agenda', $chantiers], ['Chiffrage', $chiffrage], ['Compte', $compte]];
+    $nav = [['index.php' => 'Tableau de bord'], ['Planning', $planning], ['Clients', $clients], ['materiel.php' => 'Matériel'], ['Personnel', $personnel], ['Chiffrage', $chiffrage], ['Compte', $compte]];
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '">'
        . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'
-       . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body>';
+       . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body>' . (function_exists('pictos_sprite') ? pictos_sprite() : '');
     echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span>';
-    if ($u) { $nn0 = nouveautes_non_lues(); echo '<a class="bell mob' . ($nn0 ? ' has' : '') . '" href="nouveautes.php">&#128276;' . ($nn0 ? '<b>' . $nn0 . '</b>' : '') . '</a>'; }
+    if ($u) { $nn0 = nouveautes_non_lues(); echo '<a class="bell mob' . ($nn0 ? ' has' : '') . '" href="nouveautes.php"><svg class="pi"><use href="#pi-bell"/></svg>' . ($nn0 ? '<b>' . $nn0 . '</b>' : '') . '</a>'; }
     echo '<button class="burger" type="button" aria-label="Menu" onclick="document.body.classList.toggle(\'nav-open\')"><span></span><span></span><span></span></button><nav>';
     if ($u) {
         if ($active === 'securite.php') $active = 'compte.php';
@@ -459,9 +460,9 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
             echo '</div></details>';
         }
         $nNotif = 0; try { $nNotif = (int)q("SELECT COUNT(*) c FROM notifications WHERE utilisateur_id = ? AND lu_le IS NULL", [$u['id']])->fetch()['c']; } catch (Throwable $t) {}
-        echo '<a class="notifs' . ($nNotif ? ' has' : '') . '" href="notifications.php" title="Mes notifications">📣' . ($nNotif ? '<b>' . $nNotif . '</b>' : '') . '</a>';
+        echo '<a class="notifs' . ($nNotif ? ' has' : '') . '" href="notifications.php" title="Mes notifications"><svg class="pi"><use href="#pi-megaphone"/></svg>' . ($nNotif ? '<b>' . $nNotif . '</b>' : '') . '</a>';
         $nn = nouveautes_non_lues();
-        echo '<a class="bell' . ($nn ? ' has' : '') . '" href="nouveautes.php" title="Nouveautés de l\'espace pro">&#128276;' . ($nn ? '<b>' . $nn . '</b>' : '') . '</a>';
+        echo '<a class="bell' . ($nn ? ' has' : '') . '" href="nouveautes.php" title="Nouveautés de l\'espace pro"><svg class="pi"><use href="#pi-bell"/></svg>' . ($nn ? '<b>' . $nn . '</b>' : '') . '</a>';
         echo '<a class="out site" href="../index.html" title="Ouvrir le site elagage-figeacois.com">Site ↗</a>';
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
