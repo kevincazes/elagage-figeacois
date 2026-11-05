@@ -2,6 +2,9 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.4', '2026-11-05', [
+        'Bordereaux : recherche instantanée (marché, collectivité, client, notes) et classement par date, par collectivité / client (regroupés sous un titre, avec leur nombre) ou par nom du marché ; le classement choisi est gardé',
+    ]],
     ['2.7.3', '2026-11-05', [
         'Bordereau avec quantités (DQE) : les lignes restées sans quantité (absentes du DQE) ressortent en rouge, avec leur nombre au-dessous du tableau et un bouton « Supprimer les lignes sans quantité » (le BPU d\'origine n\'est pas touché)',
     ]],

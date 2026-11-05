@@ -45,11 +45,16 @@ page_start('Bordereaux de prix', 'bordereaux.php');
 <p class="lead">Un bordereau = le document de prix d'un marché. Ouvre-en un pour le modifier, ou crée-en un nouveau : import du fichier reçu, ou à partir d'un pack (les packs se préparent dans Chiffrage › Packs).</p>
 <h2>Mes bordereaux</h2>
 <?php if (!$bords): ?><p class="muted">Aucun bordereau pour l'instant : importe le fichier d'une collectivité ou crée-en un à partir d'un pack ci-dessous.</p><?php else: ?>
-<div class="scroll"><table class="tbl">
+<div class="bfiltre" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:0 0 10px">
+  <label style="flex:1;min-width:220px;margin:0">Rechercher <input type="search" id="bRech" placeholder="Marché, collectivité, client, note…" autocomplete="off"></label>
+  <label style="margin:0">Classer par <select id="bTri"><option value="date">Date de création (récents d'abord)</option><option value="client">Collectivité / client</option><option value="nom">Nom du marché</option></select></label>
+  <span class="muted small" id="bNb"></span>
+</div>
+<div class="scroll"><table class="tbl" id="bTable">
 <thead><tr><th>Créé le</th><th>Marché</th><th>Client</th><th>Équipe</th><th class="r">Lignes</th><th>Statut</th><th>Par</th><th></th></tr></thead>
 <tbody>
 <?php foreach ($bords as $b): ?>
-<tr>
+<tr class="bl" data-date="<?= e((string)$b['cree_le']) ?>" data-client="<?= e(trim((string)$b['client'])) ?>" data-nom="<?= e((string)$b['nom']) ?>" data-txt="<?= e(mb_strtolower($b['nom'] . ' ' . $b['client'] . ' ' . $b['notes'])) ?>">
   <td><?= date('d/m/Y', strtotime($b['cree_le'])) ?></td>
   <td><a href="bordereau.php?id=<?= $b['id'] ?>"><strong><?= e($b['nom']) ?></strong></a><?= $b['notes'] ? '<br><span class="small muted">' . e($b['notes']) . '</span>' : '' ?></td>
   <td><?= e($b['client']) ?></td>
@@ -63,6 +68,35 @@ page_start('Bordereaux de prix', 'bordereaux.php');
 </tr>
 <?php endforeach; ?>
 </tbody></table></div>
+<script>
+// Liste des bordereaux : recherche (marché, collectivité, notes) et classement par date, collectivité ou nom ; choix gardé sur ce poste
+(function () {
+  const tb = document.querySelector('#bTable tbody'), rech = document.getElementById('bRech'), tri = document.getElementById('bTri'), nb = document.getElementById('bNb');
+  const lignes = [...tb.querySelectorAll('tr.bl')], sans = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  try { tri.value = localStorage.getItem('bordereaux.tri') || 'date'; } catch (e) {}
+  function maj() {
+    const q = sans(rech.value.trim()), t = tri.value, coll = new Intl.Collator('fr', {sensitivity: 'base', numeric: true});
+    tb.querySelectorAll('tr.grp').forEach(x => x.remove());
+    const vis = lignes.filter(tr => !q || sans(tr.dataset.txt).includes(q));
+    lignes.forEach(tr => tr.hidden = !vis.includes(tr));
+    const tries = [...vis].sort((a, b) => t === 'nom' ? coll.compare(a.dataset.nom, b.dataset.nom)
+      : t === 'client' ? (!a.dataset.client - !b.dataset.client) || coll.compare(a.dataset.client, b.dataset.client) || b.dataset.date.localeCompare(a.dataset.date)
+      : b.dataset.date.localeCompare(a.dataset.date));
+    let grp = null;
+    tries.forEach(tr => {
+      if (t === 'client' && tr.dataset.client !== grp) {
+        grp = tr.dataset.client; const n = tries.filter(x => x.dataset.client === grp).length, h = document.createElement('tr');
+        h.className = 'grp'; h.innerHTML = '<td colspan="8" style="background:#eef3ea;font-weight:700"></td>'; h.firstChild.textContent = (grp || 'Sans collectivité / client') + ' · ' + n + ' bordereau' + (n > 1 ? 'x' : ''); tb.appendChild(h);
+      }
+      tb.appendChild(tr);
+    });
+    nb.textContent = vis.length + ' bordereau' + (vis.length > 1 ? 'x' : '') + (q ? ' trouvé' + (vis.length > 1 ? 's' : '') : '');
+  }
+  rech.addEventListener('input', maj);
+  tri.addEventListener('change', () => { try { localStorage.setItem('bordereaux.tri', tri.value); } catch (e) {} maj(); });
+  maj();
+})();
+</script>
 <?php endif; ?>
 
 <h2 id="nouveau">Créer un bordereau</h2>
