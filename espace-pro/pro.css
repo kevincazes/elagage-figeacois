@@ -267,3 +267,9 @@ html{scroll-padding-top:var(--bandeau,0px)}
 .bloc .card{box-shadow:0 2px 10px rgba(28,59,43,.05);border:1px solid #edf0e8}.bloc>.card:first-of-type{margin-top:0}.bloc>:last-child{margin-bottom:0}
 .bloc>h3:first-of-type{margin-top:0}
 @media(max-width:600px){.bloc,.tdb-grp{padding:10px 12px 12px;border-radius:12px}.bloc>h2:first-child,.tdb-grp>h2:first-child{margin:-10px -12px 10px;padding:8px 12px;border-radius:11px 11px 0 0}}
+
+/* Sous-menu fixe de la famille en cours (ordinateur) */
+.sousnav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:1900px;margin:0 auto;padding:8px clamp(20px,2.5vw,56px) 0}
+.sousnav .sn-titre{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--doux);font-weight:700;margin-right:6px}
+.sousnav a{text-decoration:none;font-weight:700;font-size:.88rem;color:var(--sapin);padding:6px 12px;border-radius:999px;border:1px solid #d9dfd2;background:var(--blanc)}.sousnav a.on,.sousnav a:hover{background:var(--sapin);color:#fff;border-color:var(--sapin)}
+@media(max-width:900px){.sousnav{display:none}}

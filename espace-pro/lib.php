@@ -451,10 +451,11 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         if ($active === 'securite.php') $active = 'compte.php';
         if ($active === 'bordereau.php') $active = 'bordereaux.php';
         if ($active === 'rapport.php' || $active === 'phyto.php' && !$gestion) $active = 'mon-planning.php';
+        $sousNav = null;
         foreach ($nav as $g) {
             if (!isset($g[1])) { foreach ($g as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>'; continue; }
             [$titre, $liens] = $g; if (!$liens) continue;
-            $dedans = isset($liens[$active]);
+            $dedans = isset($liens[$active]); if ($dedans) $sousNav = [$titre, $liens];
             echo '<details class="menu' . ($dedans ? ' active' : '') . '"><summary>' . $titre . ' <i>▾</i></summary><div>';
             foreach ($liens as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
             echo '</div></details>';
@@ -467,6 +468,8 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
     echo '</nav></header>';
+    // Sous-menu fixe (ordinateur) : les pages de la famille en cours, toujours visibles sous le bandeau
+    if ($u && !empty($sousNav)) { echo '<nav class="sousnav" aria-label="' . e($sousNav[0]) . '"><span class="sn-titre">' . e($sousNav[0]) . '</span>'; foreach ($sousNav[1] as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="on"' : '') . '>' . $l . '</a>'; echo '</nav>'; }
     // un seul menu déroulant ouvert à la fois ; fermeture au clic ailleurs (grand écran)
     echo '<script>document.addEventListener("click",e=>{const d=e.target.closest("details.menu");document.querySelectorAll("details.menu[open]").forEach(x=>{if(x!==d&&!matchMedia("(max-width:900px)").matches)x.open=false;});});if(matchMedia("(max-width:900px)").matches)document.querySelectorAll("details.menu.active").forEach(x=>x.open=true);</script>';
     // Fil d'Ariane
