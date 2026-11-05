@@ -403,7 +403,7 @@ function pending_user(): ?array {
     return q("SELECT * FROM utilisateurs WHERE id = ? AND actif = 1", [$_SESSION['pending']])->fetch() ?: null;
 }
 function page_simple_start(string $title): void {
-    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '"></head><body class="centered"><main class="box"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois" class="box-logo">';
+    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '"></head><body class="centered"><main class="box"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois" class="box-logo">';
 }
 function page_simple_end(): void { echo '</main></body></html>'; }
 
@@ -439,7 +439,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
     $nav = [['index.php' => 'Tableau de bord'], ['Chantiers & agenda', $chantiers], ['Chiffrage', $chiffrage], ['Compte', $compte]];
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
-    echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '">'
+    echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '">'
        . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'
        . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body>';
     echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span>';
