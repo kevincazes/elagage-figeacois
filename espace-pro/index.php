@@ -74,6 +74,8 @@ $tailles = array_filter((array)($prefs['tailles'] ?? []), fn($v, $k) => isset($W
 $GROUPES = ['Planning' => 'Planning', 'Clients' => 'Clients', 'Materiel' => 'Matériel', 'Personnel' => 'Personnel', 'Chiffrage' => 'Chiffrage', 'Outils' => "Outils de l'entreprise"];
 $gOrdre = array_values(array_filter((array)($prefs['groupes'] ?? []), fn($g) => isset($GROUPES[$g]))); foreach (array_keys($GROUPES) as $g) if (!in_array($g, $gOrdre, true)) $gOrdre[] = $g;
 page_start('Tableau de bord', 'index.php');
+// Sur téléphone, la première page de la session est « Mon planning » (les chantiers et rendez-vous attribués) ; le tableau de bord reste accessible par le menu
+if (empty($_GET['tdb'])): ?><script>try { if (matchMedia('(max-width:900px)').matches && !sessionStorage.getItem('accueil_mob') && !/[?&]tdb=/.test(location.search)) { sessionStorage.setItem('accueil_mob', '1'); location.replace('mon-planning.php'); } else sessionStorage.setItem('accueil_mob', '1'); } catch (e) {}</script><?php endif;
 ?>
 <?= pictos_sprite() ?>
 <style>.tdb-barre{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.tdb-barre .btn.on{background:var(--sapin);color:#fff;border-color:var(--sapin)}.edit .tiles .tile{padding-top:40px}

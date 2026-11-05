@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.9', '2026-11-05', [
+        'Sur téléphone, la première page ouverte est « Mon planning » (chantiers et rendez-vous attribués) ; le tableau de bord reste dans le menu',
+        'Menu sur téléphone : il défile lui-même (la page derrière ne bouge plus) et une seule rubrique est ouverte à la fois',
+    ]],
     ['2.7.8', '2026-11-05', [
         'Import d\'un classeur Excel à plusieurs onglets (BPU et DQE) : l\'import du bordereau lit l\'onglet du BPU, l\'import des quantités lit l\'onglet du DQE ; un menu « Onglet lu » permet de changer sans redéposer le fichier',
         'Import : les titres de rubrique numérotés (« II.3.1 Dessouchage par carottage… », « I.5.Prestations urgentes ») gardent leur numéro, même collé au texte',
