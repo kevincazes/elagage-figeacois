@@ -28,6 +28,8 @@ function livret_migrate(): void {
               "CREATE TABLE IF NOT EXISTS salarie_docs (id INT AUTO_INCREMENT PRIMARY KEY, personnel_id INT NOT NULL, dossier VARCHAR(60) NOT NULL DEFAULT 'Autres', nom VARCHAR(200) NOT NULL, fichier VARCHAR(80) NOT NULL, taille INT NOT NULL DEFAULT 0, cree_par INT NULL, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX (personnel_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"] as $sql) { try { $pdo->exec($sql); } catch (Throwable $t) {} }
     if (setting('livret_titres') === '') set_setting('livret_titres', LIVRET_TITRES_DEFAUT);
 }
+/** Code technique stable à partir d'un libellé (généré une seule fois, jamais ressaisi) */
+function code_depuis_libelle(string $lib): string { $c = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $lib) ?: $lib), '_')); $c = substr($c, 0, 30) ?: 'x'; return $c . '_' . substr(md5($lib . microtime()), 0, 4); }
 /** Types de titres : code → [libellé, validité en mois (0 = sans limite), compétence planning liée] */
 function livret_types(): array {
     $l = [];

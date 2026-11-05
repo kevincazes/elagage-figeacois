@@ -5,7 +5,7 @@ body{margin:0;font-family:Lato,system-ui,sans-serif;font-size:15px;line-height:1
 a{color:var(--sapin)}
 h1{font-size:1.7rem;font-weight:900;color:var(--sapin);margin:0 0 .6em}
 h2{font-size:1.15rem;font-weight:900;color:var(--sapin);margin:1.2em 0 .5em}
-main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
+main{max-width:1900px;margin:0 auto;padding:22px clamp(20px,2.5vw,56px) 60px}
 .lead{color:var(--doux);font-size:1.02rem}
 .muted{color:var(--doux);font-size:.92rem}
 .small{font-size:.82rem;color:var(--doux)}
@@ -30,7 +30,7 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .cloche{position:relative;font-size:1.1rem;padding:6px 10px}
 .cloche b{position:absolute;top:0;right:0;background:var(--rouge);color:#fff;font-size:.7rem;border-radius:999px;padding:1px 6px;line-height:1.3}
 .bottom{text-align:center;color:var(--doux);font-size:.85rem;padding:20px}
-.fil{max-width:1240px;margin:0 auto;padding:12px 20px 0;font-size:.85rem;color:var(--doux);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fil{max-width:1900px;margin:0 auto;padding:12px clamp(20px,2.5vw,56px) 0;font-size:.85rem;color:var(--doux);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .fil a{color:var(--doux);text-decoration:none}.fil a:hover{color:var(--sapin);text-decoration:underline}.fil strong{color:var(--sapin)}
 .fil+main{padding-top:10px}
 .modal{position:fixed;inset:0;background:rgba(28,59,43,.45);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow:auto}

@@ -10,7 +10,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
     echo '</figcaption></figure>';
 }
 ?>
-<style>
+<style>main{max-width:1100px}
 .guide{display:grid;grid-template-columns:240px minmax(0,1fr);gap:40px;align-items:start}
 .guide .corps{max-width:980px;min-width:0}
 .guide h2{margin-top:2.2em;padding-top:1em;border-top:2px solid var(--clair);font-size:1.5rem;scroll-margin-top:14px}.guide h3{margin-top:1.6em;font-size:1.12rem;scroll-margin-top:14px}
@@ -304,6 +304,8 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <h3>Comment sont arrondis les prix ?</h3><p>Le prix brut (heures × taux + forfait, × coefficient) est arrondi au pas choisi dans Paramètres, au plus proche, les demis vers le haut : 85,50 € donne 86 € à l'euro, 87,50 € donne 90 € aux 5 €. Le même calcul est fait partout : catalogue, bordereau, export, figement.</p>
 <h3>Je ne peux pas modifier un bordereau</h3><p>Soit il est figé (bouton « Défiger »), soit quelqu'un d'autre l'a ouvert (bandeau rouge en haut, voir partie 12).</p>
 <h3>Où changer le modèle d'IA ou la clé de l'assistant ?</h3><p>Dans le fichier <code>config-espace-pro.php</code> à la racine de l'hébergement (hors du site), lignes <code>CLAUDE_API_KEY</code> et <code>CLAUDE_MODELE</code>. Réservé à l'administrateur technique.</p>
+<h3>Tableau de bord personnalisable</h3>
+<p>Le tableau de bord est fait de widgets. Clique <kbd>Personnaliser</kbd> : glisse les widgets pour les ordonner (appui long sur téléphone), ✕ pour en masquer un, « + » dans la ligne « Masqués » pour le remettre, puis <kbd>Terminer</kbd>. Chaque compte a son propre tableau de bord.</p>
 <h2 id="planning">14. Le planning des chantiers et rendez-vous</h2>
 <p>Le menu <kbd>Planning</kbd> organise les chantiers, les visites de chiffrage et les rendez-vous de toute l'équipe. Tout le monde voit tous les agendas ; l'administration et le secrétariat modifient tout, et chaque compte peut recevoir des droits précis (voir « Qui peut modifier quoi » plus bas).</p>
 <?php fig('planning-semaine', 'La vue Semaine', [

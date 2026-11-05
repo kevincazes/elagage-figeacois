@@ -59,7 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pid) {
     elseif ($a === 'doc_suppr') { $d = q("SELECT * FROM salarie_docs WHERE id = ? AND personnel_id = ?", [(int)$_POST['id'], $pid])->fetch(); if ($d) { if ($c = chemin_fichier($d['fichier'])) @unlink($c); q("DELETE FROM salarie_docs WHERE id = ?", [$d['id']]); flash('Document supprimé.'); } }
     redirect($retour);
 }
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$pid && $gereTout && ($_POST['action'] ?? '') === 'types' && est_admin()) { set_setting('livret_titres', trim($_POST['livret_titres'] ?? '')); flash('Liste des titres enregistrée.'); redirect('livret.php#types'); }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$pid && $gereTout && ($_POST['action'] ?? '') === 'types' && est_admin()) { // tableau : libellé, validité, compétence (le code est généré une fois pour toutes)
+    $lignes = []; $codes = [];
+    $n = count((array)($_POST['t_libelle'] ?? [])); for ($k = 0; $k < $n; $k++) { $r = ['code' => $_POST['t_code'][$k] ?? '', 'libelle' => $_POST['t_libelle'][$k] ?? '', 'mois' => $_POST['t_mois'][$k] ?? 0, 'competence' => $_POST['t_competence'][$k] ?? '']; $lib = trim((string)$r['libelle']); if ($lib === '') continue;
+        $code = preg_match('/^[a-z0-9_-]{1,40}$/', (string)($r['code'] ?? '')) ? $r['code'] : code_depuis_libelle($lib); $i = 2; $base = $code; while (in_array($code, $codes, true)) $code = $base . '_' . $i++; $codes[] = $code;
+        $lignes[] = $code . '|' . str_replace('|', '/', $lib) . '|' . max(0, (int)($r['mois'] ?? 0)) . '|' . (array_key_exists((string)($r['competence'] ?? ''), COMPETENCES) ? $r['competence'] : ''); }
+    set_setting('livret_titres', implode("\n", $lignes)); flash('Liste des titres enregistrée.'); redirect('livret.php#types'); }
 
 $p = $pid ? q("SELECT * FROM personnel WHERE id = ?", [$pid])->fetch() : null;
 if ($pid && !$p) { flash('Personne introuvable.', 'err'); redirect('livret.php'); }
@@ -81,8 +86,14 @@ details.card summary{cursor:pointer;font-weight:700}.lig form{display:inline}.li
 <td><?= $tt ? ($n['valide'] + $n['sans'] ? '<span class="tag v">' . ($n['valide'] + $n['sans']) . ' ok</span> ' : '') . ($n['bientot'] ? '<span class="tag o">' . $n['bientot'] . ' bientôt</span> ' : '') . ($n['expire'] ? '<span class="tag r">' . $n['expire'] . ' expiré(s)</span>' : '') : '<span class="muted small">aucun</span>' ?></td><td><?= $nf ?: '—' ?></td><td><a class="mini" href="livret.php?p=<?= $x['id'] ?>">Ouvrir</a></td></tr>
 <?php endforeach; ?></table></div></section>
 <?php if (est_admin()): ?><form method="post" class="card" id="types"><?= csrf_field() ?><input type="hidden" name="action" value="types"><h2 style="margin-top:0">Types de titres et habilitations</h2>
-<label>Un par ligne : <code>code|libellé|validité en mois (0 = sans limite)|compétence du planning liée (grimpeur, nacelle, pl, abattage, broyeur, rogneuse, chef – facultatif)</code> <textarea name="livret_titres" rows="12" style="font-family:monospace;font-size:.85rem"><?= e(setting('livret_titres')) ?></textarea></label>
-<p class="small muted">La validité pré-remplit la date de fin quand on saisit un titre. La compétence liée est ajoutée au planning tant que le titre est valide et retirée à l'expiration. Le code ne doit pas changer une fois utilisé.</p><button class="btn">Enregistrer</button></form><?php endif; ?>
+<p class="small muted" style="margin:0 0 8px">La validité pré-remplit la date de fin quand on saisit un titre (0 = sans limite). La compétence liée est donnée au planning tant que le titre est valide et retirée à l'expiration.</p>
+<div style="overflow-x:auto"><table class="tbl edit" id="tTypes"><tr><th>Titre / habilitation</th><th>Validité (mois)</th><th>Compétence du planning liée</th><th></th></tr>
+<?php foreach ($types as $c => $ty): ?><tr><td><input type="hidden" name="t_code[]" value="<?= e($c) ?>"><input name="t_libelle[]" value="<?= e($ty['libelle']) ?>" required></td><td><input type="number" min="0" name="t_mois[]" value="<?= (int)$ty['mois'] ?>" style="width:90px"></td><td><select name="t_competence[]"><option value="">— aucune —</option><?php foreach (COMPETENCES as $k => $l): ?><option value="<?= $k ?>" <?= $ty['competence'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?></select></td><td><button type="button" class="mini danger" onclick="this.closest('tr').remove()" title="Retirer de la liste">✕</button></td></tr><?php endforeach; ?>
+</table></div>
+<p><button type="button" class="mini" id="tAjout">+ Ajouter un type</button></p>
+<template id="tLigne"><tr><td><input type="hidden" name="t_code[]" value=""><input name="t_libelle[]" placeholder="Ex. Permis remorque" required></td><td><input type="number" min="0" name="t_mois[]" value="0" style="width:90px"></td><td><select name="t_competence[]"><option value="">— aucune —</option><?php foreach (COMPETENCES as $k => $l): ?><option value="<?= $k ?>"><?= e($l) ?></option><?php endforeach; ?></select></td><td><button type="button" class="mini danger" onclick="this.closest('tr').remove()">✕</button></td></tr></template>
+<script>document.querySelector('#tAjout').onclick = () => { document.querySelector('#tTypes').tBodies[0].appendChild(document.querySelector('#tLigne').content.cloneNode(true)); document.querySelector('#tTypes tr:last-child input[name$="_libelle[]"]').focus(); };</script>
+<button class="btn">Enregistrer</button></form><?php endif; ?>
 
 <?php else: // ---------- Livret d'une personne ---------- ?>
 <?php $o = $_GET['o'] ?? 'titres'; $titres = livret_titres($pid); $forms = livret_formations($pid); $docs = livret_docs($pid); $echP = array_filter($titres, fn($t) => in_array($t['etat'], ['bientot', 'expire'], true)); ?>
