@@ -787,7 +787,7 @@ function agendas_bloc(array $personnes, bool $choixPersonne): string {
 }
 
 // ---------- Extrabat : appel brut d'exploration (adresse, clé et mode d'authentification réglés dans Réglages) ----------
-function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null, ?string $baseForce = null, ?string $authForce = null, int $timeout = 20): array { // [code HTTP, corps (texte), message]
+function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null, ?string $baseForce = null, ?string $authForce = null, int $timeout = 20, bool $form = false): array { // [code HTTP, corps (texte), message]
     $base = rtrim($baseForce ?? setting('xb_api', 'https://api.extrabat.com/v1'), '/'); $cle = setting('xb_cle'); if ($base === '' || $cle === '') return [0, '', "Renseigne l'adresse de l'API et la clé."];
     if (!preg_match('#^https://#i', $base)) return [0, '', "L'adresse doit commencer par https://"];
     $chemin = '/' . ltrim(trim($chemin), '/'); if (preg_match('/[\s<>"]/', $chemin)) return [0, '', 'Chemin invalide.'];
@@ -796,7 +796,7 @@ function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null,
     if (!function_exists('curl_init')) return [0, '', 'curl indisponible sur le serveur'];
     $ch = curl_init($url); $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout, CURLOPT_HTTPHEADER => $h, CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_HEADER => true];
     if ($auth === 'basic') { $o[CURLOPT_USERPWD] = 'api:' . $cle; }
-    if ($corps !== null) { $o[CURLOPT_POSTFIELDS] = json_encode($corps); $h[] = 'Content-Type: application/json'; $o[CURLOPT_HTTPHEADER] = $h; }
+    if ($corps !== null) { $o[CURLOPT_POSTFIELDS] = $form ? http_build_query($corps) : json_encode($corps); $h[] = $form ? 'Content-Type: application/x-www-form-urlencoded' : 'Content-Type: application/json'; $o[CURLOPT_HTTPHEADER] = $h; }
     curl_setopt_array($ch, $o); $r = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); $ht = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);
     if ($r === false) return [0, '', $err ?: 'pas de réponse'];
     $entetes = substr($r, 0, $ht); $txt = substr($r, $ht); $ct = preg_match('/^content-type:\s*(.+)$/mi', $entetes, $m) ? trim($m[1]) : '';
@@ -808,22 +808,26 @@ function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null,
 function xb_jeton(bool $forcer = false): array { // [jeton|'' , journal]
     $cle = setting('xb_cle'); if ($cle === '') return ['', "Clé absente.\n"];
     if (!$forcer && setting('xb_jwt') !== '' && (int)setting('xb_jwt_exp') > time() + 60) return [setting('xb_jwt'), ''];
-    $base = rtrim(setting('xb_api', 'https://api.extrabat.com/v1'), '/'); $tp = trim(setting('xb_third', ''));
-    $chemins = array_values(array_filter([setting('xb_login_chemin'), '/login_check', '/login', '/auth', '/authenticate', '/token', '/auth/login', '/auth/token', '/api-key/login', '/apikey/login', '/user/login', '/security/login', '/jwt']));
-    $corps = [['apiKey' => $cle], ['api_key' => $cle], ['key' => $cle], ['token' => $cle], ['userApiKey' => $cle], ['user_api_key' => $cle], ['apiKey' => $cle, 'thirdParty' => $tp], ['username' => $cle, 'password' => $cle], ['login' => $cle, 'password' => $cle], ['email' => '', 'apiKey' => $cle]];
+    $base = rtrim(setting('xb_api', 'https://api.extrabat.com/v1'), '/'); $tp = trim(setting('xb_third', '')); $racine = preg_replace('#/v\d+$#', '', $base);
+    $bases = array_values(array_unique([$base, $racine, "$racine/api", "$base/api", "$racine/auth", "$racine/v2"]));
+    $chemins = ['/login_check', '/login', '/auth', '/authenticate', '/token', '/auth/login', '/auth/token', '/oauth/token', '/oauth/v2/token', '/api-key/login', '/apikey', '/user/login', '/security/login', '/jwt', '/connect', '/session'];
+    $corps = [['apiKey' => $cle], ['api_key' => $cle], ['key' => $cle], ['token' => $cle], ['userApiKey' => $cle], ['username' => $cle, 'password' => $cle], ['_username' => $cle, '_password' => $cle]];
+    if ($tp !== '') $corps = array_merge([['username' => $tp, 'password' => $cle], ['_username' => $tp, '_password' => $cle], ['login' => $tp, 'password' => $cle], ['thirdParty' => $tp, 'apiKey' => $cle], ['third_party' => $tp, 'api_key' => $cle], ['client_id' => $tp, 'client_secret' => $cle, 'grant_type' => 'client_credentials']], $corps);
     if (setting('xb_login_corps') !== '' && ($j = json_decode(str_replace('{CLE}', $cle, setting('xb_login_corps')), true))) array_unshift($corps, $j);
-    $log = ''; $n = 0;
-    foreach ($chemins as $c) foreach ($corps as $b) {
-        $n++; [$code, $txt, $m] = xb_appel($c, 'POST', $b, $base, 'aucun', 10);
-        if ($code === 0) { $log .= "$c : injoignable ($m)\n"; break 2; }
-        $resume = mb_substr(preg_replace('/\s+/', ' ', preg_replace('/^\[[^\]]*\]\n/', '', $txt)), 0, 120);
-        if ($code === 404) { $log .= str_pad($c, 18) . "→ 404\n"; continue 2; } // chemin inconnu : inutile d'essayer les autres corps
-        $log .= str_pad($c, 18) . '[' . implode(',', array_keys($b)) . "] → $code  $resume\n";
-        if ($code >= 200 && $code < 300) { $j = json_decode(preg_replace('/^\[[^\]]*\]\n/', '', $txt), true); $tok = $j['token'] ?? $j['access_token'] ?? $j['jwt'] ?? $j['data']['token'] ?? '';
-            if (is_string($tok) && substr_count($tok, '.') === 2) { $exp = time() + 3000; if (($p = json_decode(base64_decode(strtr(explode('.', $tok)[1], '-_', '+/')), true)) && !empty($p['exp'])) $exp = (int)$p['exp'];
-                set_setting('xb_jwt', $tok); set_setting('xb_jwt_exp', (string)$exp); set_setting('xb_login_chemin', $c); set_setting('xb_login_corps', json_encode(array_map(fn($v) => $v === $cle ? '{CLE}' : $v, $b)));
-                $log .= "✔ Jeton obtenu via $c (valable jusqu'au " . date('d/m H:i', $exp) . ")\n"; return [$tok, $log]; } }
-    }
+    if (setting('xb_login_chemin') !== '') array_unshift($chemins, setting('xb_login_chemin'));
+    $log = ''; $n = 0; $extraire = function (string $txt) { $j = json_decode(preg_replace('/^\[[^\]]*\]\n/', '', $txt), true); $t = $j['token'] ?? $j['access_token'] ?? $j['jwt'] ?? $j['data']['token'] ?? $j['accessToken'] ?? ''; return is_string($t) && substr_count($t, '.') === 2 ? $t : ''; };
+    foreach ($bases as $b) { $log .= "— $b\n";
+        foreach ($chemins as $c) { $premier = true;
+            foreach ($corps as $i => $bd) foreach ([false, true] as $form) {
+                $n++; [$code, $txt, $m] = xb_appel($c, 'POST', $bd, $b, 'aucun', 10, $form);
+                if ($code === 0) { $log .= "  injoignable ($m)\n"; continue 3; }
+                $resume = mb_substr(preg_replace('/\s+/', ' ', preg_replace('/^\[[^\]]*\]\n/', '', $txt)), 0, 110);
+                if ($code === 404 || $code === 405 && $premier) { $log .= '  ' . str_pad($c, 18) . "→ $code\n"; continue 3; } $premier = false;
+                $log .= '  ' . str_pad($c, 18) . '[' . implode(',', array_keys($bd)) . ($form ? ' form' : ' json') . "] → $code  $resume\n";
+                if ($code >= 200 && $code < 300 && ($tok = $extraire($txt)) !== '') { $exp = time() + 3000; if (($pl = json_decode(base64_decode(strtr(explode('.', $tok)[1], '-_', '+/')), true)) && !empty($pl['exp'])) $exp = (int)$pl['exp'];
+                    set_setting('xb_jwt', $tok); set_setting('xb_jwt_exp', (string)$exp); set_setting('xb_login_chemin', $c); set_setting('xb_login_corps', json_encode(array_map(fn($v) => $v === $cle ? '{CLE}' : $v, $bd))); if ($b !== $base) set_setting('xb_login_base', $b);
+                    $log .= "✔ Jeton obtenu via $b$c (valable jusqu'au " . date('d/m H:i', $exp) . ")\n"; return [$tok, $log]; }
+            } } }
     return ['', $log . "Aucun point de connexion n'a rendu de jeton ($n essais).\n"];
 }
 /** Appel Extrabat avec jeton JWT (obtenu automatiquement) ; renouvelle le jeton si 401 */
