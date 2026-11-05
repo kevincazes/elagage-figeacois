@@ -812,8 +812,10 @@ function xb_jeton(bool $forcer = false): array { // [jeton|'' , journal]
     $bases = array_values(array_unique([$base, $racine, "$racine/api", "$base/api", "$racine/auth", "$racine/v2"]));
     $chemins = ['/login_check', '/login', '/auth', '/authenticate', '/token', '/auth/login', '/auth/token', '/oauth/token', '/oauth/v2/token', '/api-key/login', '/apikey', '/user/login', '/security/login', '/jwt', '/connect', '/session'];
     $corps = [['apiKey' => $cle], ['api_key' => $cle], ['key' => $cle], ['token' => $cle], ['userApiKey' => $cle], ['username' => $cle, 'password' => $cle], ['_username' => $cle, '_password' => $cle]];
+    if (($dec = base64_decode($cle, true)) !== false && str_contains($dec, ':') && preg_match('/^[\x20-\x7e]+$/', $dec)) { [$u, $pw] = explode(':', $dec, 2); // clé = base64(identifiant:secret) → on essaie les deux parties séparément, en priorité
+        $corps = array_merge([['username' => $u, 'password' => $pw], ['_username' => $u, '_password' => $pw], ['login' => $u, 'password' => $pw], ['email' => $u, 'password' => $pw], ['apiKey' => $u, 'apiSecret' => $pw], ['api_key' => $u, 'api_secret' => $pw], ['key' => $u, 'secret' => $pw], ['id' => $u, 'secret' => $pw], ['client_id' => $u, 'client_secret' => $pw, 'grant_type' => 'client_credentials'], ['publicKey' => $u, 'privateKey' => $pw], ['identifier' => $u, 'password' => $pw], ['uuid' => $u, 'token' => $pw]], $corps); }
     if ($tp !== '') $corps = array_merge([['username' => $tp, 'password' => $cle], ['_username' => $tp, '_password' => $cle], ['login' => $tp, 'password' => $cle], ['thirdParty' => $tp, 'apiKey' => $cle], ['third_party' => $tp, 'api_key' => $cle], ['client_id' => $tp, 'client_secret' => $cle, 'grant_type' => 'client_credentials']], $corps);
-    if (setting('xb_login_corps') !== '' && ($j = json_decode(str_replace('{CLE}', $cle, setting('xb_login_corps')), true))) array_unshift($corps, $j);
+    if (setting('xb_login_corps') !== '' && ($j = json_decode(str_replace(['{CLE}', '{ID}', '{SECRET}'], [$cle, $u ?? '', $pw ?? ''], setting('xb_login_corps')), true))) array_unshift($corps, $j);
     if (setting('xb_login_chemin') !== '') array_unshift($chemins, setting('xb_login_chemin'));
     $log = ''; $n = 0; $extraire = function (string $txt) { $j = json_decode(preg_replace('/^\[[^\]]*\]\n/', '', $txt), true); $t = $j['token'] ?? $j['access_token'] ?? $j['jwt'] ?? $j['data']['token'] ?? $j['accessToken'] ?? ''; return is_string($t) && substr_count($t, '.') === 2 ? $t : ''; };
     foreach ($bases as $b) { $log .= "— $b\n";
@@ -828,7 +830,7 @@ function xb_jeton(bool $forcer = false): array { // [jeton|'' , journal]
                 if ($code === 404 || $code === 405 && $premier) { $log .= '  ' . str_pad($c, 18) . "→ $code\n"; continue 3; } $premier = false;
                 $log .= '  ' . str_pad($c, 18) . '[' . implode(',', array_keys($bd)) . ($form ? ' form' : ' json') . "] → $code  $resume\n";
                 if ($code >= 200 && $code < 300 && ($tok = $extraire($txt)) !== '') { $exp = time() + 3000; if (($pl = json_decode(base64_decode(strtr(explode('.', $tok)[1], '-_', '+/')), true)) && !empty($pl['exp'])) $exp = (int)$pl['exp'];
-                    set_setting('xb_jwt', $tok); set_setting('xb_jwt_exp', (string)$exp); set_setting('xb_login_chemin', $c); set_setting('xb_login_corps', json_encode(array_map(fn($v) => $v === $cle ? '{CLE}' : $v, $bd))); if ($b !== $base) set_setting('xb_login_base', $b);
+                    set_setting('xb_jwt', $tok); set_setting('xb_jwt_exp', (string)$exp); set_setting('xb_login_chemin', $c); set_setting('xb_login_corps', json_encode(array_map(fn($v) => $v === $cle ? '{CLE}' : (isset($u) && $v === $u ? '{ID}' : (isset($pw) && $v === $pw ? '{SECRET}' : $v)), $bd))); if ($b !== $base) set_setting('xb_login_base', $b);
                     $log .= "✔ Jeton obtenu via $b$c (valable jusqu'au " . date('d/m H:i', $exp) . ")\n"; return [$tok, $log]; }
             } } }
     return ['', $log . "Aucun point de connexion n'a rendu de jeton ($n essais).\n"];
