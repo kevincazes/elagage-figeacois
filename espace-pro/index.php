@@ -73,7 +73,7 @@ page_start('Tableau de bord', 'index.php');
 ?>
 <?= pictos_sprite() ?>
 <style>.tdb-barre{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.tdb-barre .btn.on{background:var(--sapin)}
-.tdb-grp{margin:0 0 6px}.tdb-grp h2{display:flex;align-items:center;gap:8px;margin:18px 0 8px}.tdb-grp h2 .gmv{display:none;gap:2px}.edit .tdb-grp h2 .gmv{display:inline-flex}.gmv button{border:1px solid #d5dccd;background:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:.8rem;line-height:1}
+.tdb-grp h2{display:flex;align-items:center;gap:8px}.tdb-grp h2 .gmv{display:none;gap:2px}.edit .tdb-grp h2 .gmv{display:inline-flex}.gmv button{border:1px solid #d5dccd;background:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:.8rem;line-height:1}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));grid-auto-rows:minmax(120px,auto);grid-auto-flow:dense;gap:14px;margin:0 0 8px}.tile.cache{display:none}
 .tile.l{grid-column:span 2}.tile.xl{grid-column:span 2;grid-row:span 2}.tile.xl strong{font-size:3rem}
 .tile .extra{display:none;margin-top:10px;border-top:1px solid #eef1ea;padding-top:8px}.tile.l .extra,.tile.xl .extra{display:block}.tile .plus{list-style:none;margin:0;padding:0;font-size:.85rem}.tile .plus li{padding:3px 0;border-bottom:1px dashed #eef1ea}.tile .plus li:last-child{border:0}.tile.l .plus li:nth-child(n+4){display:none}.tile .plus a{color:var(--sapin)}

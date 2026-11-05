@@ -496,6 +496,10 @@ function page_end(): void {
 <script>
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 (function(){
+  // Familles de contenu : chaque titre de section (h2 au premier niveau de la page) et tout ce qui le suit jusqu'au titre suivant sont réunis dans un bloc encadré
+  var m=document.querySelector('main'); if(m && !m.classList.contains('sans-blocs')){ var kids=[].slice.call(m.children), cur=null;
+    kids.forEach(function(el){ if(el.tagName==='H2'){ cur=document.createElement('section'); cur.className='bloc'; m.insertBefore(cur,el); cur.appendChild(el); if(el.id){ cur.id='bloc-'+el.id; } }
+      else if(cur && !/^(SCRIPT|STYLE|TEMPLATE)$/.test(el.tagName) && !el.classList.contains('bulle-ia') && !el.classList.contains('pan-ia')){ cur.appendChild(el); } }); }
   // Hauteur réelle du bandeau (une ou deux lignes selon l'écran) : sert aux ancres et éléments collants
   function bandeau(){ var t=document.querySelector('header.top'); if(t) document.documentElement.style.setProperty('--bandeau', (getComputedStyle(t).position==='sticky'?t.offsetHeight:0)+'px'); }
   bandeau(); window.addEventListener('resize',bandeau);

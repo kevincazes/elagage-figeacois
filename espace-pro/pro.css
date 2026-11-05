@@ -259,3 +259,11 @@ html{scroll-padding-top:var(--bandeau,0px)}
 .notifs{position:relative;font-size:1.05rem;padding:6px 10px!important}.notifs b{position:absolute;top:0;right:2px;background:var(--rouge);color:#fff;font-size:.65rem;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
 
 .pi{width:1em;height:1em;vertical-align:-.15em;display:inline-block;flex:none}.pi-txt{font-size:.9em}
+
+/* Familles de contenu : panneau encadré avec bandeau de titre (appliqué automatiquement aux sections h2, et aux familles du tableau de bord) */
+.bloc,.tdb-grp{background:#fbfbf7;border:1px solid #dfe5d6;border-radius:16px;padding:14px 18px 16px;margin:0 0 18px;box-shadow:0 6px 22px rgba(28,59,43,.07),inset 0 1px 0 #fff}
+.bloc>h2:first-child,.tdb-grp>h2:first-child{margin:-14px -18px 14px;padding:10px 18px;background:var(--clair);border-bottom:1px solid #dfe5d6;border-radius:15px 15px 0 0;font-size:1.02rem;color:var(--sapin)}
+.bloc>h2[id]{scroll-margin-top:calc(var(--bandeau,70px) + 10px)}
+.bloc .card{box-shadow:0 2px 10px rgba(28,59,43,.05);border:1px solid #edf0e8}.bloc>.card:first-of-type{margin-top:0}.bloc>:last-child{margin-bottom:0}
+.bloc>h3:first-of-type{margin-top:0}
+@media(max-width:600px){.bloc,.tdb-grp{padding:10px 12px 12px;border-radius:12px}.bloc>h2:first-child,.tdb-grp>h2:first-child{margin:-10px -12px 10px;padding:8px 12px;border-radius:11px 11px 0 0}}

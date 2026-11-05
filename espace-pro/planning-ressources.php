@@ -95,7 +95,7 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
   <td><input name="p[<?= $k ?>][email]" value="<?= e($p['email']) ?>" style="min-width:160px"></td>
   <td><details class="multi"><summary><span class="res"><?php $sel = array_values(array_intersect_key(COMPETENCES, array_flip(array_filter(explode(',', (string)$p['competences']))))); echo $sel ? e(implode(', ', $sel)) : '<span class="muted">Aucune</span>'; ?></span> <i>▾</i></summary><div class="comp"><?php foreach (COMPETENCES as $c => $l): ?><label><input type="checkbox" name="p[<?= $k ?>][comp][<?= $c ?>]" value="1" <?= str_contains(",{$p['competences']},", ",$c,") ? 'checked' : '' ?>><?= e($l) ?></label><?php endforeach; ?></div></details></td>
   <td><select name="p[<?= $k ?>][utilisateur_id]"><option value="">—</option><?php foreach ($comptes as $u): ?><option value="<?= $u['id'] ?>" <?= (int)$p['utilisateur_id'] === (int)$u['id'] ? 'selected' : '' ?>><?= e($u['prenom'] . ' ' . $u['nom']) ?></option><?php endforeach; ?></select>
-    <?php if ($k !== 'nouveau'): ?><br><a class="mini" href="livret.php?p=<?= $k ?>" title="Titres, habilitations, formations, documents">📘 Livret</a><?php endif; ?>
+    <?php if ($k !== 'nouveau'): ?><br><a class="mini" href="livret.php?p=<?= $k ?>" title="Titres, habilitations, formations, documents"><svg class="pi"><use href="#pi-doc"/></svg> Livret</a><?php endif; ?>
     <?php if ($k !== 'nouveau' && $p['ics_token']): ?><br><button type="button" class="mini" onclick="navigator.clipboard.writeText(this.dataset.l).then(()=>this.textContent='Lien copié !')" data-l="<?= e(lien_base() . '/planning-ics.php?t=' . $p['ics_token']) ?>" title="Adresse à ajouter dans l'agenda du téléphone (abonnement) : ses chantiers et rendez-vous s'y affichent tout seuls">Lien agenda du téléphone</button><?php endif; ?></td>
   <td><input type="color" name="p[<?= $k ?>][couleur]" value="<?= e($p['couleur']) ?>"></td>
   <td><input class="tiny" name="p[<?= $k ?>][ordre]" value="<?= (int)$p['ordre'] ?>"></td>
@@ -149,7 +149,7 @@ document.addEventListener('click', e => { const d = e.target.closest('details.mu
 <?php endforeach; ?>
 </div>
 
-<section class="card" id="agendas"><?= agendas_bloc(array_values(array_filter($pers, fn($p) => (int)$p['actif'])), true) ?></section>
+<section class="bloc" id="agendas"><?= agendas_bloc(array_values(array_filter($pers, fn($p) => (int)$p['actif'])), true) ?></section>
 
 <h2 id="secteurs">Journées secteur</h2>
 <p class="muted">Regroupe les visites par zone : un secteur = un point central (une commune) et un rayon. Si tu lui donnes des jours (ex. Lot nord le mardi), « Trouver un créneau » propose en priorité ces jours-là pour les visites de la zone, et évite d'y mettre des visites d'ailleurs.</p>

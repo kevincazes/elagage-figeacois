@@ -41,7 +41,7 @@ page_start($cible ? 'Mon compte' : 'Compte de ' . $u['prenom'] . ' ' . $u['nom']
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="infos">
     <label>Prénom <input name="prenom" value="<?= e($u['prenom']) ?>" required></label>
     <label>Nom <input name="nom" value="<?= e($u['nom']) ?>"></label>
-    <?php if ($cible && q("SELECT id FROM personnel WHERE utilisateur_id = ? AND actif = 1", [$id])->fetch()): ?><p style="margin:0 0 8px"><a class="mini" href="livret.php">📘 Mon livret (titres, habilitations, formations)</a></p><?php endif; ?>
+    <?php if ($cible && q("SELECT id FROM personnel WHERE utilisateur_id = ? AND actif = 1", [$id])->fetch()): ?><p style="margin:0 0 8px"><a class="mini" href="livret.php">Mon livret (titres, habilitations, formations)</a></p><?php endif; ?>
     <?php if ($cible): ?><p style="margin:6px 0 10px"><span class="small muted">E-mail (identifiant de connexion)</span><br><b><?= e($u['email']) ?></b> <span class="small muted">– ne se modifie pas ici : demande à un administrateur si besoin.</span></p>
     <?php else: ?><label>E-mail (identifiant de connexion) <input type="email" name="email" value="<?= e($u['email']) ?>" required></label><?php endif; ?>
     <p class="muted">Rôle : <?= e(role_libelle($u['role'])) ?><?= $cible ? '' : ' (modifiable depuis la liste des comptes)' ?> · Double authentification : <?= ['none' => 'à configurer', 'totp' => 'application', 'email' => 'code par e-mail'][$u['mfa_type']] ?><?= $cible ? ' – <a href="securite.php">changer</a>' : '' ?></p>
