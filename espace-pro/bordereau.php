@@ -146,6 +146,12 @@ if ($COMP): ?>
 
 <datalist id="catcodes"><?php foreach ($catalogue as $c): ?><option value="<?= e($c['code'] !== '' ? $c['code'] : '#' . $c['id']) ?>"><?= e(mb_substr($c['libelle'], 0, 90)) ?> · <?= money(prix_catalogue($c, $eqId)) ?></option><?php endforeach; ?></datalist>
 <?php if (!$ro): ?><p class="barre-ajout">Ajouter : <a class="mini" href="#ajout">un pack</a> <a class="mini" href="#ajout-cat">des lignes du catalogue</a> <a class="mini" href="#ajout">un titre de section</a> <a class="mini" href="#ajout">une ligne libre</a> <span class="muted small">· Colonnes : <strong>PU calculé</strong> = temps du catalogue × taux de l'équipe × coefficient (clic ↗ pour régler le temps) ; <strong>PU imposé</strong> = prix forcé pour ce marché seulement ; <strong>PU retenu</strong> = celui qui part dans l'offre.</span></p><?php endif; ?>
+<?php if (!$ro): ?><div class="qte-tout no-print"><strong>Quantité pour tout le bordereau</strong>
+  <input class="num" id="qteTout" value="1" inputmode="decimal" aria-label="Quantité à mettre">
+  <button type="button" class="mini" data-qt="toutes" title="Remplace la quantité de chaque ligne">Mettre sur toutes les lignes</button>
+  <button type="button" class="mini" data-qt="vides" title="Ne touche pas aux quantités déjà saisies">Seulement les lignes sans quantité</button>
+  <button type="button" class="mini" data-qt="effacer" title="Vide la colonne Qté">Effacer toutes les quantités</button>
+  <span class="small muted">Enregistré aussitôt (avec les autres modifications du tableau) ; chaque quantité reste modifiable ligne par ligne.</span></div><?php endif; ?>
 <form method="post" id="f" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <div class="scroll"><table class="tbl bord">
 <thead><tr><th title="Ordre de tri">Tri</th><th>N°</th><th>Code</th><th class="w">Désignation</th><th>Unité</th><th class="r">Qté (DQE)</th><th title="Prestation du catalogue qui donne le prix : tape un code ou un mot pour choisir">Prestation du catalogue</th><th class="r">PU calculé</th><th class="r">PU imposé</th><th class="r">Total HT</th><th></th><th class="r pu">PU retenu</th></tr></thead>
@@ -250,6 +256,14 @@ function comparer() {
   c.querySelectorAll('[data-eq]').forEach(b => b.onclick = () => { const f = document.getElementById('fEntete'), s = f.querySelector('select[name=equipe_id]'); if (s) { s.value = b.dataset.eq; f.submit(); } });
 }
 comparer();
+document.querySelectorAll('.qte-tout [data-qt]').forEach(b => b.onclick = () => {
+  const mode = b.dataset.qt, v = document.getElementById('qteTout').value.trim().replace(',', '.');
+  if (mode !== 'effacer' && !(v !== '' && +v >= 0)) { document.getElementById('qteTout').focus(); return; }
+  const champs = [...document.querySelectorAll('#f input.qte')].filter(c => !c.readOnly); let n = 0;
+  champs.forEach(c => { if (mode === 'vides' && c.value.trim() !== '') return; const nv = mode === 'effacer' ? '' : v.replace('.', ','); if (c.value !== nv) { c.value = nv; c.dispatchEvent(new Event('input', {bubbles: true})); n++; } });
+  if (!n) { b.textContent = 'Rien à changer'; return; }
+  b.textContent = n + ' ligne(s)… enregistrement'; const f = document.getElementById('f'); f.requestSubmit ? f.requestSubmit() : f.submit();
+});
 // Curseur d'ajustement : les PU calculés sont recalculés depuis le prix brut (avant arrondi), comme le fera le serveur à l'enregistrement
 const curseur = document.getElementById('ajust');
 if (curseur) curseur.addEventListener('input', () => { const a = +curseur.value; document.getElementById('ajustVal').textContent = (a > 0 ? '+' : '') + a + ' %';
