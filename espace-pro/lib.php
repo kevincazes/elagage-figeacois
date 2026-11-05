@@ -443,7 +443,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '">'
        . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'
-       . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body>' . (function_exists('pictos_sprite') ? pictos_sprite() : '');
+       . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body' . (isset($_GET['panneau']) || ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') === 'iframe' ? ' class="panneau"' : '') . '>' . (function_exists('pictos_sprite') ? pictos_sprite() : '');
     echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span>';
     if ($u) { $nn0 = nouveautes_non_lues(); echo '<a class="bell mob' . ($nn0 ? ' has' : '') . '" href="nouveautes.php"><svg class="pi"><use href="#pi-bell"/></svg>' . ($nn0 ? '<b>' . $nn0 . '</b>' : '') . '</a>'; }
     echo '<button class="burger" type="button" aria-label="Menu" onclick="document.body.classList.toggle(\'nav-open\')"><span></span><span></span><span></span></button><nav>';
@@ -496,8 +496,15 @@ function page_end(): void {
         echo '<button type="button" class="bulle-ia" id="bulleIA" title="Assistant : pose une question sur cet écran ou sur un chiffrage">✦<span>Assistant</span></button>'
            . '<aside class="pan-ia" id="panIA" hidden><button type="button" class="pan-fermer" title="Fermer">×</button><iframe data-src="assistant.php?panneau=1&' . e($ctx) . '" title="Assistant"></iframe></aside>';
     }
+    if (user() && !isset($_GET['panneau']) && ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') !== 'iframe') echo '<div class="fen" id="fen" hidden><div class="fen-box"><div class="fen-tete"><span id="fenTitre"></span><button type="button" id="fenFermer" title="Fermer (Échap)">✕</button></div><iframe id="fenCadre" title="Fenêtre"></iframe></div></div>';
     echo '</main>' . (user() ? '<script src="notif.js?v=' . e(app_version()) . '" defer></script>' : '') . <<<'JS'
 <script>
+// Fenêtre superposée : ouvre une page de l'espace pro par-dessus l'écran en cours (liens data-fen), sans changer d'onglet ; à la fermeture, l'écran se rafraîchit si demandé
+window.ouvrirFen = function(url, titre, rafraichir){ var f=document.getElementById('fen'); if(!f){ window.open(url); return; } var i=document.getElementById('fenCadre'); i.src=url+(url.indexOf('?')>-1?'&':'?')+'panneau=1'; document.getElementById('fenTitre').textContent=titre||''; f.hidden=false; f.dataset.raf=rafraichir?'1':''; document.body.style.overflow='hidden'; };
+(function(){ var f=document.getElementById('fen'); if(!f) return; var fermer=function(){ f.hidden=true; document.body.style.overflow=''; document.getElementById('fenCadre').src='about:blank'; if(f.dataset.raf){ var y=window.scrollY; sessionStorage.setItem('fen_y', String(y)); location.reload(); } };
+  document.getElementById('fenFermer').onclick=fermer; f.addEventListener('click',function(e){ if(e.target===f) fermer(); }); document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&!f.hidden) fermer(); });
+  document.addEventListener('click',function(e){ var a=e.target.closest('a[data-fen]'); if(!a) return; e.preventDefault(); window.ouvrirFen(a.getAttribute('href'), a.dataset.fen||a.textContent.trim(), a.dataset.raf!==undefined); });
+  var y=sessionStorage.getItem('fen_y'); if(y!==null){ sessionStorage.removeItem('fen_y'); window.scrollTo(0,+y); } })();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 (function(){
   // Familles de contenu : chaque titre de section (h2 au premier niveau de la page) et tout ce qui le suit jusqu'au titre suivant sont réunis dans un bloc encadré
