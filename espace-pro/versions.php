@@ -2,6 +2,9 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.1', '2026-11-05', [
+        'Créer un bordereau en copiant un bordereau existant (ex. le DQE d\'un BPU) : l\'équipe appliquée aux prix est reprise automatiquement de l\'original, pour garder exactement les mêmes prix unitaires ; la collectivité aussi, si le champ est vide',
+    ]],
     ['2.7', '2026-11-05', [
         'Bordereau : colonne « Prix initial » (prix remis sur le marché précédent, colonne Réf. du catalogue) en bleu pastel entre PU imposé et Total HT, pour information, non modifiable',
         'Bordereau : la prestation ouverte depuis le PU calculé s\'affiche en fiche dans une fenêtre plus grande (tous les champs visibles, sans défilement de côté)',

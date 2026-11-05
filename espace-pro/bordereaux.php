@@ -9,7 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nom = trim($_POST['nom'] ?? '');
         if ($nom === '') { flash('Donne un nom au bordereau.', 'err'); redirect('bordereaux.php'); }
         $neq = isset($_POST['equipe_id']) && $_POST['equipe_id'] !== '' ? (int)$_POST['equipe_id'] : null;
-        q("INSERT INTO bordereaux (nom, client, notes, cree_par, equipe_id) VALUES (?,?,?,?,?)", [$nom, trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), user()['id'], $neq]);
+        $client = trim($_POST['client'] ?? '');
+        // Copie d'un bordereau : même équipe (donc mêmes prix unitaires) et même collectivité par défaut, pour un DQE identique au BPU
+        if (!empty($_POST['modele']) && ($srcB = q("SELECT equipe_id, client FROM bordereaux WHERE id = ?", [(int)$_POST['modele']])->fetch())) {
+            if ($srcB['equipe_id'] !== null) $neq = (int)$srcB['equipe_id'];
+            if ($client === '') $client = (string)$srcB['client'];
+        }
+        q("INSERT INTO bordereaux (nom, client, notes, cree_par, equipe_id) VALUES (?,?,?,?,?)", [$nom, $client, trim($_POST['notes'] ?? ''), user()['id'], $neq]);
         $bid = (int)$pdo->lastInsertId();
         if (!empty($_POST['modele'])) { // dupliquer un bordereau existant
             $src = (int)$_POST['modele'];
@@ -71,13 +77,23 @@ page_start('Bordereaux de prix', 'bordereaux.php');
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="creer">
     <label>Nom du marché <input name="nom" placeholder="Ex. Lot Habitat – entretien du patrimoine arboré 2026" required <?= isset($_GET['nouveau']) || $packPre ? 'autofocus' : '' ?>></label>
     <label>Collectivité / client <input name="client"></label>
-    <label>Équipe appliquée aux prix <select name="equipe_id"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select></label>
+    <label>Équipe appliquée aux prix <select name="equipe_id" id="nvEquipe"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select> <small class="muted" id="nvEquipeNote" hidden>reprise du bordereau copié, pour garder les mêmes prix unitaires</small></label>
     <label>Partir d'un pack <small class="muted">(ses lignes arrivent avec leurs prix calculés)</small> <select name="pack"><option value="">— aucun : bordereau vide —</option><?php foreach ($packsListe as $pk): ?><option value="<?= $pk['id'] ?>" <?= $packPre === (int)$pk['id'] ? 'selected' : '' ?>><?= e($pk['nom']) ?> (<?= $pk['nb'] ?> lignes)</option><?php endforeach; ?></select></label>
-    <?php if ($bords): ?><label>Ou copier un bordereau existant <small class="muted">(lignes, numéros, quantités, prix imposés)</small> <select name="modele"><option value="">— aucun —</option><?php foreach ($bords as $b): ?><option value="<?= $b['id'] ?>"><?= e($b['nom']) ?> (<?= $b['nb'] ?> lignes)</option><?php endforeach; ?></select></label><?php endif; ?>
+    <?php if ($bords): ?><label>Ou copier un bordereau existant <small class="muted">(lignes, numéros, quantités, prix imposés)</small> <select name="modele" onchange="copieModele(this)"><option value="">— aucun —</option><?php foreach ($bords as $b): ?><option value="<?= $b['id'] ?>" data-equipe="<?= $b['equipe_id'] !== null ? (int)$b['equipe_id'] : '' ?>" data-client="<?= e((string)$b['client']) ?>"><?= e($b['nom']) ?> (<?= $b['nb'] ?> lignes)</option><?php endforeach; ?></select></label><?php endif; ?>
     <label>Notes <input name="notes" placeholder="Date limite, variante, remise…"></label>
     <p class="muted small">L'équipe fixe le taux horaire de toutes les lignes ; tu pourras la changer dans le bordereau. Les prix viennent des temps du catalogue et des paramètres, et les suivent jusqu'au figement.</p>
     <button class="btn" type="submit">Créer et ouvrir</button>
   </form>
 </section>
+<script>
+// Copie d'un bordereau (ex. le DQE d'un BPU) : même équipe que l'original, donc mêmes prix unitaires ; collectivité reprise si vide
+function copieModele(sel) {
+  const o = sel.selectedOptions[0], eq = document.getElementById('nvEquipe'), note = document.getElementById('nvEquipeNote'), cl = sel.form.elements.client;
+  const fixe = !!(o && o.value && o.dataset.equipe);
+  if (fixe) eq.value = o.dataset.equipe;
+  eq.disabled = fixe; note.hidden = !fixe;
+  if (o && o.value && cl && !cl.value) cl.value = o.dataset.client || '';
+}
+</script>
 </div>
 <?php page_end(); ?>
