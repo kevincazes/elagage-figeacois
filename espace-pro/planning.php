@@ -62,6 +62,7 @@ main.large{max-width:none}
 .puce.propose{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 6px,transparent 6px 12px)}.puce.termine{opacity:.55}
 .alerte-ic{display:inline-block;background:#fff;color:#c0392b;border-radius:50%;width:15px;height:15px;font-size:.7rem;line-height:15px;text-align:center;font-weight:900;margin-right:3px}
 .meteo{font-size:.72rem;opacity:.95}.meteo.fort{color:#ffd43b;font-weight:900}
+.leaflet-control-locate{width:34px;height:34px;line-height:34px;text-align:center;font-size:1.15rem;background:#fff;text-decoration:none;display:block}.leaflet-control-locate.attente{opacity:.5;animation:clig 1s infinite}@keyframes clig{50%{opacity:1}}
 .pictos{font-size:.85rem;letter-spacing:1px;margin-right:3px;line-height:1}.badge-t{display:inline-block;font-size:.68rem;font-weight:800;background:rgba(255,255,255,.9);color:#444;border-radius:9px;padding:0 5px;margin-left:3px;vertical-align:middle}.badge-t.retard{background:#e6332a;color:#fff}.badge-t.ok{color:#5a7a1e}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;align-items:center;gap:4px;border:1px solid #d9dfd2;border-radius:16px;padding:3px 9px 3px 6px;font-size:.82rem;cursor:pointer;background:#fff}.chips label:has(input:checked){background:#eef3e4;border-color:var(--vert,#8caa31);font-weight:700}.chips input{width:auto!important;margin:0!important}
 .lst{list-style:none;margin:0;padding:0}.lst li{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed #e4e8de;font-size:.88rem}.lst li.fait span.l{text-decoration:line-through;opacity:.6}.lst li .l{flex:1;min-width:0}.lst li .qui{font-size:.75rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:18px!important;height:18px;margin:0!important}.lst .x{background:none;border:0;color:#999;cursor:pointer;font-size:1rem;padding:0 4px}.lst .x:hover{color:#e6332a}
@@ -443,6 +444,15 @@ function fondsCarte(map) {
   const choix = {'Plan (OpenStreetMap)': osm, 'Plan IGN': ign, 'Photo aérienne IGN': ortho, 'Satellite (Esri)': esri};
   let actif = 'Plan (OpenStreetMap)'; try { actif = localStorage.getItem('pl_fond') || actif; } catch (e) {} (choix[actif] || osm).addTo(map);
   L.control.layers(choix, {}, {position: 'topright'}).addTo(map); map.on('baselayerchange', ev => { try { localStorage.setItem('pl_fond', ev.name); } catch (e) {} });
+  // bouton « ma position » : centre la carte sur la position du téléphone / de l'ordinateur
+  const Loc = L.Control.extend({onAdd() { const b = L.DomUtil.create('a', 'leaflet-bar leaflet-control-locate'); b.href = '#'; b.title = 'Me centrer sur ma position'; b.setAttribute('role', 'button'); b.innerHTML = '📍'; L.DomEvent.disableClickPropagation(b);
+    L.DomEvent.on(b, 'click', ev => { L.DomEvent.preventDefault(ev); if (!navigator.geolocation) { toast('Géolocalisation indisponible sur cet appareil.', true); return; } b.classList.add('attente');
+      navigator.geolocation.getCurrentPosition(p => { b.classList.remove('attente'); const ll = [p.coords.latitude, p.coords.longitude];
+        if (!map._moi) { map._moi = L.circleMarker(ll, {radius: 9, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1}).addTo(map).bindPopup('Vous êtes ici'); map._moiP = L.circle(ll, {radius: p.coords.accuracy || 30, color: '#1a73e8', weight: 1, fillOpacity: .08}).addTo(map); }
+        else { map._moi.setLatLng(ll); map._moiP.setLatLng(ll).setRadius(p.coords.accuracy || 30); }
+        map.setView(ll, Math.max(map.getZoom(), 14)); }, () => { b.classList.remove('attente'); toast('Position introuvable : autorise la localisation dans le navigateur.', true); }, {enableHighAccuracy: true, timeout: 10000, maximumAge: 60000}); });
+    return b; }});
+  new Loc({position: 'topleft'}).addTo(map);
   return map;
 }
 const liensCarte = (lat, lng) => `<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}" target="_blank" rel="noopener">Street View ↗</a> · <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener">Itinéraire ↗</a>`;

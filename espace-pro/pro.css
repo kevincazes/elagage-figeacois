@@ -19,6 +19,10 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .top nav a{text-decoration:none;font-weight:700;font-size:.9rem;padding:8px 11px;border-radius:8px;color:var(--sapin)}
 .top nav a.active,.top nav a:hover{background:var(--clair)}
 ".top nav a.out{color:var(--doux);font-weight:400}
+.top nav details.menu{position:relative}.top nav details.menu summary{list-style:none;cursor:pointer;font-weight:700;font-size:.9rem;padding:8px 11px;border-radius:8px;color:var(--sapin);user-select:none;white-space:nowrap}.top nav details.menu summary::-webkit-details-marker{display:none}
+.top nav details.menu summary i{font-style:normal;font-size:.7rem;opacity:.7}.top nav details.menu.active summary,.top nav details.menu[open] summary,.top nav details.menu summary:hover{background:var(--clair)}
+.top nav details.menu>div{position:absolute;top:calc(100% + 4px);left:0;z-index:60;display:flex;flex-direction:column;min-width:230px;background:var(--blanc);border:1px solid #dfe4d8;border-radius:12px;padding:6px;box-shadow:0 12px 28px rgba(28,59,43,.16)}
+.top nav details.menu>div a{padding:9px 12px;border-radius:8px;font-size:.9rem;white-space:nowrap}
 .version{font-size:.7rem;color:var(--doux);text-transform:none;letter-spacing:0;font-weight:700;margin-left:6px}
 .bell{position:relative;font-size:1.1rem;padding:6px 10px!important}
 .bell b{position:absolute;top:0;right:2px;background:var(--anis);color:#fff;font-size:.65rem;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
@@ -65,8 +69,8 @@ tr.c2 td{background:#fff8e3}tr.c3 td{background:#fbeae8}
 .bell.mob{display:none}
 .burger{display:none;background:none;border:0;width:42px;height:42px;cursor:pointer;padding:6px}
 .burger span{display:block;height:3px;background:var(--sapin);margin:7px 0;border-radius:2px}
-@media(max-width:1500px) and (min-width:901px){.top nav a{font-size:.84rem;padding:7px 6px}.top nav a.out.site{display:none}.apptitle{display:none}.top .logo{margin-right:auto}}
-@media(max-width:1250px) and (min-width:901px){.top nav a{font-size:.8rem;padding:6px 6px}.top .logo img{height:40px}}
+@media(max-width:1500px) and (min-width:901px){.top nav a,.top nav details.menu summary{font-size:.84rem;padding:7px 6px}.top nav a.out.site{display:none}.apptitle{display:none}.top .logo{margin-right:auto}}
+@media(max-width:1250px) and (min-width:901px){.top nav a,.top nav details.menu summary{font-size:.8rem;padding:6px 6px}.top .logo img{height:40px}}
 @media(max-width:900px){
   .top{flex-wrap:nowrap;position:sticky;gap:8px}
   .top .logo img{height:40px}
@@ -76,6 +80,9 @@ tr.c2 td{background:#fff8e3}tr.c3 td{background:#fbeae8}
   .top nav{display:none;position:absolute;left:0;right:0;top:100%;background:var(--blanc);flex-direction:column;padding:8px 12px 14px;border-bottom:1px solid #e0e5da;box-shadow:0 10px 24px rgba(28,59,43,.12)}
   .top nav a{display:block;padding:12px 10px;font-size:1rem;border-bottom:1px solid #f0f2ec}
   .top nav a.bell{display:none}
+  .top nav a.notifs::after{content:' Notifications';font-size:1rem}
+  .top nav details.menu summary{display:block;padding:12px 10px;font-size:1rem;border-bottom:1px solid #f0f2ec;border-radius:0}.top nav details.menu summary i{float:right;font-size:.9rem}
+  .top nav details.menu>div{position:static;box-shadow:none;border:0;border-left:3px solid var(--clair);border-radius:0;padding:0 0 4px 12px;min-width:0}.top nav details.menu>div a{font-size:.95rem;padding:10px 8px}
   .nav-open .top nav{display:flex}
   main{padding:14px 12px 40px}
   h1{font-size:1.35rem}

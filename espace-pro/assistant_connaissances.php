@@ -6,6 +6,9 @@ declare(strict_types=1);
 function assistant_connaissances(): string {
     $inupp = setting('phyto_inupp', 'FR-0460072V'); $produit = setting('phyto_produit', 'Sitonal'); $resp = setting('phyto_responsables') ?: 'Taurand / Cazes Bouchet';
     return <<<TXT
+## Navigation
+- Menu principal : Tableau de bord ; « Chantiers & agenda » (Planning, Mon planning, Clients, Congés, Matériel, Contrats, Tableau de charge, Platanes, Personnel/matériel/équipes) ; « Chiffrage » (Bordereaux, Catalogue, Packs, Actions, Historique, Paramètres de prix – administration et secrétariat) ; « Compte » (Comptes, Réglages SMS/Pennylane/Urgence, Mon compte, Nouveautés, Guide). Sur les cartes, le bouton 📍 centre la carte sur la position de l'appareil.
+
 ## Planning (menu Planning)
 - Vues : Semaine (grille horaire, glisser-déposer ; entre deux rendez-vous d'une même personne, le temps de route estimé s'affiche, en rouge si l'écart est trop court), Mois, Ressources (une ligne par équipe, personne et machine ; les outils montés sur un porte-outil – ex. tête forestière et rogneuse sur le Robo Evo Energreen – partagent la même machine : réserver l'un bloque les autres, case hachurée), Liste, Carte (tous les chantiers et rendez-vous de la période sur la carte, numérotés par date, fonds OpenStreetMap / Plan IGN / photo aérienne IGN / satellite Esri, lien Street View et itinéraire dans chaque bulle), Tournée (carte et ordre le plus court depuis le dépôt, bouton pour appliquer les horaires).
 - Rendez-vous et visites ont un type (visite de chiffrage, rendez-vous prospect, réunion de chantier, visite de fin de travaux, réception, suivi, collectivité, fournisseur…) ; liste modifiable dans Personnel, matériel, équipes › Réglages. La fiche affiche la distance et le temps de route depuis le dépôt.

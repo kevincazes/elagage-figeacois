@@ -10,6 +10,7 @@ return [
         'Types de rendez-vous (chiffrage, réunion de chantier, visite de fin de travaux, prospect…) ; temps de route entre deux rendez-vous affiché dans la semaine et vérifié ; vue Carte avec fonds Plan IGN, photo aérienne et satellite, Street View et itinéraire',
         'Pictogrammes de chantier sur les créneaux (plantation, arrêté de circulation, location, grue, benne, réseaux, accès…) qui créent d\'eux-mêmes les actions à prévoir ; actions à faire avant le chantier attribuées à une personne avec échéance, notification et rappel sur le téléphone, badge ☐ sur le créneau, « Mes actions à faire »',
         'Relevé de chantier : prestations du devis reprises d\'un bordereau ou collées depuis Extrabat, cochées sur place dans Mon planning et reprises dans le bon de fin d\'intervention',
+        'Menu principal réorganisé en menus déroulants : Chantiers & agenda / Chiffrage / Compte ; bouton 📍 « ma position » sur les cartes',
         'Téléphone : barre du planning simplifiée (menu « Plus », filtres repliés, bouton Nouveau)',
         'Contrats d\'entretien : modèle rempli automatiquement, envoi, signature en ligne, passages créés d\'eux-mêmes dans « À planifier », avis d\'échéance',
         'Congés : demande depuis le téléphone, validation, absence posée au planning ; journées secteur ; tableau de charge (statuts, chiffre d\'affaires planifié, occupation des équipes)',

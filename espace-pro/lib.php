@@ -431,22 +431,13 @@ function nouveautes_non_lues(): int {
 // ---- Mise en page ----
 function page_start(string $title, string $active = '', ?array $parent = null): void {
     $u = user();
-    $nav = [
-        'index.php' => 'Tableau de bord',
-        'planning.php' => 'Planning',
-        'clients.php' => 'Clients',
-        'parametres.php' => 'Paramètres',
-        'actions.php' => 'Actions',
-        'bpu.php' => 'Catalogue',
-        'packs.php' => 'Packs',
-        'bordereaux.php' => 'Bordereaux',
-        'historique.php' => 'Historique',
-        'guide.php' => 'Guide',
-    ];
-    if ($u && !in_array($u['role'], ['admin', 'secretaire'], true)) $nav = ['index.php' => 'Tableau de bord', 'mon-planning.php' => 'Mon planning', 'planning.php' => 'Planning', 'clients.php' => 'Clients', 'conges.php' => 'Congés']; // utilisateur : pas de calculateur
-    elseif ($u && $u['role'] !== 'admin') unset($nav['parametres.php']);                   // secrétariat : pas de réglages de prix
-    if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
-    $nav['compte.php'] = 'Mon compte';
+    $admin = $u && $u['role'] === 'admin'; $gestion = $u && in_array($u['role'], ['admin', 'secretaire'], true);
+    // Menu principal en groupes déroulants : chantiers & agenda / chiffrage / compte
+    $chantiers = ['planning.php' => 'Planning', 'mon-planning.php' => 'Mon planning', 'clients.php' => 'Clients', 'conges.php' => 'Congés', 'materiel.php' => 'Matériel'];
+    if ($gestion) $chantiers += ['contrats.php' => 'Contrats', 'charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes'];
+    $chiffrage = $gestion ? ['bordereaux.php' => 'Bordereaux', 'bpu.php' => 'Catalogue', 'packs.php' => 'Packs', 'actions.php' => 'Actions', 'historique.php' => 'Historique'] + ($admin ? ['parametres.php' => 'Paramètres de prix'] : []) : [];
+    $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
+    $nav = [['index.php' => 'Tableau de bord'], ['Chantiers & agenda', $chantiers], ['Chiffrage', $chiffrage], ['Compte', $compte]];
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '">'
        . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'
@@ -457,7 +448,15 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     if ($u) {
         if ($active === 'securite.php') $active = 'compte.php';
         if ($active === 'bordereau.php') $active = 'bordereaux.php';
-        foreach ($nav as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
+        if ($active === 'rapport.php' || $active === 'phyto.php' && !$gestion) $active = 'mon-planning.php';
+        foreach ($nav as $g) {
+            if (!isset($g[1])) { foreach ($g as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>'; continue; }
+            [$titre, $liens] = $g; if (!$liens) continue;
+            $dedans = isset($liens[$active]);
+            echo '<details class="menu' . ($dedans ? ' active' : '') . '"><summary>' . $titre . ' <i>▾</i></summary><div>';
+            foreach ($liens as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
+            echo '</div></details>';
+        }
         $nNotif = 0; try { $nNotif = (int)q("SELECT COUNT(*) c FROM notifications WHERE utilisateur_id = ? AND lu_le IS NULL", [$u['id']])->fetch()['c']; } catch (Throwable $t) {}
         echo '<a class="notifs' . ($nNotif ? ' has' : '') . '" href="notifications.php" title="Mes notifications">📣' . ($nNotif ? '<b>' . $nNotif . '</b>' : '') . '</a>';
         $nn = nouveautes_non_lues();
@@ -466,6 +465,8 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
     echo '</nav></header>';
+    // un seul menu déroulant ouvert à la fois ; fermeture au clic ailleurs (grand écran)
+    echo '<script>document.addEventListener("click",e=>{const d=e.target.closest("details.menu");document.querySelectorAll("details.menu[open]").forEach(x=>{if(x!==d&&!matchMedia("(max-width:900px)").matches)x.open=false;});});if(matchMedia("(max-width:900px)").matches)document.querySelectorAll("details.menu.active").forEach(x=>x.open=true);</script>';
     // Fil d'Ariane
     if ($u) {
         $fil = [['index.php', 'Tableau de bord']];
