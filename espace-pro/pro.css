@@ -315,3 +315,4 @@ body.fiche-une .tbl.bpu tbody td{display:flex;flex-direction:column;gap:4px;padd
 body.fiche-une .tbl.bpu tbody td::before{content:attr(data-lab);font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5b6b5f}
 body.fiche-une .tbl.bpu tbody td:nth-child(3),body.fiche-une .tbl.bpu tbody td.acts{grid-column:1/-1}body.fiche-une .tbl.bpu tbody td input,body.fiche-une .tbl.bpu tbody td select,body.fiche-une .tbl.bpu tbody td textarea{width:100%!important;max-width:none}
 body.fiche-une .tbl.bpu tbody td.pu{font-size:1.5rem;font-weight:900;color:var(--sapin)}body.fiche-une .tbl.bpu tbody td.r{align-items:stretch}
+.tbl.bord td.ref-init{background:#eef4fb;color:#3d5a80;font-weight:700;white-space:nowrap}.tbl.bord th.ref-init{background:#4a6b8a!important}

@@ -3,6 +3,7 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.7', '2026-11-05', [
+        'Bordereau : colonne « Prix initial » (prix remis sur le marché précédent, colonne Réf. du catalogue) en bleu pastel entre PU imposé et Total HT, pour information, non modifiable',
         'Bordereau : la prestation ouverte depuis le PU calculé s\'affiche en fiche dans une fenêtre plus grande (tous les champs visibles, sans défilement de côté)',
         'Bordereau : « Importer les quantités d\'un DQE » (fichier Excel, Word, PDF, CSV ou copier-coller) : chaque ligne du DQE est rapprochée d\'une ligne du bordereau (code, N° et désignation, désignation proche), aperçu avec les lignes sûres, à vérifier et non trouvées, correction possible avant d\'enregistrer ; lignes absentes du DQE gardées ou vidées',
         'Bordereau : moyens ponctuels propres au bordereau (« + moyen » sous le PU calculé) : une ressource des paramètres (son taux) ou un moyen libre (nom et taux) ajouté en heures à une ligne, ou à toutes les lignes du même code (ex. ABT), sans toucher au catalogue ; repris dans le PU, le curseur, la comparaison des équipes, l\'export, la copie du bordereau et le figeage',

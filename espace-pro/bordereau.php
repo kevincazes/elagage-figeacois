@@ -171,11 +171,11 @@ if ($COMP): ?>
   <span class="small muted">Enregistré aussitôt (avec les autres modifications du tableau) ; chaque quantité reste modifiable ligne par ligne.</span></div><?php endif; ?>
 <form method="post" id="f" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <div class="scroll"><table class="tbl bord">
-<thead><tr><th title="Ordre de tri">Tri</th><th>N°</th><th>Code</th><th class="w">Désignation</th><th>Unité</th><th class="r">Qté (DQE)</th><th title="Prestation du catalogue qui donne le prix : tape un code ou un mot pour choisir">Prestation du catalogue</th><th class="r">PU calculé</th><th class="r">PU imposé</th><th class="r">Total HT</th><th></th><th class="r pu">PU retenu</th></tr></thead>
+<thead><tr><th title="Ordre de tri">Tri</th><th>N°</th><th>Code</th><th class="w">Désignation</th><th>Unité</th><th class="r">Qté (DQE)</th><th title="Prestation du catalogue qui donne le prix : tape un code ou un mot pour choisir">Prestation du catalogue</th><th class="r">PU calculé</th><th class="r">PU imposé</th><th class="r ref-init" title="Prix remis sur le marché précédent (colonne « Réf. » du catalogue) : pour information, n'entre dans aucun calcul">Prix initial</th><th class="r">Total HT</th><th></th><th class="r pu">PU retenu</th></tr></thead>
 <tbody>
 <?php $n = 0; foreach ($lignes as $l): $id = $l['id']; ?>
 <?php if ($l['type'] === 'section'): ?>
-<tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="8"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
+<tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="9"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
 <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
 <?php else: $n++; $sp = $supp($l); $mo = $MOY[(int)$id] ?? []; $calc = pu_bordereau($l, $cat, $eqId, $ajust, $sp); $brut = $calc !== null ? pu_bordereau_brut($l, $cat, $eqId, $sp) : 0; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
 <tr data-calc="<?= $calc ?? '' ?>" data-brut="<?= $brut ?>" title="<?= e($src) ?>">
@@ -190,14 +190,15 @@ if ($COMP): ?>
     <?php if ($mo || (!$ro && !$fige)): ?><div class="moyens"><?php foreach ($mo as $m): ?><span class="moy" title="<?= e($m['nom'] . ' : ' . rtrim(rtrim(number_format((float)$m['heures'], 2, ',', ''), '0'), ',') . ' h × ' . money($m['taux_eff']) . '/h = ' . money((float)$m['heures'] * $m['taux_eff']) . ' (avant coefficient), propre à ce bordereau') ?>">+ <?= e($m['nom']) ?> <?= rtrim(rtrim(number_format((float)$m['heures'], 2, ',', ''), '0'), ',') ?> h<?php if (!$ro && !$fige): ?><button type="button" class="moy-x" data-moydel="<?= (int)$m['id'] ?>" title="Retirer ce moyen de cette ligne">×</button><?php endif; ?></span><?php endforeach; ?>
     <?php if (!$ro && !$fige): ?><button type="button" class="moy-plus" data-bl="<?= (int)$id ?>" data-code="<?= e($l['code']) ?>" title="Ajouter du matériel ou une ressource seulement sur cette ligne de ce bordereau (le catalogue ne change pas)">+ moyen</button><?php endif; ?></div><?php endif; ?></td>
   <td class="r"><input class="num manuel" name="r[<?= $id ?>][pu]" value="<?= $l['pu_manuel'] !== null ? e((string)(float)$l['pu_manuel']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
+  <td class="r ref-init"><?php $pref = $cat[$l['ligne_id']]['prix_ref'] ?? null; echo $pref !== null && $pref !== '' ? '<span title="Prix remis sur le marché précédent (information seulement)">' . money((float)$pref) . '</span>' : '<span class="muted">—</span>'; ?></td>
   <td class="r out tot"></td>
   <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>" onclick="return confirm('Retirer cette ligne ?')">×</button><?php endif; ?></td>
   <td class="r out pu" data-fige="<?= $fige ? $pu : '' ?>"></td>
 </tr>
 <?php endif; endforeach; ?>
 </tbody>
-<tfoot><tr><td colspan="9" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr>
-<tr><td colspan="9" class="r"><strong>Total des prix unitaires retenus</strong> <span class="muted small">(une unité par ligne)</span></td><td class="r out" id="totalPU"></td><td></td><td class="r out pu" id="totalPU2"></td></tr></tfoot>
+<tfoot><tr><td colspan="10" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr>
+<tr><td colspan="10" class="r"><strong>Total des prix unitaires retenus</strong> <span class="muted small">(une unité par ligne)</span></td><td class="r out" id="totalPU"></td><td></td><td class="r out pu" id="totalPU2"></td></tr></tfoot>
 </table></div>
 <?php if (!$ro): ?><p><button class="btn" type="submit">Enregistrer le bordereau</button> <button class="mini" type="submit" form="renum">Renuméroter 1, 2, 3…</button> <span class="muted">« Tri » ordonne les lignes ; « N° » est le numéro affiché sur le bordereau (ex. 2.1.1), libre ; « PU imposé » remplace le prix calculé.</span></p><?php endif; ?>
 </form>
