@@ -107,13 +107,13 @@ page_start('Bordereaux de prix', 'bordereaux.php');
   <a class="btn" href="importer.php">Importer un fichier</a>
 </section>
 <section class="card">
-  <h3 style="margin-top:0">Nouveau bordereau (vide ou à partir d'un pack)</h3>
+  <h3 style="margin-top:0">Nouveau bordereau (copie d'un bordereau, pack ou vide)</h3>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="creer">
+    <?php if ($bords): ?><label>Copier un bordereau existant <small class="muted">(ex. le BPU pour en faire le DQE : lignes, numéros, quantités, prix imposés ; nom, collectivité et équipe repris)</small> <select name="modele" onchange="copieModele(this)"><option value="">— aucun —</option><?php foreach ($bords as $b): ?><option value="<?= $b['id'] ?>" data-equipe="<?= $b['equipe_id'] !== null ? (int)$b['equipe_id'] : '' ?>" data-client="<?= e((string)$b['client']) ?>" data-nom="<?= e((string)$b['nom']) ?>"><?= e($b['nom']) ?> (<?= $b['nb'] ?> lignes)</option><?php endforeach; ?></select></label><?php endif; ?>
     <label>Nom du marché <input name="nom" placeholder="Ex. Lot Habitat – entretien du patrimoine arboré 2026" required <?= isset($_GET['nouveau']) || $packPre ? 'autofocus' : '' ?>></label>
     <label>Collectivité / client <input name="client"></label>
     <label>Équipe appliquée aux prix <select name="equipe_id" id="nvEquipe"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select> <small class="muted" id="nvEquipeNote" hidden>reprise du bordereau copié, pour garder les mêmes prix unitaires</small></label>
     <label>Partir d'un pack <small class="muted">(ses lignes arrivent avec leurs prix calculés)</small> <select name="pack"><option value="">— aucun : bordereau vide —</option><?php foreach ($packsListe as $pk): ?><option value="<?= $pk['id'] ?>" <?= $packPre === (int)$pk['id'] ? 'selected' : '' ?>><?= e($pk['nom']) ?> (<?= $pk['nb'] ?> lignes)</option><?php endforeach; ?></select></label>
-    <?php if ($bords): ?><label>Ou copier un bordereau existant <small class="muted">(lignes, numéros, quantités, prix imposés)</small> <select name="modele" onchange="copieModele(this)"><option value="">— aucun —</option><?php foreach ($bords as $b): ?><option value="<?= $b['id'] ?>" data-equipe="<?= $b['equipe_id'] !== null ? (int)$b['equipe_id'] : '' ?>" data-client="<?= e((string)$b['client']) ?>"><?= e($b['nom']) ?> (<?= $b['nb'] ?> lignes)</option><?php endforeach; ?></select></label><?php endif; ?>
     <label>Notes <input name="notes" placeholder="Date limite, variante, remise…"></label>
     <p class="muted small">L'équipe fixe le taux horaire de toutes les lignes ; tu pourras la changer dans le bordereau. Les prix viennent des temps du catalogue et des paramètres, et les suivent jusqu'au figement.</p>
     <button class="btn" type="submit">Créer et ouvrir</button>
@@ -126,7 +126,14 @@ function copieModele(sel) {
   const fixe = !!(o && o.value && o.dataset.equipe);
   if (fixe) eq.value = o.dataset.equipe;
   eq.disabled = fixe; note.hidden = !fixe;
-  if (o && o.value && cl && !cl.value) cl.value = o.dataset.client || '';
+  if (cl && (cl.value === '' || cl.dataset.auto === cl.value)) { cl.value = o && o.value ? (o.dataset.client || '') : ''; cl.dataset.auto = cl.value; }
+  // Nom proposé : « BPU … » devient « DQE … », sinon « DQE – » devant ; tant que tu ne l'as pas retouché, il suit le bordereau choisi
+  const nm = sel.form.elements.nom;
+  if (nm && (nm.value === '' || nm.dataset.auto === nm.value)) {
+    const src = o && o.value ? (o.dataset.nom || '') : '';
+    nm.value = src === '' ? '' : (/^\s*BPU\b/i.test(src) ? src.replace(/^\s*BPU\b/i, 'DQE') : 'DQE – ' + src);
+    nm.dataset.auto = nm.value;
+  }
 }
 </script>
 </div>
