@@ -4,6 +4,7 @@
 return [
     ['2.7.5', '2026-11-05', [
         'Créer un bordereau : « Copier un bordereau existant » passe en premier ; en choisissant le BPU, le nom se remplit tout seul (« BPU … » devient « DQE … »), avec la collectivité et l\'équipe ; il ne reste qu\'à vérifier et « Créer et ouvrir »',
+        'La liste « Copier un bordereau existant » est rangée par collectivité / client',
     ]],
     ['2.7.4', '2026-11-05', [
         'Bordereaux : recherche instantanée (marché, collectivité, client, notes) et classement par date, par collectivité / client (regroupés sous un titre, avec leur nombre) ou par nom du marché ; le classement choisi est gardé',
