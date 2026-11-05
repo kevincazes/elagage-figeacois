@@ -31,6 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         journal('creation', 'Bordereau créé' . (!empty($_POST['modele']) ? ' à partir d\'un modèle' : '') . (!empty($_POST['pack']) ? ' à partir d\'un pack' : '') . ($neq ? ' ; équipe : ' . (equipe_choisie($neq)['nom'] ?? '') : ''), $bid);
         redirect('bordereau.php?id=' . $bid);
+    } elseif ($a === 'archiver') { // bordereau traité : rangé dans les archives (toujours consultable et copiable)
+        $x = q("SELECT id, nom, archive FROM bordereaux WHERE id = ?", [(int)$_POST['id']])->fetch();
+        if ($x) { $v = (int)!$x['archive']; q("UPDATE bordereaux SET archive = ? WHERE id = ?", [$v, $x['id']]); journal('modif', $v ? 'Bordereau archivé' : 'Bordereau sorti des archives', (int)$x['id']); flash('« ' . $x['nom'] . ' » ' . ($v ? 'archivé : coche « Voir les archivés » pour le retrouver.' : 'sorti des archives.')); }
+        redirect('bordereaux.php');
     } elseif ($a === 'suppr') {
         require_admin();
         q("DELETE FROM bordereau_lignes WHERE bordereau_id = ?", [(int)$_POST['id']]); q("DELETE FROM bordereau_moyens WHERE bordereau_id = ?", [(int)$_POST['id']]); q("DELETE FROM bordereaux WHERE id = ?", [(int)$_POST['id']]);
@@ -44,26 +48,28 @@ page_start('Bordereaux de prix', 'bordereaux.php');
 <?php $packPre = (int)($_GET['pack'] ?? 0); $eqNoms = []; foreach ($equipes as $x) $eqNoms[(int)$x['id']] = $x['nom']; ?>
 <p class="lead">Un bordereau = le document de prix d'un marché. Ouvre-en un pour le modifier, ou crée-en un nouveau : import du fichier reçu, ou à partir d'un pack (les packs se préparent dans Chiffrage › Packs).</p>
 <h2>Mes bordereaux</h2>
+<style>#bTable tr.archive td{background:#f4f5f2;color:#7a837b}#bTable tr.archive a{color:#5b675f}</style>
 <?php if (!$bords): ?><p class="muted">Aucun bordereau pour l'instant : importe le fichier d'une collectivité ou crée-en un à partir d'un pack ci-dessous.</p><?php else: ?>
 <div class="bfiltre" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:0 0 10px">
   <label style="flex:1;min-width:220px;margin:0">Rechercher <input type="search" id="bRech" placeholder="Marché, collectivité, client, note…" autocomplete="off"></label>
   <label style="margin:0">Classer par <select id="bTri"><option value="date">Date de création (récents d'abord)</option><option value="client">Collectivité / client</option><option value="nom">Nom du marché</option></select></label>
+  <?php $nbArch = count(array_filter($bords, fn($x) => !empty($x['archive']))); ?><label class="check" style="margin:0;display:inline-flex;gap:6px;align-items:center;font-weight:400"><input type="checkbox" id="bArch" style="width:auto"> Voir les archivés (<?= $nbArch ?>)</label>
   <span class="muted small" id="bNb"></span>
 </div>
 <div class="scroll"><table class="tbl" id="bTable">
 <thead><tr><th>Créé le</th><th>Marché</th><th>Client</th><th>Équipe</th><th class="r">Lignes</th><th>Statut</th><th>Par</th><th></th></tr></thead>
 <tbody>
 <?php foreach ($bords as $b): ?>
-<tr class="bl" data-date="<?= e((string)$b['cree_le']) ?>" data-client="<?= e(trim((string)$b['client'])) ?>" data-nom="<?= e((string)$b['nom']) ?>" data-txt="<?= e(mb_strtolower($b['nom'] . ' ' . $b['client'] . ' ' . $b['notes'])) ?>">
+<tr class="bl<?= !empty($b['archive']) ? ' archive' : '' ?>" data-arch="<?= !empty($b['archive']) ? 1 : 0 ?>" data-date="<?= e((string)$b['cree_le']) ?>" data-client="<?= e(trim((string)$b['client'])) ?>" data-nom="<?= e((string)$b['nom']) ?>" data-txt="<?= e(mb_strtolower($b['nom'] . ' ' . $b['client'] . ' ' . $b['notes'])) ?>">
   <td><?= date('d/m/Y', strtotime($b['cree_le'])) ?></td>
   <td><a href="bordereau.php?id=<?= $b['id'] ?>"><strong><?= e($b['nom']) ?></strong></a><?= $b['notes'] ? '<br><span class="small muted">' . e($b['notes']) . '</span>' : '' ?></td>
   <td><?= e($b['client']) ?></td>
   <td class="small"><?= e($eqNoms[(int)$b['equipe_id']] ?? ($equipes[0]['nom'] ?? '—')) ?></td>
   <td class="r"><?= $b['nb'] ?></td>
-  <td><?= $b['statut'] === 'fige' ? '<span class="ok">Figé le ' . date('d/m/Y', strtotime($b['fige_le'])) . '</span>' : 'Brouillon' ?>
+  <td><?= !empty($b['archive']) ? '<span class="muted">Archivé</span><br>' : '' ?><?= $b['statut'] === 'fige' ? '<span class="ok">Figé le ' . date('d/m/Y', strtotime($b['fige_le'])) . '</span>' : 'Brouillon' ?>
     <?php if ($b['verrou_par'] && strtotime($b['verrou_le']) > time() - VERROU_MINUTES * 60): ?><br><?php if ((int)$b['verrou_par'] === (int)user()['id']): ?><span class="muted small">ouvert par toi</span><?php else: ?><span class="off">ouvert par <?= e($b['vprenom'] . ' ' . $b['vnom']) ?> depuis <?= date('H:i', strtotime($b['verrou_le'])) ?> : lecture seule</span><?php endif; ?><?php endif; ?></td>
   <td><?= e($b['prenom'] ?? '') ?></td>
-  <td class="r" style="white-space:nowrap"><a class="btn secondary" style="padding:6px 14px" href="bordereau.php?id=<?= $b['id'] ?>">Ouvrir</a> <a class="mini" href="export.php?id=<?= $b['id'] ?>">Excel</a>
+  <td class="r" style="white-space:nowrap"><a class="btn secondary" style="padding:6px 14px" href="bordereau.php?id=<?= $b['id'] ?>">Ouvrir</a> <a class="mini" href="export.php?id=<?= $b['id'] ?>">Excel</a> <form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="archiver"><input type="hidden" name="id" value="<?= $b['id'] ?>"><button class="mini" title="<?= !empty($b['archive']) ? 'Remettre dans la liste principale' : 'Bordereau traité : le ranger dans les archives (toujours consultable)' ?>"><?= !empty($b['archive']) ? 'Désarchiver' : 'Archiver' ?></button></form>
   <?php if (est_admin()): ?><form method="post" class="inline" onsubmit="return confirm('Supprimer ce bordereau ?')"><?= csrf_field() ?><input type="hidden" name="action" value="suppr"><input type="hidden" name="id" value="<?= $b['id'] ?>"><button class="mini danger" title="Supprimer">×</button></form><?php endif; ?></td>
 </tr>
 <?php endforeach; ?>
@@ -71,13 +77,13 @@ page_start('Bordereaux de prix', 'bordereaux.php');
 <script>
 // Liste des bordereaux : recherche (marché, collectivité, notes) et classement par date, collectivité ou nom ; choix gardé sur ce poste
 (function () {
-  const tb = document.querySelector('#bTable tbody'), rech = document.getElementById('bRech'), tri = document.getElementById('bTri'), nb = document.getElementById('bNb');
+  const tb = document.querySelector('#bTable tbody'), rech = document.getElementById('bRech'), tri = document.getElementById('bTri'), nb = document.getElementById('bNb'), arch = document.getElementById('bArch');
   const lignes = [...tb.querySelectorAll('tr.bl')], sans = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   try { tri.value = localStorage.getItem('bordereaux.tri') || 'date'; } catch (e) {}
   function maj() {
     const q = sans(rech.value.trim()), t = tri.value, coll = new Intl.Collator('fr', {sensitivity: 'base', numeric: true});
     tb.querySelectorAll('tr.grp').forEach(x => x.remove());
-    const vis = lignes.filter(tr => !q || sans(tr.dataset.txt).includes(q));
+    const vis = lignes.filter(tr => (arch.checked || tr.dataset.arch !== '1') && (!q || sans(tr.dataset.txt).includes(q)));
     lignes.forEach(tr => tr.hidden = !vis.includes(tr));
     const tries = [...vis].sort((a, b) => t === 'nom' ? coll.compare(a.dataset.nom, b.dataset.nom)
       : t === 'client' ? (!a.dataset.client - !b.dataset.client) || coll.compare(a.dataset.client, b.dataset.client) || b.dataset.date.localeCompare(a.dataset.date)
@@ -92,7 +98,7 @@ page_start('Bordereaux de prix', 'bordereaux.php');
     });
     nb.textContent = vis.length + ' bordereau' + (vis.length > 1 ? 'x' : '') + (q ? ' trouvé' + (vis.length > 1 ? 's' : '') : '');
   }
-  rech.addEventListener('input', maj);
+  rech.addEventListener('input', maj); arch.addEventListener('change', maj);
   tri.addEventListener('change', () => { try { localStorage.setItem('bordereaux.tri', tri.value); } catch (e) {} maj(); });
   maj();
 })();
@@ -109,7 +115,7 @@ page_start('Bordereaux de prix', 'bordereaux.php');
 <section class="card">
   <h3 style="margin-top:0">Nouveau bordereau (copie d'un bordereau, pack ou vide)</h3>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="creer">
-    <?php if ($bords): ?><label>Copier un bordereau existant <small class="muted">(ex. le BPU pour en faire le DQE : lignes, numéros, quantités, prix imposés ; nom, collectivité et équipe repris)</small> <select name="modele" onchange="copieModele(this)"><option value="">— aucun —</option><?php $parCli = []; foreach ($bords as $b) $parCli[trim((string)$b['client']) ?: 'Sans collectivité / client'][] = $b; uksort($parCli, fn($x, $y) => ($x === 'Sans collectivité / client') <=> ($y === 'Sans collectivité / client') ?: strcoll($x, $y)); foreach ($parCli as $cliG => $bsG): ?><optgroup label="<?= e($cliG) ?>"><?php foreach ($bsG as $b): ?><option value="<?= $b['id'] ?>" data-equipe="<?= $b['equipe_id'] !== null ? (int)$b['equipe_id'] : '' ?>" data-client="<?= e((string)$b['client']) ?>" data-nom="<?= e((string)$b['nom']) ?>"><?= e($b['nom']) ?> (<?= $b['nb'] ?> lignes)</option><?php endforeach; ?></optgroup><?php endforeach; ?></select></label><?php endif; ?>
+    <?php if ($bords): ?><label>Copier un bordereau existant <small class="muted">(ex. le BPU pour en faire le DQE : lignes, numéros, quantités, prix imposés ; nom, collectivité et équipe repris)</small> <select name="modele" onchange="copieModele(this)"><option value="">— aucun —</option><?php $parCli = []; foreach ($bords as $b) $parCli[trim((string)$b['client']) ?: 'Sans collectivité / client'][] = $b; uksort($parCli, fn($x, $y) => ($x === 'Sans collectivité / client') <=> ($y === 'Sans collectivité / client') ?: strcoll($x, $y)); foreach ($parCli as $cliG => $bsG): ?><optgroup label="<?= e($cliG) ?>"><?php foreach ($bsG as $b): ?><option value="<?= $b['id'] ?>" data-equipe="<?= $b['equipe_id'] !== null ? (int)$b['equipe_id'] : '' ?>" data-client="<?= e((string)$b['client']) ?>" data-nom="<?= e((string)$b['nom']) ?>"><?= e($b['nom']) ?> (<?= $b['nb'] ?> lignes<?= !empty($b['archive']) ? ', archivé' : '' ?>)</option><?php endforeach; ?></optgroup><?php endforeach; ?></select></label><?php endif; ?>
     <label>Nom du marché <input name="nom" placeholder="Ex. Lot Habitat – entretien du patrimoine arboré 2026" required <?= isset($_GET['nouveau']) || $packPre ? 'autofocus' : '' ?>></label>
     <label>Collectivité / client <input name="client"></label>
     <label>Équipe appliquée aux prix <select name="equipe_id" id="nvEquipe"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>"><?= e($x['nom']) ?> (<?= money((float)$x['taux']) ?>/h)</option><?php endforeach; ?></select> <small class="muted" id="nvEquipeNote" hidden>reprise du bordereau copié, pour garder les mêmes prix unitaires</small></label>

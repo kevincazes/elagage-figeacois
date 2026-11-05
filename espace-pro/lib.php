@@ -76,6 +76,7 @@ function migrate(): void {
         ['ressources', 'role', "ALTER TABLE ressources ADD COLUMN role VARCHAR(10) NOT NULL DEFAULT ''"],
         ['bordereaux', 'equipe_id', "ALTER TABLE bordereaux ADD COLUMN equipe_id INT NULL"],
         ['bordereaux', 'ajust', "ALTER TABLE bordereaux ADD COLUMN ajust DECIMAL(6,2) NOT NULL DEFAULT 0"],
+        ['bordereaux', 'archive', "ALTER TABLE bordereaux ADD COLUMN archive TINYINT(1) NOT NULL DEFAULT 0"],
         ['bpu_lignes', 'base_id', "ALTER TABLE bpu_lignes ADD COLUMN base_id INT NULL"],
         ['bordereau_lignes', 'numero', "ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre"],
     ];

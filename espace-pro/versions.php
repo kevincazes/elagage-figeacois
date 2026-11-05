@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.6', '2026-11-05', [
+        'Bordereaux : bouton « Archiver » pour ranger un bordereau traité ; il disparaît de la liste principale et se retrouve en cochant « Voir les archivés » (grisé, avec la mention « Archivé »), toujours consultable, exportable et copiable ; « Désarchiver » le remet dans la liste',
+        'Import des quantités d\'un DQE : longueurs des lignes ajoutées ajustées à la base (N°, code, désignation, unité)',
+    ]],
     ['2.7.5', '2026-11-05', [
         'Créer un bordereau : « Copier un bordereau existant » passe en premier ; en choisissant le BPU, le nom se remplit tout seul (« BPU … » devient « DQE … »), avec la collectivité et l\'équipe ; il ne reste qu\'à vérifier et « Créer et ouvrir »',
         'La liste « Copier un bordereau existant » est rangée par collectivité / client',
