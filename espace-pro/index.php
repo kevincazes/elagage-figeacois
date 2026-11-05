@@ -21,6 +21,8 @@ $liens = [
     ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client', '../images/logo-extrabat.png'],
     ['Urgence Élagage', setting('lien_urgence'), 'Dispositif collectivités', '../images/logo-urgence-elagage.png'],
     ['Arbogestion', setting('lien_arbogestion'), 'Gestion du patrimoine arboré', '../images/logo-arbogestion.png'],
+    ['Grality', setting('lien_grality'), 'Inventaire et suivi des arbres', $icone(setting('lien_grality'))],
+    ['Kleyk', setting('lien_kleyk'), "Fiches d'intervention", $icone(setting('lien_kleyk'))],
 ];
 // ---- Widgets du tableau de bord : liste complète (selon les droits), ordre et masquage propres à chaque compte
 $tout = planning_niveau() === 'tout';

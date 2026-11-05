@@ -51,7 +51,7 @@ main>h1{position:absolute;left:-9999px}
 .boutons{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:-4px 0 14px;padding:0 2px}.boutons a{width:46px;height:46px;border-radius:50%;background:#efe3d5;display:grid;place-items:center;font-size:1.35rem;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.08);color:var(--brun)}.boutons a .pi{width:24px;height:24px}.gros .pi{width:22px;height:22px;vertical-align:-5px;margin-right:4px}
 .boutons a.off{opacity:.3;pointer-events:none}
 .ft-corps{padding:0 16px 40px;max-width:720px;margin:0 auto}.ft-bloc{background:var(--blanc);border:1px solid #e1e5da;border-radius:14px;padding:12px 14px;margin:0 0 10px}
-.ft-bloc b{color:var(--brun)}.gros{display:block;text-align:center;border-radius:999px;padding:12px;font-weight:700;text-decoration:none;margin:10px auto;max-width:360px;background:#efe3d5;color:var(--brun)}
+.ft-bloc b{color:var(--brun)}.gros.kleyk{background:#e4ecf7;color:#1f3f6b;display:flex;align-items:center;justify-content:center;gap:8px}.gros.kleyk.ok{background:#e9f3df;color:#2f6b45}.kleyk-suite{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;background:#f3f7fc}.gros{display:block;text-align:center;border-radius:999px;padding:12px;font-weight:700;text-decoration:none;margin:10px auto;max-width:360px;background:#efe3d5;color:var(--brun)}
 .notif-ok{color:var(--anis);font-weight:700}
 @media(max-width:900px){.mp-haut{margin-left:-12px;margin-right:-12px;margin-top:-14px}}
 </style>
@@ -73,6 +73,7 @@ main>h1{position:absolute;left:-9999px}
 <div class="fiche-t" id="ft" aria-modal="true" role="dialog"></div>
 <script>
 const EVS = <?= json_encode($donnees, JSON_UNESCAPED_UNICODE) ?>, TYPES = Object.assign(<?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, {externe: ['Autre agenda', '#9aa5b1']}), JOUR = <?= json_encode($jour) ?>;
+const KLEYK = <?= json_encode(setting('lien_kleyk')) ?>, MOI = <?= json_encode($p ? trim($p['prenom'] . ' ' . $p['nom']) : '') ?>, ADMIN = <?= est_admin() ? 'true' : 'false' ?>;
 const FACT = <?= (float)setting('planning_facteur', '1.3') ?>, VIT = <?= (float)setting('planning_vitesse', '55') ?>, DEP = <?= json_encode(depot()) ?>;
 const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
 const p2 = n => String(n).padStart(2, '0'), hm = s => s.slice(11, 16), parse = s => new Date(s.replace(' ', 'T'));
@@ -108,7 +109,7 @@ function rendre() {
 }
 const ico = n => `<svg class="pi"><use href="#pi-${n}"/></svg>`;
 function ouvrir(e) {
-  if (e.externe) { $('#ft').innerHTML = `<div class="ft-haut"><button type="button" id="ftR">‹ Retour</button><h3>${esc(e.titre)}</h3><small>${esc(e.agenda || 'Autre agenda')} · ${e.journee ? 'journée' : hm(e.debut) + ' – ' + hm(e.fin)}</small></div><div class="ft-corps">${e.adresse ? `<div class="ft-bloc">📍 ${esc(e.adresse)}</div>` : ''}<p class="muted small" style="text-align:center">Événement de ton autre calendrier (lecture seule) : il se modifie dans l'application d'origine.</p></div>`; $('#ft').classList.add('on'); document.body.style.overflow = 'hidden'; history.pushState({f: e.id}, '', '#x'); $('#ftR').onclick = () => history.back(); return; }
+  if (e.externe) { $('#ft').innerHTML = `<div class="ft-haut"><button type="button" id="ftR">‹ Retour</button><h3>${esc(e.titre)}</h3><small>${esc(e.agenda || 'Autre agenda')} · ${e.journee ? 'journée' : hm(e.debut) + ' – ' + hm(e.fin)}</small></div><div class="ft-corps">${e.adresse ? `<div class="ft-bloc">${ico('pin')} ${esc(e.adresse)}</div>` : ''}<p class="muted small" style="text-align:center">Événement de ton autre calendrier (lecture seule) : il se modifie dans l'application d'origine.</p></div>`; $('#ft').classList.add('on'); document.body.style.overflow = 'hidden'; history.pushState({f: e.id}, '', '#x'); $('#ftR').onclick = () => history.back(); return; }
   const tel = (e.tel || '').replace(/[^0-9+]/g, ''), dest = e.lat ? e.lat + ',' + e.lng : encodeURIComponent([e.adresse, e.cp, e.ville].filter(Boolean).join(' '));
   const k = e.lat && ICI ? km(ICI.lat, ICI.lng, e.lat, e.lng) : null;
   const b = (h, ic, t, ok = true) => `<a href="${esc(h)}" ${h.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} class="${ok ? '' : 'off'}" title="${t}" aria-label="${t}">${ic}</a>`;
@@ -120,17 +121,48 @@ function ouvrir(e) {
       ${e.avec.length ? `<div class="ft-bloc">${ico('users')} Avec <b>${esc(e.avec.join(', '))}</b></div>` : ''}
       ${e.materiel.length ? `<div class="ft-bloc">${ico('machine')} ${esc(e.materiel.join(', '))}</div>` : ''}
       ${e.pictos.length ? `<div class="ft-bloc"><span class="pictos">${e.pictos.map(p => p.html).join(' ')}</span><br><small>${e.pictos.map(p => esc(p.libelle)).join(' · ')}</small></div>` : ''}
-      ${e.taches.length ? `<div class="ft-bloc"><b>☐ Actions à faire avant</b><ul class="lst">${e.taches.map(t => `<li class="${t.fait_le ? 'fait' : ''} ${t.retard ? 'retard' : ''}"><input type="checkbox" data-t="${t.id}" ${t.fait_le ? 'checked' : ''}><span class="l">${esc(t.libelle)}</span><span class="qui">${t.prenom ? esc(t.prenom) : ''}${t.echeance ? ' · ' + t.echeance.slice(8, 10) + '/' + t.echeance.slice(5, 7) : ''}</span></li>`).join('')}</ul></div>` : ''}
+      ${e.taches.length ? `<div class="ft-bloc"><b>☐ Actions à faire</b><ul class="lst">${e.taches.map(t => `<li class="${t.fait_le ? 'fait' : ''} ${t.retard ? 'retard' : ''}"><input type="checkbox" data-t="${t.id}" ${t.fait_le ? 'checked' : ''}><span class="l">${esc(t.libelle)}</span><span class="qui">${t.prenom ? esc(t.prenom) : ''}${t.echeance ? ' · ' + t.echeance.slice(8, 10) + '/' + t.echeance.slice(5, 7) : ''}</span></li>`).join('')}</ul></div>` : ''}
       ${e.prestations.length ? `<div class="ft-bloc"><b>✓ Relevé de chantier – prestations du devis</b> <small class="muted">(${e.prestations.filter(p => p.fait_le).length}/${e.prestations.length})</small><ul class="lst">${e.prestations.map(p => `<li class="${p.fait_le ? 'fait' : ''}"><input type="checkbox" data-p="${p.id}" ${p.fait_le ? 'checked' : ''}><span class="l">${esc(p.libelle)}${p.quantite !== null ? ' <span class="muted">(' + (+p.quantite).toLocaleString('fr-FR') + (p.unite ? ' ' + esc(p.unite) : '') + ')</span>' : ''}</span></li>`).join('')}</ul></div>` : ''}
       ${e.consignes ? `<div class="ft-bloc" style="background:#fff8e6">${ico('warning')} ${esc(e.consignes).replace(/\n/g, '<br>')}</div>` : ''}
       ${e.dict.length ? `<div class="ft-bloc" style="color:#e6332a">${e.dict.map(esc).join('<br>')}</div>` : ''}
       ${e.phyto ? `<a class="gros" href="phyto.php?passeport=${e.id}&ecran=1" style="background:#e6f0d8">${ico('pass')} Passeport phytosanitaire (platane) ›</a>` : ''}
+      ${kleykBloc(e)}
       ${['chantier', 'visite', 'rdv'].includes(e.type) ? `<a class="gros" href="rapport.php?evt=${e.id}">${ico('doc')} ${e.type === 'chantier' ? 'Bon de fin d\'intervention' : 'Rapport'} ›</a>` : ''}
       <a class="gros" href="planning.php?fiche=${e.id}&jour=${JOUR}" style="background:#fff;border:1px solid #e1e5da">Ouvrir dans le planning ›</a></div>`;
   $('#ft').classList.add('on'); document.body.style.overflow = 'hidden';
   history.pushState({f: e.id}, '', '#evt' + e.id);
   $('#ftR').onclick = () => history.back();
   cocher($('#ft'), e);
+  const bc = $('#btKleyk'); if (bc) bc.addEventListener('click', ev => {
+    if (!KLEYK) { ev.preventDefault(); return; }
+    const txt = kleykTexte(e);
+    try { navigator.clipboard.writeText(txt).catch(() => {}); } catch (x) {}
+    const z = $('#kleykSuite'); if (z) z.hidden = false;
+  });
+  const cf = $('#kleykFait'); if (cf) cf.onclick = async () => { try { const r = await apiPost('tache', {op: 'fait', id: +cf.dataset.t}); e.taches = r.taches; rendre(); ouvrir(e); } catch (err) { alert(err.message); } };
+}
+// Fiche d'intervention Kleyk : ouvre l'appli et copie les infos du chantier pour n'avoir qu'à les coller
+function kleykTache(e) { return (e.taches || []).find(t => t.picto === 'kleyk'); }
+function kleykBloc(e) {
+  const t = kleykTache(e), aPicto = e.pictos.some(p => p.code === 'kleyk');
+  if (!['chantier', 'urgence'].includes(e.type) && !t && !aPicto) return '';
+  if (!KLEYK) return ADMIN ? `<div class="ft-bloc muted small">${ico('kleyk')} Bouton Kleyk : renseigne l'adresse de Kleyk dans Paramètres › Liens du tableau de bord.</div>` : '';
+  const fait = t && t.fait_le;
+  return `<a class="gros kleyk${fait ? ' ok' : ''}" id="btKleyk" href="${esc(KLEYK)}" target="_blank" rel="noopener">${ico('kleyk')} Fiche d'intervention Kleyk${fait ? ' (faite)' : ''} ›</a>
+    <div id="kleykSuite" class="ft-bloc kleyk-suite" hidden><small>Infos du chantier copiées : dans Kleyk, appuie longuement dans un champ puis « Coller ».</small>${t && !fait ? `<button type="button" class="mini" id="kleykFait" data-t="${t.id}">${ico('kleyk')} Fiche Kleyk remplie : cocher l'action</button>` : ''}</div>`;
+}
+function kleykTexte(e) {
+  const l = [];
+  l.push('Chantier : ' + e.titre);
+  if (e.client) l.push('Client : ' + e.client);
+  const ad = [e.adresse, [e.cp, e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '); if (ad) l.push('Adresse : ' + ad);
+  if (e.tel) l.push('Téléphone : ' + e.tel); if (e.email) l.push('E-mail : ' + e.email);
+  const d = new Date(e.debut.replace(' ', 'T')); l.push('Date : ' + d.toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) + (e.journee ? '' : ', ' + hm(e.debut) + ' – ' + hm(e.fin)));
+  const eq = [MOI, ...(e.avec || [])].filter(Boolean); if (eq.length) l.push('Intervenants : ' + eq.join(', '));
+  if (e.materiel.length) l.push('Matériel : ' + e.materiel.join(', '));
+  if (e.prestations.length) { l.push('Travaux :'); e.prestations.forEach(p => l.push('- ' + p.libelle + (p.quantite !== null ? ' (' + (+p.quantite).toLocaleString('fr-FR') + (p.unite ? ' ' + p.unite : '') + ')' : ''))); }
+  if (e.consignes) l.push('Consignes : ' + e.consignes);
+  return l.join('\n');
 }
 async function apiPost(a, corps) { const r = await fetch('planning_api.php?a=' + a, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': document.querySelector('meta[name=csrf]').content}, body: JSON.stringify(corps)}); const j = await r.json().catch(() => ({erreur: 'Réponse illisible.'})); if (j.erreur) throw new Error(j.erreur); return j; }
 function cocher(zone, e) {

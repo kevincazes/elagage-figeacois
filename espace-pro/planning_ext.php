@@ -589,6 +589,7 @@ function pl_synchro_mandats(): void {
 // ===================== Tâches automatiques complémentaires =====================
 function planning_taches_ext(): void {
     try { contrats_generer(); } catch (Throwable $t) {}
+    try { kleyk_init(); } catch (Throwable $t) {}
     try { taches_rappels(); } catch (Throwable $t) {}
     try { agendas_sync_tous(); } catch (Throwable $t) {}
     if (setting('livret_taches_le') !== date('Y-m-d')) { set_setting('livret_taches_le', date('Y-m-d')); try { livret_taches(); } catch (Throwable $t) {} }

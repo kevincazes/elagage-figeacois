@@ -18,7 +18,7 @@ const STATUTS_EVT = [
 const COMPETENCES = ['grimpeur' => 'Grimpeur', 'nacelle' => 'CACES nacelle', 'pl' => 'Permis poids lourd', 'abattage' => 'Abattage', 'broyeur' => 'Broyeur', 'rogneuse' => 'Rogneuse', 'chef' => "Chef d'équipe"];
 const TYPES_MAT = ['nacelle' => 'Nacelle', 'broyeur' => 'Broyeur', 'camion' => 'Camion', 'rogneuse' => 'Rogneuse', 'grue' => 'Grue', 'vehicule' => 'Véhicule léger', 'autre' => 'Autre'];
 
-function planning_alters(): array { return ["ALTER TABLE materiel ADD COLUMN porteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN equipe_id INT NULL", "ALTER TABLE utilisateurs ADD COLUMN planning_droit VARCHAR(10) NOT NULL DEFAULT 'lecture'",
+function planning_alters(): array { return ["ALTER TABLE evenements ADD COLUMN kleyk_init TINYINT NOT NULL DEFAULT 0", "ALTER TABLE materiel ADD COLUMN porteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN equipe_id INT NULL", "ALTER TABLE utilisateurs ADD COLUMN planning_droit VARCHAR(10) NOT NULL DEFAULT 'lecture'",
               "ALTER TABLE evenements ADD COLUMN dict_requise TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN dict_ref VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN dict_envoi DATE NULL", "ALTER TABLE evenements ADD COLUMN dict_retour DATE NULL",
               "ALTER TABLE evenements ADD COLUMN contrat_id INT NULL", "ALTER TABLE evenements ADD COLUMN urgence_ref VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN termine_le DATETIME NULL", "ALTER TABLE evenements ADD COLUMN avis_le DATETIME NULL",
               "ALTER TABLE evenements ADD COLUMN secteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN contrat_mois VARCHAR(7) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN phyto TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN motif VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD COLUMN pictos VARCHAR(200) NOT NULL DEFAULT ''",
@@ -29,7 +29,7 @@ function planning_alters(): array { return ["ALTER TABLE materiel ADD COLUMN por
               "ALTER TABLE evenements ADD COLUMN pl_facture_id VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN pl_facture_num VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN pl_statut VARCHAR(20) NOT NULL DEFAULT ''",
               "ALTER TABLE clients ADD COLUMN pl_client_id INT NULL", "ALTER TABLE clients ADD COLUMN sepa_statut VARCHAR(30) NOT NULL DEFAULT ''", "ALTER TABLE clients ADD COLUMN sepa_ref VARCHAR(60) NOT NULL DEFAULT ''"]; }
 function planning_defauts(): array { return ['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
-    'planning_pictos' => "plantation|plant|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|cone|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|box|Location de matériel spécifique|Réserver la location|7\nnacelle|crane|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|log|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|bolt|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|house|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|key|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|bird|Période de nidification à vérifier||\nsouche|stump|Rognage de souche||\nmairie|clipboard|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|tree|Platane (chancre coloré)||",
+    'planning_pictos' => "plantation|plant|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|cone|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|box|Location de matériel spécifique|Réserver la location|7\nnacelle|crane|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|log|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|bolt|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|house|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|key|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|bird|Période de nidification à vérifier||\nsouche|stump|Rognage de souche||\nmairie|clipboard|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|tree|Platane (chancre coloré)||\nkleyk|kleyk|Fiche d'intervention Kleyk|Remplir la fiche d'intervention dans Kleyk|0",
 
     'planning_motifs' => "Visite de chiffrage\nRendez-vous prospect\nRéunion de chantier\nVisite de fin de travaux\nRéception de travaux\nVisite de suivi / contrôle\nRendez-vous collectivité\nRendez-vous fournisseur\nFormation / sécurité",
     'planning_depot' => '133 rue Madeleine Brès, 46100 Cambes', 'planning_depot_lat' => '44.6001', 'planning_depot_lng' => '1.9475']; }
@@ -38,6 +38,7 @@ function planning_migrate(): void {
     if (setting('schema_planning') === '4') { // colonnes et réglages ajoutés après coup : toujours tentés (sans effet s'ils existent)
         foreach (planning_alters() as $sql) { try { $pdo->exec($sql); } catch (Throwable $t) {} }
         foreach (planning_defauts() as $k => $v) if (setting($k) === '') set_setting($k, $v);
+        kleyk_picto_ajouter();
         return;
     }
     foreach ([
@@ -94,7 +95,7 @@ function planning_migrate(): void {
     foreach (planning_alters() as $sql) { try { $pdo->exec($sql); } catch (Throwable $t) {} }
     foreach (planning_defauts() as $k => $v) if (setting($k) === '') set_setting($k, $v);
     foreach ([] + ['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
-              'planning_pictos' => "plantation|plant|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|cone|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|box|Location de matériel spécifique|Réserver la location|7\nnacelle|crane|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|log|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|bolt|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|house|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|key|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|bird|Période de nidification à vérifier||\nsouche|stump|Rognage de souche||\nmairie|clipboard|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|tree|Platane (chancre coloré)||",
+              'planning_pictos' => "plantation|plant|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|cone|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|box|Location de matériel spécifique|Réserver la location|7\nnacelle|crane|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|log|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|bolt|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|house|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|key|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|bird|Période de nidification à vérifier||\nsouche|stump|Rognage de souche||\nmairie|clipboard|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|tree|Platane (chancre coloré)||\nkleyk|kleyk|Fiche d'intervention Kleyk|Remplir la fiche d'intervention dans Kleyk|0",
 
     'planning_motifs' => "Visite de chiffrage\nRendez-vous prospect\nRéunion de chantier\nVisite de fin de travaux\nRéception de travaux\nVisite de suivi / contrôle\nRendez-vous collectivité\nRendez-vous fournisseur\nFormation / sécurité",
               'planning_depot' => '133 rue Madeleine Brès, 46100 Cambes', 'planning_depot_lat' => '44.6001', 'planning_depot_lng' => '1.9475'] as $k => $v)
@@ -136,6 +137,23 @@ function equipes_liste(): array {
 
 function evt_journal(int $id, string $quoi): void { try { q("INSERT INTO evenement_journal (evenement_id, qui, quoi) VALUES (?,?,?)", [$id, user()['id'] ?? null, mb_substr($quoi, 0, 500)]); } catch (Throwable $t) {} }
 
+// Comptes actifs de l'espace pro qui ne sont rattachés à aucune personne du personnel
+function comptes_hors_personnel(): array {
+    return q("SELECT u.id, u.prenom, u.nom, u.email FROM utilisateurs u WHERE u.actif = 1 AND NOT EXISTS (SELECT 1 FROM personnel p WHERE p.utilisateur_id = u.id) ORDER BY u.prenom, u.nom")->fetchAll();
+}
+// Rattache d'office une personne sans compte au compte qui a le même e-mail, ou le même prénom + nom (s'il n'y en a qu'un)
+function personnel_rattacher_auto(): int {
+    $n = 0; $libres = comptes_hors_personnel();
+    $norm = fn($x) => mb_strtolower(trim(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', (string)$x)));
+    foreach (q("SELECT id, prenom, nom, email FROM personnel WHERE utilisateur_id IS NULL")->fetchAll() as $p) {
+        $c = array_values(array_filter($libres, fn($u) => $p['email'] !== '' && $norm($u['email']) === $norm($p['email'])));
+        if (!$c) $c = array_values(array_filter($libres, fn($u) => $norm($u['prenom'] . ' ' . $u['nom']) === $norm($p['prenom'] . ' ' . $p['nom']) && trim($p['nom']) !== ''));
+        if (count($c) !== 1) continue;
+        q("UPDATE personnel SET utilisateur_id = ? WHERE id = ?", [$c[0]['id'], $p['id']]);
+        $libres = array_values(array_filter($libres, fn($u) => (int)$u['id'] !== (int)$c[0]['id'])); $n++;
+    }
+    return $n;
+}
 function personnel_liste(bool $tous = false): array { return q("SELECT * FROM personnel" . ($tous ? '' : ' WHERE actif = 1') . " ORDER BY ordre, prenom, nom")->fetchAll(); }
 function materiel_liste(bool $tous = false): array { return q("SELECT * FROM materiel" . ($tous ? '' : ' WHERE actif = 1') . " ORDER BY ordre, type, nom")->fetchAll(); }
 
@@ -434,6 +452,27 @@ function pictos_liste(): array {
     foreach (preg_split('/\R/', setting('planning_pictos')) as $ln) { $c = array_map('trim', explode('|', $ln)); if (isset($c[1])) $c[1] = PICTO_EMOJI_VERS_ICONE[$c[1]] ?? $c[1]; if (count($c) < 3 || $c[0] === '' || !preg_match('/^[a-z0-9_-]{1,30}$/', $c[0])) continue;
         $l[$c[0]] = ['code' => $c[0], 'emoji' => $c[1], 'icone' => isset(PICTO_ICONES[$c[1]]) ? $c[1] : '', 'html' => picto_html($c[1], $c[2]), 'libelle' => $c[2], 'action' => $c[3] ?? '', 'delai' => ($c[4] ?? '') !== '' ? (int)$c[4] : null]; }
     return $l;
+}
+/** Ajoute une fois le pictogramme « Fiche d'intervention Kleyk » aux réglages existants (supprimable ensuite) */
+function kleyk_picto_ajouter(): void {
+    if (setting('kleyk_picto_ok') === '1') return;
+    if (!preg_match('/^kleyk\|/m', setting('planning_pictos'))) set_setting('planning_pictos', rtrim(setting('planning_pictos')) . "\nkleyk|kleyk|Fiche d'intervention Kleyk|Remplir la fiche d'intervention dans Kleyk|0");
+    if (setting('kleyk_auto') === '') set_setting('kleyk_auto', '1');
+    set_setting('kleyk_picto_ok', '1');
+}
+/** Chantiers d'élagage (chantier, urgence) : pictogramme Kleyk posé d'office une seule fois, avec son action « fiche à remplir ».
+ *  Les chantiers passés ou annulés sont seulement marqués ; si on retire le picto ensuite, il ne revient pas. */
+function kleyk_init(?int $id = null): int {
+    $actif = setting('kleyk_auto') !== '0' && isset(pictos_liste()['kleyk']); $n = 0;
+    $sql = "SELECT * FROM evenements WHERE kleyk_init = 0 AND type IN ('chantier','urgence')" . ($id ? " AND id = " . (int)$id : '') . " LIMIT 300";
+    foreach (q($sql)->fetchAll() as $e) {
+        $neuf = $actif && $e['statut'] !== 'annule' && $e['statut'] !== 'termine' && (!$e['debut'] || $e['debut'] >= date('Y-m-d 00:00:00'));
+        if ($neuf) { $pc = array_values(array_unique(array_merge(array_filter(explode(',', (string)$e['pictos'])), ['kleyk'])));
+            q("UPDATE evenements SET pictos = ?, kleyk_init = 1 WHERE id = ?", [implode(',', $pc), $e['id']]);
+            try { taches_depuis_pictos(['id' => $e['id'], 'pictos' => implode(',', $pc), 'debut' => $e['debut']]); } catch (Throwable $t) {} $n++; }
+        else q("UPDATE evenements SET kleyk_init = 1 WHERE id = ?", [$e['id']]);
+    }
+    return $n;
 }
 function pictos_evt(array $e): array { return array_values(array_intersect(array_filter(explode(',', (string)($e['pictos'] ?? ''))), array_keys(pictos_liste()))); }
 function motifs_rdv(): array { return array_values(array_filter(array_map('trim', preg_split('/\R/', setting('planning_motifs'))))); }

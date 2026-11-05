@@ -12,6 +12,7 @@ const PICTO_ICONES = [
     'key'       => '<circle cx="8" cy="14" r="4"/><path d="M11 11l9-9"/><path d="M16 6l3 3"/><path d="M13 9l3 3"/>',
     'bird'      => '<path d="M3 14c4 0 7-3 9-7 1-2 3-3 5-3 0 2-1 3-2 4h6l-3 2c-1 5-5 8-11 8-2 0-3-1-4-4z"/><path d="M9 18v3"/>',
     'stump'     => '<path d="M5 9c0-2 3-3 7-3s7 1 7 3"/><path d="M5 9v9c0 2 3 3 7 3s7-1 7-3V9"/><ellipse cx="12" cy="9" rx="7" ry="3"/><circle cx="12" cy="9" r="1.5"/>',
+    'kleyk'     => '<rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M8.5 11.5l2.3 2.3 4.7-4.7"/><path d="M10.5 18.5h3"/>',
     'clipboard' => '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2"/><path d="M8 10h8"/><path d="M8 14h8"/><path d="M8 18h5"/>',
     'tree'      => '<path d="M9 15H7.5a4 4 0 0 1-.5-8 5.5 5.5 0 0 1 10-1.5A4.2 4.2 0 0 1 16.5 15H15"/><path d="M12 11v10"/><path d="M9 21h6"/>',
     'truck'     => '<path d="M2 7h11v9H2z"/><path d="M13 10h5l3 3v3h-8z"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',

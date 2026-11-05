@@ -110,6 +110,7 @@ switch ($a) {
         }
         $affecter($id, $r['personnel'], $r['materiel']);
         if ($r['phyto'] && is_array($in['phyto_fiche'] ?? null)) phyto_enregistrer($id, $in['phyto_fiche']);
+        try { kleyk_init($id); } catch (Throwable $t) {}
         $e = evt_charger($id);
         try { taches_depuis_pictos($e); if ($avant && $avant['debut'] !== $e['debut']) taches_recaler($e);
               if ($e['bordereau_id'] && (!$avant || (int)$avant['bordereau_id'] !== (int)$e['bordereau_id']) && !prestations_liste($id)) prestations_depuis_bordereau($id, (int)$e['bordereau_id']); } catch (Throwable $t) {}

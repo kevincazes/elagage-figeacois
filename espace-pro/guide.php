@@ -435,6 +435,12 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
  'Le salarié fait sa demande (dates, type, demi-journée éventuelle) depuis son téléphone ; le responsable est notifié, accepte ou refuse, et l\'absence est posée au planning : personne ne pourra lui affecter un chantier ces jours-là. L\'administration peut poser une absence directement.',
 ]); ?>
 
+<h3>Fiche d'intervention Kleyk</h3>
+<p>Chaque chantier d'élagage (et chaque urgence) reçoit d'office le pictogramme <strong>Fiche d'intervention Kleyk</strong> et l'action à cocher. Sur le terrain, dans <kbd>Mon planning</kbd>, ouvre le chantier puis appuie sur <strong>Fiche d'intervention Kleyk</strong> : Kleyk s'ouvre et les infos du chantier sont déjà copiées ; colle-les, remplis la fiche, puis « Fiche Kleyk remplie : cocher l'action ». L'adresse de Kleyk se règle dans <kbd>Paramètres › Liens du tableau de bord</kbd>.</p>
+
+<h3>Personnel et comptes de l'espace pro</h3>
+<p>Dans <kbd>Planning › Personnel, matériel et équipes</kbd>, les inscrits de l'espace pro qui ne sont pas encore dans le personnel sont proposés en haut : un clic les ajoute, déjà rattachés à leur compte. Dans la ligne « Nouvelle personne », tape un prénom : la liste propose les inscrits et remplit nom et e-mail.</p>
+
 <h3>Livret du salarié</h3>
 <p><kbd>Chantiers & agenda › Livrets du personnel</kbd> (chaque salarié voit le sien via « Mon livret »). Pour chaque personne : <strong>titres et habilitations</strong> (SST, CACES, permis, autorisation de conduite employeur, AIPR, habilitation électrique, travail en hauteur…) avec date d'obtention, date de validité calculée d'après le type et <strong>scan ou photo du diplôme</strong> ; <strong>plan de formation</strong> (une formation « réalisée » crée le titre correspondant) ; <strong>documents</strong> par dossier ; <strong>fiche</strong> (poste, entrée, contrat). Un titre valide donne la compétence au planning, un titre expiré la retire : les échéances apparaissent sur le tableau de bord, dans les alertes du planning et en notification au salarié et à la gestion. La liste des types de titres (validité, compétence liée) se règle en bas de la vue d'ensemble. Les EPI restent dans Vérif EPI.</p>
 

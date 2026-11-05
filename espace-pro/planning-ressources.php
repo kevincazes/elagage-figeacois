@@ -14,7 +14,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($id === 'nouveau') { if ($vals[0] === '') continue; q("INSERT INTO personnel (prenom, nom, poste, telephone, email, couleur, competences, utilisateur_id, ordre, actif, ics_token) VALUES (?,?,?,?,?,?,?,?,?,?,?)", array_merge($vals, [bin2hex(random_bytes(16))])); }
             else q("UPDATE personnel SET prenom = ?, nom = ?, poste = ?, telephone = ?, email = ?, couleur = ?, competences = ?, utilisateur_id = ?, ordre = ?, actif = ? WHERE id = ?", array_merge($vals, [(int)$id]));
         }
+        personnel_rattacher_auto();
         flash('Personnel enregistré.');
+    } elseif ($a === 'pers_compte') {
+        // Ajoute au personnel un ou tous les comptes de l'espace pro qui n'y sont pas encore
+        $ids = ($_POST['uid'] ?? '') === 'tous' ? array_column(comptes_hors_personnel(), 'id') : [(int)($_POST['uid'] ?? 0)];
+        $n = 0; $ordre = (int)q("SELECT COALESCE(MAX(ordre),0) m FROM personnel")->fetch()['m'];
+        foreach ($ids as $uid) {
+            $u = q("SELECT id, prenom, nom, email FROM utilisateurs WHERE id = ? AND actif = 1", [$uid])->fetch();
+            if (!$u || q("SELECT id FROM personnel WHERE utilisateur_id = ?", [$u['id']])->fetch()) continue;
+            q("INSERT INTO personnel (prenom, nom, poste, telephone, email, couleur, competences, utilisateur_id, ordre, actif, ics_token) VALUES (?,?,'','',?,'#2f6b45','',?,?,1,?)", [$u['prenom'], $u['nom'], $u['email'], $u['id'], ++$ordre, bin2hex(random_bytes(16))]);
+            $n++;
+        }
+        flash($n > 1 ? "$n personnes ajoutées au personnel, rattachées à leur compte." : ($n ? 'Personne ajoutée au personnel, rattachée à son compte. Complète son poste et ses compétences.' : 'Rien à ajouter.'));
+        redirect('planning-ressources.php#personnel');
     } elseif ($a === 'materiel') {
         foreach ($_POST['m'] ?? [] as $id => $m) {
             $por = ($m['porteur_id'] ?? '') !== '' && (string)$m['porteur_id'] !== (string)$id ? (int)$m['porteur_id'] : null;
@@ -67,7 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('planning-ressources.php');
 }
 $pers = personnel_liste(true); $mats = materiel_liste(true); $eqs = equipes_liste();
-$comptes = q("SELECT id, prenom, nom FROM utilisateurs WHERE actif = 1 ORDER BY prenom")->fetchAll();
+$comptes = q("SELECT id, prenom, nom, email FROM utilisateurs WHERE actif = 1 ORDER BY prenom")->fetchAll();
+$horsPers = comptes_hors_personnel();
 if (empty(setting('planning_cle_cron'))) set_setting('planning_cle_cron', bin2hex(random_bytes(12)));
 page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 'Planning']);
 ?>
@@ -84,11 +98,20 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
 .multi .comp{position:absolute;top:calc(100% + 4px);left:0;z-index:40;background:var(--blanc);border:1px solid #d5dccd;border-radius:10px;padding:8px;box-shadow:0 10px 24px rgba(28,59,43,.16);display:flex;flex-direction:column;gap:2px;min-width:220px}.multi .comp label{display:flex;gap:8px;align-items:center;margin:0;border:0;background:none;padding:5px 6px;border-radius:6px;font-size:.88rem;cursor:pointer;white-space:nowrap}.multi .comp label:hover{background:var(--clair)}.multi .comp input{width:auto;margin:0}
 </style>
 <h2 id="personnel">Personnel</h2>
+<?php if ($horsPers): ?>
+<div class="hors-pers">
+  <strong><svg class="pi"><use href="#pi-users"/></svg> Comptes de l'espace pro pas encore dans le personnel</strong>
+  <span class="muted small">Un clic les ajoute au personnel, déjà rattachés à leur compte (prénom, nom, e-mail repris) : ils verront leurs chantiers dans « Mon planning ».</span>
+  <div class="hp-liste"><?php foreach ($horsPers as $u): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="pers_compte"><input type="hidden" name="uid" value="<?= (int)$u['id'] ?>"><button class="mini" title="<?= e($u['email']) ?>"><svg class="pi"><use href="#pi-plus"/></svg> <?= e(trim($u['prenom'] . ' ' . $u['nom'])) ?></button></form><?php endforeach; ?>
+  <?php if (count($horsPers) > 1): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="pers_compte"><input type="hidden" name="uid" value="tous"><button class="mini">Tout ajouter (<?= count($horsPers) ?>)</button></form><?php endif; ?></div>
+</div>
+<?php endif; ?>
+<datalist id="dlComptes"><?php foreach ($horsPers as $u): ?><option value="<?= e(trim($u['prenom'] . ' ' . $u['nom'])) ?>"><?= e($u['email']) ?></option><?php endforeach; ?></datalist>
 <form method="post" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="personnel">
 <div class="scroll"><table class="tbl"><thead><tr><th>Prénom</th><th>Nom</th><th>Poste</th><th>Téléphone</th><th>E-mail</th><th>Compétences</th><th>Compte de l'espace pro</th><th>Couleur</th><th>Ordre</th><th>Actif</th></tr></thead><tbody>
 <?php foreach (array_merge($pers, [['id' => 'nouveau', 'prenom' => '', 'nom' => '', 'poste' => '', 'telephone' => '', 'email' => '', 'couleur' => '#2f6b45', 'competences' => '', 'utilisateur_id' => null, 'ordre' => count($pers) + 1, 'actif' => 1, 'ics_token' => '']]) as $p): $k = $p['id']; ?>
 <tr<?= $k === 'nouveau' ? ' style="background:#f6f9f1"' : '' ?>>
-  <td><input name="p[<?= $k ?>][prenom]" value="<?= e($p['prenom']) ?>" placeholder="<?= $k === 'nouveau' ? 'Nouvelle personne…' : '' ?>" style="min-width:110px"></td>
+  <td><input name="p[<?= $k ?>][prenom]" value="<?= e($p['prenom']) ?>" placeholder="<?= $k === 'nouveau' ? ($horsPers ? 'Tape un prénom…' : 'Nouvelle personne…') : '' ?>"<?= $k === 'nouveau' && $horsPers ? ' list="dlComptes" id="nvPrenom" autocomplete="off"' : '' ?> style="min-width:110px"></td>
   <td><input name="p[<?= $k ?>][nom]" value="<?= e($p['nom']) ?>" style="min-width:110px"></td>
   <td><input name="p[<?= $k ?>][poste]" value="<?= e($p['poste']) ?>" placeholder="Grimpeur, chef d'équipe…" style="min-width:130px"></td>
   <td><input name="p[<?= $k ?>][telephone]" value="<?= e($p['telephone']) ?>" style="min-width:110px"></td>
@@ -103,6 +126,20 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
 </tr>
 <?php endforeach; ?>
 </tbody></table></div>
+<script>
+// Nouvelle personne : en tapant un prénom, les comptes de l'espace pro sont proposés ; le choix remplit la ligne et la rattache au compte
+(function () {
+  const COMPTES = <?= json_encode(array_map(fn($u) => ['id' => (int)$u['id'], 'prenom' => $u['prenom'], 'nom' => $u['nom'], 'email' => $u['email'], 'lib' => trim($u['prenom'] . ' ' . $u['nom'])], $horsPers), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
+  const ip = document.getElementById('nvPrenom'); if (!ip) return;
+  const f = n => document.querySelector('[name="p[nouveau][' + n + ']"]');
+  ip.addEventListener('input', () => {
+    const u = COMPTES.find(c => c.lib.toLowerCase() === ip.value.trim().toLowerCase()); if (!u) return;
+    ip.value = u.prenom; f('nom').value = u.nom; if (!f('email').value) f('email').value = u.email; f('utilisateur_id').value = String(u.id);
+    ip.closest('tr').classList.add('rattache'); f('poste').focus();
+  });
+})();
+</script>
+<style>.hors-pers{display:flex;flex-direction:column;gap:6px;border:1px dashed #b9c9a6;border-radius:10px;padding:10px 12px;margin:0 0 12px;background:#f6f9f1}.hors-pers .hp-liste{display:flex;flex-wrap:wrap;gap:6px}.hors-pers form{margin:0;display:inline}.tbl tr.rattache td{background:#e9f3df}</style>
 <p><button class="btn">Enregistrer le personnel</button> <span class="muted small">Le « compte de l'espace pro » relie la personne à son compte : elle voit alors ses chantiers dans « Mon planning ». Le « lien agenda » s'ajoute à l'agenda du téléphone (Google Agenda : « À partir de l'URL » ; iPhone : Réglages › Calendrier › Comptes › Ajouter un calendrier avec abonnement).</span></p>
 </form>
 

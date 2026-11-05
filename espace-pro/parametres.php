@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (q("SELECT DISTINCT base_id FROM bpu_lignes WHERE base_id IS NOT NULL") as $b) appliquer_variantes((int)$b['base_id']);
         journal('parametres', "Coefficient $avantCoef → " . setting('coef') . ', TVA ' . setting('tva') . ' %, arrondi ' . setting('arrondi') . ' €, progression ' . setting('prog_h2') . '/' . setting('prog_h3') . '/' . setting('prog_d2') . '/' . setting('prog_d3') . ' %'); flash('Règles de calcul enregistrées : tous les prix non figés sont recalculés.');
     } elseif ($action === 'liens') {
-        foreach (['lien_drive', 'lien_extrabat', 'lien_urgence', 'lien_arbogestion'] as $k) set_setting($k, trim($_POST[$k] ?? ''));
+        foreach (['lien_drive', 'lien_extrabat', 'lien_urgence', 'lien_arbogestion', 'lien_grality', 'lien_kleyk'] as $k) set_setting($k, trim($_POST[$k] ?? ''));
         flash('Liens du tableau de bord enregistrés.');
     } elseif ($action === 'taux') {
         $avantP = ressource_equipe();
@@ -124,6 +124,8 @@ page_start('Paramètres', 'parametres.php');
       <label>Extrabat <input name="lien_extrabat" value="<?= e(setting('lien_extrabat')) ?>" placeholder="https://…"></label>
       <label>Urgence Élagage <input name="lien_urgence" value="<?= e(setting('lien_urgence')) ?>"></label>
       <label>Arbogestion <input name="lien_arbogestion" value="<?= e(setting('lien_arbogestion')) ?>"></label>
+      <label>Grality <input name="lien_grality" value="<?= e(setting('lien_grality')) ?>" placeholder="https://…"></label>
+      <label>Kleyk (fiches d'intervention) <input name="lien_kleyk" value="<?= e(setting('lien_kleyk')) ?>" placeholder="https://…"><small class="muted">Aussi ouvert par le bouton « Fiche d'intervention Kleyk » de Mon planning. Sur téléphone, l'adresse web de Kleyk ouvre l'application si elle est installée.</small></label>
     </div>
     <button class="btn secondary" type="submit">Enregistrer les liens</button>
   </form>
