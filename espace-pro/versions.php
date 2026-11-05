@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.2', '2026-11-05', [
+        'Importer les quantités d\'un DQE : rapprochement plus juste quand la collectivité écrit autrement (« inférieure ou égale à 1,50 m » = « ≤ 1,50 m ») : les mots de liaison sont ignorés et les dimensions (1,50 ; 2,85…) départagent les classes de taille',
+        'Importer les quantités d\'un DQE : une ligne du DQE absente du bordereau peut être ajoutée (« + Ajouter au bordereau comme nouvelle ligne ») et rattachée à une prestation du catalogue (proposée automatiquement, avec son prix) ; elle arrive en fin de bordereau, dans une section à replacer',
+    ]],
     ['2.7.1', '2026-11-05', [
         'Créer un bordereau en copiant un bordereau existant (ex. le DQE d\'un BPU) : l\'équipe appliquée aux prix est reprise automatiquement de l\'original, pour garder exactement les mêmes prix unitaires ; la collectivité aussi, si le champ est vide',
     ]],

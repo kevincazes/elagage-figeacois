@@ -13,14 +13,30 @@ $retour = 'bordereau.php?id=' . $bid;
 if ($b['statut'] === 'fige') { flash('Bordereau figé : défige-le pour changer ses quantités.', 'err'); redirect($retour); }
 if ($det = verrou_prendre($bid)) { flash("Dossier ouvert par {$det['prenom']} {$det['nom']} : attends qu'il le libère pour importer des quantités.", 'err'); redirect($retour); }
 $bl = q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne' ORDER BY ordre, id", [$bid])->fetchAll();
+// Catalogue (lignes du DQE absentes du bordereau : ajoutées et rattachées à une prestation) et mémoire des rapprochements déjà faits
+$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, " . classes_ordre_sql() . ", ordre")->fetchAll();
+$catParId = []; foreach ($catalogue as $c) $catParId[(int)$c['id']] = $c;
+$memoire = []; try { foreach (q("SELECT cle, ligne_id FROM appariements") as $mm) $memoire[$mm['cle']] = $mm['ligne_id'] ? (int)$mm['ligne_id'] : null; } catch (Throwable $t) {}
+$eqB = $b['equipe_id'] !== null ? (int)$b['equipe_id'] : null;
 $blParId = []; foreach ($bl as $l) $blParId[(int)$l['id']] = $l;
 $fmtQ = fn($v) => $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float)$v, 3, ',', ' '), '0'), ',');
 
 // ---- Étape 2 : application des quantités validées ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'appliquer') {
     $n = 0; $vus = []; $modifs = [];
+    $nouv = 0; $ordre = (int)q("SELECT COALESCE(MAX(ordre), 0) o FROM bordereau_lignes WHERE bordereau_id = ?", [$bid])->fetch()['o'];
     foreach ((array)($_POST['m'] ?? []) as $k => $m) {
         if (empty($m['ok']) || ($m['bl'] ?? '') === '') continue;
+        if ($m['bl'] === 'nouvelle') { // ligne du DQE absente du bordereau : ajoutée à la fin, rattachée à la prestation choisie
+            if (!$nouv) q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, ++$ordre, 'Lignes ajoutées depuis le DQE (à replacer et vérifier)']);
+            $lid = ($m['cat'] ?? '') !== '' && isset($catParId[(int)$m['cat']]) ? (int)$m['cat'] : null;
+            $lib = mb_substr(trim((string)($m['lib'] ?? '')), 0, 1000);
+            q("INSERT INTO bordereau_lignes (bordereau_id, ordre, numero, type, code, libelle, unite, ligne_id, quantite) VALUES (?,?,?,'ligne',?,?,?,?,?)",
+              [$bid, ++$ordre, mb_substr((string)($m['num'] ?? ''), 0, 30), mb_substr((string)($m['code'] ?? ''), 0, 50), $lib, mb_substr((string)($m['unite'] ?? ''), 0, 20), $lid, ($m['qte'] ?? '') === '' ? null : nb($m['qte'])]);
+            if (($cle = cle_memoire($lib, '')) !== '') try { q("INSERT INTO appariements (cle, ligne_id) VALUES (?,?) ON DUPLICATE KEY UPDATE ligne_id = VALUES(ligne_id)", [$cle, $lid]); } catch (Throwable $t) {}
+            $modifs[] = '[ajoutée] ' . mb_substr($lib, 0, 60) . ($lid ? ' → ' . $catParId[$lid]['code'] : ' (sans prestation : prix à saisir)'); $nouv++;
+            continue;
+        }
         $id = (int)$m['bl']; if (!isset($blParId[$id])) continue;
         $q = ($m['qte'] ?? '') === '' ? null : nb($m['qte']);
         if (isset($vus[$id])) { $q = $q === null ? $vus[$id] : ($vus[$id] ?? 0) + $q; } // même ligne du bordereau trouvée deux fois : quantités additionnées
@@ -33,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'appli
     }
     $vides = 0;
     if (($_POST['absentes'] ?? '') === 'vider') foreach ($bl as $l) if (!array_key_exists((int)$l['id'], $vus) && $l['quantite'] !== null) { q("UPDATE bordereau_lignes SET quantite = NULL WHERE id = ?", [$l['id']]); $vides++; }
-    journal('modif', "Quantités importées du DQE « " . mb_substr((string)($_POST['fichier'] ?? ''), 0, 80) . " » : $n ligne(s) modifiée(s)" . ($vides ? ", $vides vidée(s) (absentes du DQE)" : '') . ($modifs ? "\n" . implode("\n", array_slice($modifs, 0, 200)) : ''), $bid);
-    flash("Quantités du DQE enregistrées : $n ligne(s) modifiée(s)" . ($vides ? ", $vides ligne(s) absente(s) du DQE vidée(s)" : '') . '.');
+    journal('modif', "Quantités importées du DQE « " . mb_substr((string)($_POST['fichier'] ?? ''), 0, 80) . " » : $n ligne(s) modifiée(s)" . ($nouv ? ", $nouv ajoutée(s)" : '') . ($vides ? ", $vides vidée(s) (absentes du DQE)" : '') . ($modifs ? "\n" . implode("\n", array_slice($modifs, 0, 200)) : ''), $bid);
+    flash("Quantités du DQE enregistrées : $n ligne(s) modifiée(s)" . ($nouv ? ", $nouv ligne(s) ajoutée(s) en fin de bordereau (section « Lignes ajoutées depuis le DQE ») : replace-les et vérifie leur prix" : '') . ($vides ? ", $vides ligne(s) absente(s) du DQE vidée(s)" : '') . '.');
     redirect($retour);
 }
 
@@ -46,7 +62,10 @@ function dqe_rapprocher(array $dqe, array $bl): array {
     $pris = []; $res = [];
     $rang = []; foreach ($bl as $n => $l) $rang[(int)$l['id']] = $n; $dernier = -1;
     $libre = function (array $ids) use (&$pris, &$dernier, $rang) { foreach ($ids as $i) if (!isset($pris[$i]) && $rang[$i] > $dernier) return $i; foreach ($ids as $i) if (!isset($pris[$i])) return $i; return null; };
-    $mots = fn($s) => array_values(array_unique(array_filter(preg_split('/[^a-z0-9,]+/', norm($s)), fn($w) => mb_strlen($w) > 1)));
+    // Mots utiles (sans les mots de liaison ni les tournures de comparaison : « inférieure ou égale à » = « ≤ ») et dimensions (1,50 ; 2,85…)
+    $vides = array_flip(['pour', 'une', 'un', 'ou', 'et', 'de', 'des', 'du', 'la', 'le', 'les', 'a', 'au', 'aux', 'en', 'sur', 'dans', 'par', 'avec', 'chaque', 'dont', 'est', 'inferieure', 'inferieur', 'superieure', 'superieur', 'egale', 'egal', 'moins', 'plus', 'que', 'entre', 'm', 'cm', 'ml', 'mesuree', 'mesure', 'sol', 'avant', 'abattus', 'abattu']);
+    $mots = fn($s) => array_values(array_unique(array_filter(preg_split('/[^a-z0-9,]+/', norm($s)), fn($w) => mb_strlen($w) > 1 && !isset($vides[$w]) && !preg_match('/^\d+(,\d+)?$/', $w))));
+    $dims = function ($s) { preg_match_all('/\d+(?:[,.]\d+)?/', norm($s), $m); $r = array_values(array_unique(array_map(fn($x) => rtrim(rtrim(str_replace('.', ',', $x), '0'), ','), $m[0]))); sort($r); return $r; };
     foreach ($dqe as $k => $d) {
         $id = null; $par = '';
         if ($d['code'] !== '' && isset($parCode[$nc($d['code'])])) { $id = $libre($parCode[$nc($d['code'])]); $par = 'code'; }
@@ -55,8 +74,10 @@ function dqe_rapprocher(array $dqe, array $bl): array {
         if (!$id && $d['numero'] !== '' && isset($parNum[$nc($d['numero'])])) { $id = $libre($parNum[$nc($d['numero'])]); $par = 'N°'; }
         $score = $id ? 100 : 0;
         if (!$id && $d['libelle'] !== '') { // désignation la plus proche (mots communs, nombres compris : « 10 à 20 m » ≠ « plus de 20 m »)
-            $md = $mots($d['libelle']); $best = 0; $bestId = null;
-            foreach ($bl as $l) { $ml = $mots($l['libelle']); if (!$ml || !$md) continue; $c = count(array_intersect($md, $ml)); $s = 2 * $c / (count($md) + count($ml)); if (isset($pris[(int)$l['id']])) $s -= .2; elseif ($rang[(int)$l['id']] === $dernier + 1) $s += .08; elseif ($rang[(int)$l['id']] > $dernier) $s += .02; if ($s > $best) { $best = $s; $bestId = (int)$l['id']; } }
+            $md = $mots($d['libelle']); $dd = $dims($d['libelle']); $best = 0; $bestId = null;
+            foreach ($bl as $l) { $ml = $mots($l['libelle']); if (!$ml || !$md) continue; $c = count(array_intersect($md, $ml)); $s = 2 * $c / (count($md) + count($ml));
+                // Mêmes dimensions (ex. 1,50 et 2,85) : forte présomption ; dimensions différentes : autre classe de taille
+                $dl = $dims($l['libelle']); if ($dd && $dl) $s += $dd === $dl ? .3 : -.3; if (isset($pris[(int)$l['id']])) $s -= .2; elseif ($rang[(int)$l['id']] === $dernier + 1) $s += .08; elseif ($rang[(int)$l['id']] > $dernier) $s += .02; if ($s > $best) { $best = $s; $bestId = (int)$l['id']; } }
             if ($best >= .6) { $id = $bestId; $score = min(99, (int)round($best * 100)); $par = 'désignation proche'; }
         }
         if ($id) { $pris[$id] = true; $dernier = $rang[$id]; }
@@ -78,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'lire'
         $dqe = array_values(array_filter($brutes, fn($x) => !$x['section'] && $x['quantite'] !== null));
         if (!$dqe) throw new RuntimeException("Aucune quantité trouvée dans ce fichier. Vérifie qu'il a bien une colonne « Quantité » (ou « Qté ») ; sinon colle les lignes en gardant la ligne de titres.");
         $rap = dqe_rapprocher($dqe, $bl); $etape = 'apercu';
+        $catFam = array_values(array_filter($catalogue, fn($c) => $c['famille'] !== ''));
+        foreach ($dqe as $k => $d) { [$pid, $psc] = apparier($d, '', $catFam, $memoire); $rap[$k]['cat'] = $pid; $rap[$k]['cat_score'] = $psc; }
     } catch (Throwable $t) { $erreur = $t->getMessage(); }
 }
 
@@ -115,11 +138,25 @@ page_start('Importer les quantités d\'un DQE', 'bordereaux.php', ['bordereau.ph
   <td><input type="checkbox" name="m[<?= $k ?>][ok]" value="1" <?= $r['bl'] ? 'checked' : '' ?> style="width:auto"></td>
   <td><span class="muted small"><?= e(trim($d['numero'] . ' ' . $d['code'])) ?></span> <?= e(mb_strimwidth($d['libelle'], 0, 140, '…')) ?> <span class="muted small"><?= e($d['unite']) ?></span></td>
   <td class="r"><input class="num" name="m[<?= $k ?>][qte]" value="<?= e($fmtQ($d['quantite'])) ?>" inputmode="decimal" style="width:90px"></td>
-  <td><select name="m[<?= $k ?>][bl]" onchange="this.closest('tr').querySelector('[type=checkbox]').checked = this.value !== ''"><option value="">— ne pas reprendre —</option><?php foreach ($bl as $l): ?><option value="<?= (int)$l['id'] ?>" <?= (int)$r['bl'] === (int)$l['id'] ? 'selected' : '' ?>><?= e(trim(($l['numero'] ?: $l['ordre']) . ' ' . $l['code']) . ' – ' . mb_strimwidth($l['libelle'], 0, 90, '…')) ?></option><?php endforeach; ?></select></td>
-  <td><?php if ($r['bl']): ?><span class="etiq <?= $r['score'] < 100 ? 'doute' : '' ?>"><?= e($r['par']) ?><?= $r['score'] < 100 ? ' (' . $r['score'] . ' %)' : '' ?></span><?php else: ?><span class="etiq non">non trouvée</span><?php endif; ?></td>
+  <td><input type="hidden" name="m[<?= $k ?>][num]" value="<?= e($d['numero']) ?>"><input type="hidden" name="m[<?= $k ?>][code]" value="<?= e($d['code']) ?>"><input type="hidden" name="m[<?= $k ?>][lib]" value="<?= e($d['libelle']) ?>"><input type="hidden" name="m[<?= $k ?>][unite]" value="<?= e($d['unite']) ?>">
+    <select name="m[<?= $k ?>][bl]" class="selbl" onchange="choixBl(this)"><option value="">— ne pas reprendre —</option><option value="nouvelle">+ Ajouter au bordereau comme nouvelle ligne</option><?php foreach ($bl as $l): ?><option value="<?= (int)$l['id'] ?>" <?= (int)$r['bl'] === (int)$l['id'] ? 'selected' : '' ?>><?= e(trim(($l['numero'] ?: $l['ordre']) . ' ' . $l['code']) . ' – ' . mb_strimwidth($l['libelle'], 0, 90, '…')) ?></option><?php endforeach; ?></select>
+    <div class="nouv" hidden><span class="small muted">Prestation du catalogue (donne le prix) :</span>
+      <select name="m[<?= $k ?>][cat]" class="selcat"><option value="">— Sans prestation : prix à saisir dans le bordereau —</option>
+      <?php $fam = null; foreach ($catalogue as $c): if ($c['famille'] !== $fam) { if ($fam !== null) echo '</optgroup>'; $fam = $c['famille']; echo '<optgroup label="' . e($fam ?: 'Sans famille') . '">'; } ?>
+        <option value="<?= (int)$c['id'] ?>" <?= ($r['cat'] ?? null) === (int)$c['id'] ? 'selected' : '' ?>><?= e($c['code']) ?> · <?= e(mb_substr($c['libelle'], 0, 80)) ?></option>
+      <?php endforeach; if ($fam !== null) echo '</optgroup>'; ?></select> <span class="puc small"></span><?php if (!empty($r['cat'])): ?> <span class="etiq doute">proposée (<?= (int)$r['cat_score'] ?> %)</span><?php endif; ?></div></td>
+  <td><?php if ($r['bl']): ?><span class="etiq <?= $r['score'] < 100 ? 'doute' : '' ?>"><?= e($r['par']) ?><?= $r['score'] < 100 ? ' (' . $r['score'] . ' %)' : '' ?></span><?php else: ?><span class="etiq non">non trouvée : choisis la ligne, ou « + Ajouter »</span><?php endif; ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody></table></div>
+<script>
+// Ligne du DQE absente du bordereau : « + Ajouter » affiche le choix de la prestation (prix calculé avec l'équipe du bordereau)
+const PU = <?php $pu = []; foreach ($catalogue as $c) $pu[(int)$c['id']] = prix_catalogue($c, $eqB); echo json_encode($pu); ?>;
+const eur = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' € HT';
+function majPu(s) { const z = s.closest('td').querySelector('.puc'); if (z) z.textContent = s.value && PU[s.value] !== undefined ? eur(PU[s.value]) : ''; }
+function choixBl(s) { const tr = s.closest('tr'); tr.querySelector('[type=checkbox]').checked = s.value !== ''; tr.querySelector('.nouv').hidden = s.value !== 'nouvelle'; tr.className = s.value === 'nouvelle' ? 'non' : (s.value ? '' : 'doute'); }
+document.querySelectorAll('select.selcat').forEach(s => { majPu(s); s.addEventListener('change', () => majPu(s)); });
+</script>
 <?php if ($absentes): ?><details style="margin:10px 0"><summary><?= count($absentes) ?> ligne(s) du bordereau absente(s) du DQE</summary><ul class="small"><?php foreach ($absentes as $l): ?><li><?= e(trim(($l['numero'] ?: $l['ordre']) . ' ' . $l['code']) . ' – ' . mb_strimwidth($l['libelle'], 0, 110, '…')) ?><?= $l['quantite'] !== null ? ' <span class="muted">(quantité actuelle ' . e($fmtQ($l['quantite'])) . ')</span>' : '' ?></li><?php endforeach; ?></ul></details>
 <p><label style="display:inline-flex;gap:8px;align-items:center;font-weight:400"><input type="radio" name="absentes" value="garder" checked style="width:auto"> Garder la quantité actuelle des lignes absentes du DQE</label><br>
 <label style="display:inline-flex;gap:8px;align-items:center;font-weight:400"><input type="radio" name="absentes" value="vider" style="width:auto"> Vider la quantité des lignes absentes du DQE</label></p><?php endif; ?>
