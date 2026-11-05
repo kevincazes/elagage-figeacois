@@ -20,11 +20,11 @@ fputcsv($out, ['Client', $b['client']], ';');
 fputcsv($out, ['Date', date('d/m/Y'), $fige ? 'Prix figés le ' . date('d/m/Y', strtotime($b['fige_le'])) : 'Brouillon', 'TVA %', $fr($tva)], ';');
 fputcsv($out, [], ';');
 fputcsv($out, ['N°', 'Code', 'Désignation', 'Unité', 'PU HT (€)', 'PU TTC (€)', 'Quantité', 'Total HT (€)'], ';');
-$total = 0;
+$total = 0; $MOY = moyens_bordereau((int)$b['id']);
 foreach ($lignes as $l) {
     $num = $l['numero'] !== '' ? $l['numero'] : (string)$l['ordre'];
     if ($l['type'] === 'section') { fputcsv($out, [$num, '', mb_strtoupper($l['libelle'])], ';'); continue; }
-    $pu = $fige ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId, (float)($b['ajust'] ?? 0)) : 0));
+    $pu = $fige ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (pu_bordereau($l, $cat, $eqId, (float)($b['ajust'] ?? 0), moyens_cout($MOY[(int)$l['id']] ?? [])) ?? 0.0));
     $q = $l['quantite']; $tot = $q !== null ? $pu * (float)$q : null; if ($tot !== null) $total += $tot;
     fputcsv($out, [$num, $l['code'], $l['libelle'], $l['unite'], $fr($pu), $fr($pu * (1 + $tva / 100)), $q !== null ? $fr($q) : '', $tot !== null ? $fr($tot) : ''], ';');
 }

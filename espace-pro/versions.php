@@ -3,6 +3,7 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.7', '2026-11-05', [
+        'Bordereau : moyens ponctuels propres au bordereau (« + moyen » sous le PU calculé) : une ressource des paramètres (son taux) ou un moyen libre (nom et taux) ajouté en heures à une ligne, ou à toutes les lignes du même code (ex. ABT), sans toucher au catalogue ; repris dans le PU, le curseur, la comparaison des équipes, l\'export, la copie du bordereau et le figeage',
         'Bordereau : « Quantité pour tout le bordereau » met en un clic la même quantité (ex. 1) sur toutes les lignes, ou seulement sur celles sans quantité, ou vide la colonne ; chaque quantité reste modifiable ligne par ligne',
         'Tableau de bord : en mode « Personnaliser », chaque famille se déplace entière en attrapant son titre (souris ou doigt) pour la placer au-dessus ou en dessous d\'une autre ; logo Grality',
         'Bordereau : comparaison des équipes (total HT avec chaque équipe, écart en € et en %, curseur d\'ajustement compris) et bouton « Appliquer » ; on peut créer autant d\'équipes que voulu (ex. équipe intermédiaire) dans Paramètres de prix',

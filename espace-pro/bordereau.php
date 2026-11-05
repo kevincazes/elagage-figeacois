@@ -65,11 +65,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             q("UPDATE bordereau_lignes SET ordre = ?, numero = ?, code = ?, libelle = ?, unite = ?, quantite = ?, pu_manuel = ? WHERE id = ? AND bordereau_id = ?",
               [(int)($d['ordre'] ?? 0), trim($d['numero'] ?? ''), trim($d['code'] ?? ''), trim($d['libelle'] ?? ''), trim($d['unite'] ?? ''), ($d['qte'] ?? '') === '' ? null : nb($d['qte']), ($d['pu'] ?? '') === '' ? null : nb($d['pu']), (int)$id, $bid]);
         }
-        if ($modifs) journal('modif', count($modifs) . " ligne(s) modifiée(s) :\n" . implode("\n", $modifs), $bid);
+        // Moyens ponctuels propres à ce bordereau (ajoutés / retirés depuis la colonne PU calculé)
+        $ress = []; foreach (ressources() as $r) if ($r['role'] !== 'equipe') $ress[(int)$r['id']] = $r;
+        foreach ((array)($_POST['moy_del'] ?? []) as $mid) { $m = q("SELECT m.*, bl.libelle bl_lib, r.nom rnom FROM bordereau_moyens m JOIN bordereau_lignes bl ON bl.id = m.bl_id LEFT JOIN ressources r ON r.id = m.ressource_id WHERE m.id = ? AND m.bordereau_id = ?", [(int)$mid, $bid])->fetch();
+            if ($m) { q("DELETE FROM bordereau_moyens WHERE id = ?", [$m['id']]); $modifs[] = 'Moyen ponctuel retiré : ' . ($m['rnom'] ?? $m['libelle']) . ' ' . (float)$m['heures'] . ' h [' . mb_substr($m['bl_lib'], 0, 40) . ']'; } }
+        foreach ((array)($_POST['moy_add'] ?? []) as $js) { $m = json_decode((string)$js, true); if (!is_array($m)) continue;
+            $h = max(0, nb($m['h'] ?? 0)); $rid = (int)($m['rid'] ?? 0); $lib = mb_substr(trim((string)($m['lib'] ?? '')), 0, 120); $tx = max(0, nb($m['taux'] ?? 0));
+            if ($h <= 0 || ($rid && !isset($ress[$rid])) || (!$rid && ($lib === '' || $tx <= 0))) continue;
+            $cibles = [(int)($m['bl'] ?? 0)];
+            $pref = trim((string)($m['pref'] ?? '')); if ($pref !== '') foreach (q("SELECT id FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne' AND code LIKE ?", [$bid, $pref . '%']) as $x) $cibles[] = (int)$x['id'];
+            foreach (array_unique($cibles) as $blid) { if (!q("SELECT id FROM bordereau_lignes WHERE id = ? AND bordereau_id = ? AND type = 'ligne'", [$blid, $bid])->fetch()) continue;
+                q("INSERT INTO bordereau_moyens (bordereau_id, bl_id, ressource_id, libelle, taux, heures) VALUES (?,?,?,?,?,?)", [$bid, $blid, $rid ?: null, $rid ? '' : $lib, $rid ? 0 : $tx, $h]); }
+            $modifs[] = 'Moyen ponctuel ajouté : ' . ($rid ? $ress[$rid]['nom'] : "$lib ($tx €/h)") . " $h h sur " . count(array_unique($cibles)) . ' ligne(s)'; }
+        if ($modifs) journal('modif', count($modifs) . " modification(s) :\n" . implode("\n", $modifs), $bid);
         flash('Bordereau enregistré.');
     } elseif ($a === 'del') {
         $x = q("SELECT * FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid])->fetch();
-        q("DELETE FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid]);
+        q("DELETE FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid]); q("DELETE FROM bordereau_moyens WHERE bl_id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid]);
         if ($x) journal('suppression', ($x['type'] === 'section' ? 'Section' : 'Ligne') . ' « ' . $x['libelle'] . ' »', $bid);
     } elseif ($a === 'renum') {
         $o = 0; foreach (q("SELECT id FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$bid]) as $l) { ++$o; q("UPDATE bordereau_lignes SET ordre = ?, numero = ? WHERE id = ?", [$o, (string)$o, $l['id']]); }
@@ -77,8 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'figer') {
         $taux = []; foreach (ressources() as $r) $taux[$r['id']] = ['nom' => $r['nom'], 'taux' => (float)$r['taux']];
         if ($eqChoisie) $taux['equipe'] = ['nom' => 'Équipe appliquée : ' . $eqChoisie['nom'], 'taux' => (float)$eqChoisie['taux']];
+        $catF = []; foreach (q("SELECT * FROM bpu_lignes") as $c) $catF[$c['id']] = $c; $MOYF = moyens_bordereau($bid);
         foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne'", [$bid]) as $l) {
-            $pu = $l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : ($l['ligne_id'] ? prix_catalogue(q("SELECT * FROM bpu_lignes WHERE id = ?", [$l['ligne_id']])->fetch() ?: ['id' => 0, 'forfait' => 0], $eqId, $ajust) : 0);
+            $pu = $l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (pu_bordereau($l, $catF, $eqId, $ajust, moyens_cout($MOYF[(int)$l['id']] ?? [])) ?? 0.0);
             q("UPDATE bordereau_lignes SET pu_fige = ? WHERE id = ?", [$pu, $l['id']]);
         }
         q("UPDATE bordereaux SET statut = 'fige', fige_le = NOW(), coef = ?, tva = ?, taux_json = ? WHERE id = ?", [(float)setting('coef'), (float)setting('tva'), json_encode($taux, JSON_UNESCAPED_UNICODE), $bid]);
@@ -93,11 +106,13 @@ $lignes = q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordr
 $ro = $fige || $lecture; // champs non modifiables
 $cat = []; foreach (q("SELECT * FROM bpu_lignes") as $c) $cat[$c['id']] = $c; // toutes, y compris supprimées : le prix d'une ligne déjà utilisée reste calculable
 $tva = $fige ? (float)$b['tva'] : (float)setting('tva', '20');
-$puDe = function (array $l) use ($fige, $cat, $eqId, $ajust): float {
+$MOY = moyens_bordereau($bid); $supp = fn(array $l): float => moyens_cout($MOY[(int)$l['id']] ?? []);
+$puDe = function (array $l) use ($fige, $cat, $eqId, $ajust, $supp): float {
     if ($fige) return (float)$l['pu_fige'];
     if ($l['pu_manuel'] !== null) return (float)$l['pu_manuel'];
-    return isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId, $ajust) : 0.0;
+    return pu_bordereau($l, $cat, $eqId, $ajust, $supp($l)) ?? 0.0;
 };
+$RESS_PONCT = array_values(array_filter(ressources(), fn($r) => $r['role'] !== 'equipe'));
 $total = 0; $nbQte = 0;
 foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $total += $puDe($l) * (float)$l['quantite']; $nbQte++; }
 $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = p.id) nb FROM packs p ORDER BY nom")->fetchAll();
@@ -134,7 +149,7 @@ $COMP = [];
 if (count($equipes) > 1 && !$fige) foreach ($equipes as $x) { $man = 0.0; $ls = [];
     foreach ($lignes as $l) if ($l['type'] === 'ligne') { $qt = $l['quantite'] !== null ? (float)$l['quantite'] : null; // sans quantité : compte seulement dans le total des PU
         if ($l['pu_manuel'] !== null) { $man += (float)$l['pu_manuel'] * ($qt ?? 0); $ls[] = [-(float)$l['pu_manuel'], 0]; }
-        elseif (isset($cat[$l['ligne_id']])) $ls[] = [round(prix_catalogue_brut($cat[$l['ligne_id']], (int)$x['id']), 4), $qt ?? 0]; }
+        elseif (isset($cat[$l['ligne_id']]) || $supp($l) > 0) $ls[] = [round(pu_bordereau_brut($l, $cat, (int)$x['id'], $supp($l)), 4), $qt ?? 0]; }
     $COMP[] = ['id' => (int)$x['id'], 'nom' => $x['nom'], 'taux' => (float)$x['taux'], 'man' => $man, 'l' => $ls]; }
 usort($COMP, fn($a, $b) => $b['taux'] <=> $a['taux']); // du taux horaire le plus élevé au plus bas
 if ($COMP): ?>
@@ -146,7 +161,7 @@ if ($COMP): ?>
 <?php endif; ?>
 
 <datalist id="catcodes"><?php foreach ($catalogue as $c): ?><option value="<?= e($c['code'] !== '' ? $c['code'] : '#' . $c['id']) ?>"><?= e(mb_substr($c['libelle'], 0, 90)) ?> · <?= money(prix_catalogue($c, $eqId)) ?></option><?php endforeach; ?></datalist>
-<?php if (!$ro): ?><p class="barre-ajout">Ajouter : <a class="mini" href="#ajout">un pack</a> <a class="mini" href="#ajout-cat">des lignes du catalogue</a> <a class="mini" href="#ajout">un titre de section</a> <a class="mini" href="#ajout">une ligne libre</a> <span class="muted small">· Colonnes : <strong>PU calculé</strong> = temps du catalogue × taux de l'équipe × coefficient (clic ↗ pour régler le temps) ; <strong>PU imposé</strong> = prix forcé pour ce marché seulement ; <strong>PU retenu</strong> = celui qui part dans l'offre.</span></p><?php endif; ?>
+<?php if (!$ro): ?><p class="barre-ajout">Ajouter : <a class="mini" href="#ajout">un pack</a> <a class="mini" href="#ajout-cat">des lignes du catalogue</a> <a class="mini" href="#ajout">un titre de section</a> <a class="mini" href="#ajout">une ligne libre</a> <span class="muted small">· Colonnes : <strong>PU calculé</strong> = temps du catalogue × taux de l'équipe × coefficient (clic ↗ pour régler le temps), plus les moyens ajoutés à la ligne avec « + moyen » (propres à ce bordereau) ; <strong>PU imposé</strong> = prix forcé pour ce marché seulement ; <strong>PU retenu</strong> = celui qui part dans l'offre.</span></p><?php endif; ?>
 <?php if (!$ro): ?><div class="qte-tout no-print"><strong>Quantité pour tout le bordereau</strong>
   <input class="num" id="qteTout" value="1" inputmode="decimal" aria-label="Quantité à mettre">
   <button type="button" class="mini" data-qt="toutes" title="Remplace la quantité de chaque ligne">Mettre sur toutes les lignes</button>
@@ -161,7 +176,7 @@ if ($COMP): ?>
 <?php if ($l['type'] === 'section'): ?>
 <tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="8"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
 <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
-<?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId, $ajust) : null; $brut = isset($cat[$l['ligne_id']]) ? prix_catalogue_brut($cat[$l['ligne_id']], $eqId) : 0; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
+<?php else: $n++; $sp = $supp($l); $mo = $MOY[(int)$id] ?? []; $calc = pu_bordereau($l, $cat, $eqId, $ajust, $sp); $brut = $calc !== null ? pu_bordereau_brut($l, $cat, $eqId, $sp) : 0; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
 <tr data-calc="<?= $calc ?? '' ?>" data-brut="<?= $brut ?>" title="<?= e($src) ?>">
   <td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" placeholder="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
@@ -170,7 +185,9 @@ if ($COMP): ?>
   <td><input class="tiny" style="width:70px" name="r[<?= $id ?>][unite]" value="<?= e($l['unite']) ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td class="r"><input class="num qte" name="r[<?= $id ?>][qte]" value="<?= $l['quantite'] !== null ? e((string)(float)$l['quantite']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
   <td><?php $cl = $cat[$l['ligne_id']] ?? null; ?><input type="hidden" name="r[<?= $id ?>][cat0]" value="<?= $cl ? e($cl['code'] !== '' ? $cl['code'] : '#' . $cl['id']) : '' ?>"><input class="catsel" list="catcodes" name="r[<?= $id ?>][cat]" value="<?= $cl ? e($cl['code'] !== '' ? $cl['code'] : '#' . $cl['id']) : '' ?>" placeholder="aucune – prix à imposer" title="<?= $cl ? e($cl['libelle']) : 'Aucune prestation : saisis un PU imposé, ou tape un code / un mot pour rattacher une prestation' ?>" style="width:150px" <?= $ro ? 'readonly' : '' ?>></td>
-  <td class="r out calc"><?php if ($calc !== null): ?><a href="bpu.php?ligne=<?= (int)$l['ligne_id'] ?>" data-fen="Prestation du catalogue" data-raf title="Voir ou régler le temps de cette prestation dans une fenêtre, sans quitter le bordereau"><?= money($calc) ?></a><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+  <td class="r out calc"><?php if ($calc !== null && isset($cat[$l['ligne_id']])): ?><a href="bpu.php?ligne=<?= (int)$l['ligne_id'] ?>" data-fen="Prestation du catalogue" data-raf title="Voir ou régler le temps de cette prestation dans une fenêtre, sans quitter le bordereau"><?= money($calc) ?></a><?php elseif ($calc !== null): ?><span><?= money($calc) ?></span><?php else: ?><span class="muted">—</span><?php endif; ?>
+    <?php if ($mo || (!$ro && !$fige)): ?><div class="moyens"><?php foreach ($mo as $m): ?><span class="moy" title="<?= e($m['nom'] . ' : ' . rtrim(rtrim(number_format((float)$m['heures'], 2, ',', ''), '0'), ',') . ' h × ' . money($m['taux_eff']) . '/h = ' . money((float)$m['heures'] * $m['taux_eff']) . ' (avant coefficient), propre à ce bordereau') ?>">+ <?= e($m['nom']) ?> <?= rtrim(rtrim(number_format((float)$m['heures'], 2, ',', ''), '0'), ',') ?> h<?php if (!$ro && !$fige): ?><button type="button" class="moy-x" data-moydel="<?= (int)$m['id'] ?>" title="Retirer ce moyen de cette ligne">×</button><?php endif; ?></span><?php endforeach; ?>
+    <?php if (!$ro && !$fige): ?><button type="button" class="moy-plus" data-bl="<?= (int)$id ?>" data-code="<?= e($l['code']) ?>" title="Ajouter du matériel ou une ressource seulement sur cette ligne de ce bordereau (le catalogue ne change pas)">+ moyen</button><?php endif; ?></div><?php endif; ?></td>
   <td class="r"><input class="num manuel" name="r[<?= $id ?>][pu]" value="<?= $l['pu_manuel'] !== null ? e((string)(float)$l['pu_manuel']) : '' ?>" inputmode="decimal" placeholder="–" <?= $ro ? 'readonly' : '' ?>></td>
   <td class="r out tot"></td>
   <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>" onclick="return confirm('Retirer cette ligne ?')">×</button><?php endif; ?></td>
@@ -257,6 +274,37 @@ function comparer() {
   c.querySelectorAll('[data-eq]').forEach(b => b.onclick = () => { const f = document.getElementById('fEntete'), s = f.querySelector('select[name=equipe_id]'); if (s) { s.value = b.dataset.eq; f.submit(); } });
 }
 comparer();
+// Moyens ponctuels : matériel ou ressource ajouté à une seule ligne de CE bordereau (le catalogue ne change pas)
+const RESS = <?= json_encode(array_map(fn($r) => ['id' => (int)$r['id'], 'nom' => $r['nom'], 'taux' => (float)$r['taux']], $RESS_PONCT), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>, COEF = <?= json_encode((float)setting('coef', '1')) ?>;
+(() => {
+  const f = document.getElementById('f'); if (!f) return;
+  const envoyer = (nom, val) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = nom; i.value = val; f.appendChild(i); f.requestSubmit ? f.requestSubmit() : f.submit(); };
+  f.querySelectorAll('[data-moydel]').forEach(b => b.onclick = () => envoyer('moy_del[]', b.dataset.moydel));
+  const pop = document.createElement('div'); pop.className = 'moy-pop'; pop.hidden = true; document.body.appendChild(pop);
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  document.addEventListener('click', ev => { if (!pop.hidden && !pop.contains(ev.target) && !ev.target.closest('.moy-plus')) pop.hidden = true; });
+  f.querySelectorAll('.moy-plus').forEach(b => b.onclick = () => {
+    const code = (b.dataset.code || '').trim(), pref = (code.match(/^[A-Za-z]{2,}/) || [''])[0].toUpperCase();
+    const nbPref = pref ? [...f.querySelectorAll('.moy-plus')].filter(x => (x.dataset.code || '').toUpperCase().startsWith(pref)).length : 0;
+    pop.innerHTML = `<strong>Ajouter un moyen sur cette ligne</strong><span class="small muted">Seulement dans ce bordereau : le catalogue ne change pas.</span>
+      <label>Moyen <select id="mpR">${RESS.map(r => `<option value="${r.id}">${esc(r.nom)} – ${eurC(r.taux)}/h</option>`).join('')}<option value="0">Autre moyen (nom et taux à saisir)…</option></select></label>
+      <div id="mpLibre" class="mp-ligne" hidden><label>Nom <input id="mpLib" placeholder="Ex. Grue 50 t, nacelle 30 m…"></label><label>Taux €/h <input id="mpTaux" class="num" inputmode="decimal"></label></div>
+      <div class="mp-ligne"><label>Heures par unité <input id="mpH" class="num" value="1" inputmode="decimal"></label><span id="mpPrev" class="small"></span></div>
+      ${nbPref > 1 ? `<label class="mp-case"><input type="checkbox" id="mpPref"> Aussi sur les ${nbPref - 1} autre(s) ligne(s) dont le code commence par « ${esc(pref)} »</label>` : ''}
+      <div class="mp-ligne"><button type="button" class="btn" id="mpOk">Ajouter</button><button type="button" class="mini" id="mpNon">Annuler</button></div>`;
+    if (!RESS.length) pop.querySelector('#mpR').value = '0';
+    const r = b.getBoundingClientRect(); pop.hidden = false; pop.style.top = (r.bottom + scrollY + 6) + 'px'; pop.style.left = Math.max(8, Math.min(r.right + scrollX - pop.offsetWidth, scrollX + innerWidth - pop.offsetWidth - 8)) + 'px';
+    const $ = s => pop.querySelector(s), num = v => +String(v).replace(',', '.') || 0;
+    const maj = () => { const libre = $('#mpR').value === '0'; $('#mpLibre').hidden = !libre; const tx = libre ? num($('#mpTaux').value) : (RESS.find(x => x.id === +$('#mpR').value) || {}).taux || 0; const h = num($('#mpH').value);
+      $('#mpPrev').textContent = h && tx ? '≈ +' + eurC(h * tx * COEF) + ' HT sur le PU (coefficient compris)' : ''; };
+    pop.oninput = maj; pop.onchange = maj; maj(); $('#mpH').focus(); $('#mpH').select();
+    $('#mpNon').onclick = () => { pop.hidden = true; };
+    $('#mpOk').onclick = () => { const libre = $('#mpR').value === '0', h = num($('#mpH').value);
+      if (!h) { $('#mpH').focus(); return; } if (libre && (!$('#mpLib').value.trim() || !num($('#mpTaux').value))) { (!$('#mpLib').value.trim() ? $('#mpLib') : $('#mpTaux')).focus(); return; }
+      $('#mpOk').textContent = 'Enregistrement…';
+      envoyer('moy_add[]', JSON.stringify({bl: +b.dataset.bl, rid: libre ? 0 : +$('#mpR').value, lib: libre ? $('#mpLib').value.trim() : '', taux: libre ? num($('#mpTaux').value) : 0, h, pref: $('#mpPref') && $('#mpPref').checked ? pref : ''})); };
+  });
+})();
 document.querySelectorAll('.qte-tout [data-qt]').forEach(b => b.onclick = () => {
   const mode = b.dataset.qt, v = document.getElementById('qteTout').value.trim().replace(',', '.');
   if (mode !== 'effacer' && !(v !== '' && +v >= 0)) { document.getElementById('qteTout').focus(); return; }

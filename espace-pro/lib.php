@@ -58,6 +58,7 @@ function migrate(): void {
         "CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL, verrou_par INT NULL, verrou_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS bordereau_moyens (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, bl_id INT NOT NULL, ressource_id INT NULL, libelle VARCHAR(120) NOT NULL DEFAULT '', taux DECIMAL(10,2) NOT NULL DEFAULT 0, heures DECIMAL(8,2) NOT NULL DEFAULT 0, INDEX (bordereau_id), INDEX (bl_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS actions (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, duree DECIMAL(6,2) NOT NULL DEFAULT 0, description VARCHAR(255) NOT NULL DEFAULT '', ordre INT NOT NULL DEFAULT 0, actif TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS ligne_actions (ligne_id INT NOT NULL, action_id INT NOT NULL, nb DECIMAL(6,2) NOT NULL DEFAULT 1, PRIMARY KEY (ligne_id, action_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS historique (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NULL, utilisateur_id INT NULL, quand DATETIME DEFAULT CURRENT_TIMESTAMP, action VARCHAR(40) NOT NULL, detail TEXT, INDEX (bordereau_id), INDEX (quand)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
@@ -235,12 +236,33 @@ function taux_courants(?int $equipeId = null): array {
     return $t;
 }
 function temps_par_ligne(): array { static $t = null; if ($t === null) { $t = []; foreach (q("SELECT * FROM bpu_temps") as $x) $t[$x['ligne_id']][$x['ressource_id']] = (float)$x['heures']; } return $t; }
-function prix_catalogue(array $ligne, ?int $equipeId = null, float $ajust = 0): float { // $ajust : % appliqué à tout un bordereau (curseur), en plus du coefficient général
-    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'], (float)setting('coef', '1') * (1 + $ajust / 100), (float)setting('arrondi', '1'));
+function prix_catalogue(array $ligne, ?int $equipeId = null, float $ajust = 0, float $supp = 0): float { // $ajust : % appliqué à tout un bordereau (curseur) ; $supp : coût (€) des moyens ponctuels ajoutés à cette ligne du bordereau
+    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'] + $supp, (float)setting('coef', '1') * (1 + $ajust / 100), (float)setting('arrondi', '1'));
     return $p['pu'];
 }
+/** Moyens ponctuels d'un bordereau (matériel spécifique ajouté à une seule ligne, sans toucher au catalogue), par ligne du bordereau.
+ *  Ressource des paramètres (son taux actuel) ou moyen libre (libellé + taux saisis). */
+function moyens_bordereau(int $bid): array {
+    $m = [];
+    foreach (q("SELECT m.*, r.nom rnom, r.taux rtaux FROM bordereau_moyens m LEFT JOIN ressources r ON r.id = m.ressource_id WHERE m.bordereau_id = ? ORDER BY m.id", [$bid]) as $x) {
+        $x['nom'] = $x['ressource_id'] ? (string)($x['rnom'] ?? 'Ressource retirée') : $x['libelle']; $x['taux_eff'] = $x['ressource_id'] ? (float)($x['rtaux'] ?? 0) : (float)$x['taux'];
+        $m[(int)$x['bl_id']][] = $x; }
+    return $m;
+}
+function moyens_cout(array $ms): float { $c = 0.0; foreach ($ms as $x) $c += (float)$x['heures'] * (float)$x['taux_eff']; return $c; }
+/** PU calculé d'une ligne de bordereau (catalogue + moyens ponctuels) ; null si ni prestation ni moyen */
+function pu_bordereau(array $l, array $cat, ?int $eqId, float $ajust, float $supp): ?float {
+    if (isset($cat[$l['ligne_id']])) return prix_catalogue($cat[$l['ligne_id']], $eqId, $ajust, $supp);
+    if ($supp > 0) return arrondir($supp * (float)setting('coef', '1') * (1 + $ajust / 100), (float)setting('arrondi', '1'));
+    return null;
+}
+/** Même chose avant arrondi et sans ajustement (pour le curseur et la comparaison en direct) */
+function pu_bordereau_brut(array $l, array $cat, ?int $eqId, float $supp): float {
+    if (isset($cat[$l['ligne_id']])) return prix_catalogue_brut($cat[$l['ligne_id']], $eqId, $supp);
+    return $supp * (float)setting('coef', '1');
+}
 /** Prix brut (avant arrondi) d'une ligne du catalogue, pour l'ajustement en direct dans le bordereau */
-function prix_catalogue_brut(array $ligne, ?int $equipeId = null): float { return prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'], (float)setting('coef', '1'), (float)setting('arrondi', '1'))['brut']; }
+function prix_catalogue_brut(array $ligne, ?int $equipeId = null, float $supp = 0): float { return prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'] + $supp, (float)setting('coef', '1'), (float)setting('arrondi', '1'))['brut']; }
 /** Importe le catalogue de démarrage (lignes + packs), sans doublon sur le code. Retourne [lignes ajoutées, packs ajoutés]. */
 function importer_catalogue(): array {
     $data = require __DIR__ . '/catalogue_data.php';

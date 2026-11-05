@@ -13,8 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bid = (int)$pdo->lastInsertId();
         if (!empty($_POST['modele'])) { // dupliquer un bordereau existant
             $src = (int)$_POST['modele'];
-            foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$src]) as $l)
+            foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$src]) as $l) {
                 q("INSERT INTO bordereau_lignes (bordereau_id, ordre, numero, type, code, libelle, unite, ligne_id, quantite, pu_manuel) VALUES (?,?,?,?,?,?,?,?,?,?)", [$bid, $l['ordre'], $l['numero'], $l['type'], $l['code'], $l['libelle'], $l['unite'], $l['ligne_id'], $l['quantite'], $l['pu_manuel']]);
+                $nid = (int)$pdo->lastInsertId(); foreach (q("SELECT * FROM bordereau_moyens WHERE bl_id = ?", [$l['id']]) as $m) q("INSERT INTO bordereau_moyens (bordereau_id, bl_id, ressource_id, libelle, taux, heures) VALUES (?,?,?,?,?,?)", [$bid, $nid, $m['ressource_id'], $m['libelle'], $m['taux'], $m['heures']]); }
         }
         if (!empty($_POST['pack'])) { // partir d'un pack : ses lignes, dans l'ordre (après celles d'un bordereau copié)
             $o = (int)q("SELECT COALESCE(MAX(ordre),0)+1 o FROM bordereau_lignes WHERE bordereau_id = ?", [$bid])->fetch()['o']; $n = 0; $pack = q("SELECT * FROM packs WHERE id = ?", [(int)$_POST['pack']])->fetch();
@@ -26,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('bordereau.php?id=' . $bid);
     } elseif ($a === 'suppr') {
         require_admin();
-        q("DELETE FROM bordereau_lignes WHERE bordereau_id = ?", [(int)$_POST['id']]); q("DELETE FROM bordereaux WHERE id = ?", [(int)$_POST['id']]);
+        q("DELETE FROM bordereau_lignes WHERE bordereau_id = ?", [(int)$_POST['id']]); q("DELETE FROM bordereau_moyens WHERE bordereau_id = ?", [(int)$_POST['id']]); q("DELETE FROM bordereaux WHERE id = ?", [(int)$_POST['id']]);
         flash('Bordereau supprimé.'); redirect('bordereaux.php');
     }
 }

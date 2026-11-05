@@ -44,10 +44,11 @@ function assistant_contexte(?int $bordereauId): string {
         if ($b) {
             $eq = equipe_choisie($b['equipe_id'] !== null ? (int)$b['equipe_id'] : null);
             $bl = []; $catParId = []; foreach (q("SELECT * FROM bpu_lignes") as $c) $catParId[$c['id']] = $c;
+            $MOY = moyens_bordereau((int)$bordereauId);
             foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$bordereauId]) as $l) {
                 if ($l['type'] === 'section') { $bl[] = "## " . ($l['numero'] ?: $l['ordre']) . " {$l['libelle']}"; continue; }
-                $pu = $b['statut'] === 'fige' ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (isset($catParId[$l['ligne_id']]) ? prix_catalogue($catParId[$l['ligne_id']], $eq ? (int)$eq['id'] : null, (float)($b['ajust'] ?? 0)) : 0));
-                $bl[] = "(id {$l['id']}) " . ($l['numero'] ?: $l['ordre']) . " {$l['code']} | {$l['libelle']} | {$l['unite']} | qté " . ($l['quantite'] ?? '—') . " | PU $pu" . ($l['pu_manuel'] !== null ? ' (imposé)' : '') . ($l['ligne_id'] ? " | catalogue #{$l['ligne_id']}" : ' | sans prestation');
+                $pu = $b['statut'] === 'fige' ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (pu_bordereau($l, $catParId, $eq ? (int)$eq['id'] : null, (float)($b['ajust'] ?? 0), moyens_cout($MOY[(int)$l['id']] ?? [])) ?? 0.0));
+                $bl[] = "(id {$l['id']}) " . ($l['numero'] ?: $l['ordre']) . " {$l['code']} | {$l['libelle']} | {$l['unite']} | qté " . ($l['quantite'] ?? '—') . " | PU $pu" . ($l['pu_manuel'] !== null ? ' (imposé)' : '') . ($l['ligne_id'] ? " | catalogue #{$l['ligne_id']}" : ' | sans prestation') . (!empty($MOY[(int)$l['id']]) ? ' | moyens ponctuels : ' . implode(', ', array_map(fn($m) => $m['nom'] . ' ' . (float)$m['heures'] . ' h', $MOY[(int)$l['id']])) : '');
             }
             $lignes[] = "Bordereau ouvert #{$b['id']} « {$b['nom']} » (" . ($b['client'] ?: 'client non renseigné') . ", statut {$b['statut']}, équipe : " . ($eq['nom'] ?? '—') . ") :\n" . implode("\n", $bl);
         }
