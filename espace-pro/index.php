@@ -32,6 +32,7 @@ page_start('Tableau de bord', 'index.php');
   <a class="tile" href="charge.php"><strong>📊</strong><span>Tableau de charge</span><em>Statuts, chiffre d'affaires planifié, occupation</em></a>
   <a class="tile" href="contrats.php"><strong><?= (int)q("SELECT COUNT(*) c FROM contrats WHERE statut = 'signe'")->fetch()['c'] ?></strong><span>contrats d'entretien</span><em>Signature en ligne, passages automatiques</em></a><?php endif; ?>
   <a class="tile" href="materiel.php"><strong><?= count(array_filter(materiel_echeances(), fn($x) => $x['retard'])) ?></strong><span>matériel : retard(s)</span><em>Contrôles, entretiens, pannes</em></a>
+  <?php if (planning_niveau() === 'tout'): $ech = livret_echeances(90); ?><a class="tile" href="livret.php"><strong><?= count($ech) ?></strong><span>habilitation(s) à renouveler (90 j)</span><em>Livrets du personnel : SST, CACES, formations</em></a><?php endif; ?>
   <a class="tile" href="clients.php"><strong><?= (int)q("SELECT COUNT(*) c FROM clients WHERE actif = 1")->fetch()['c'] ?></strong><span>clients</span><em>Contacts, adresses, porte-doc</em></a>
   <a class="tile" href="conges.php"><strong><?= planning_niveau() === 'tout' ? (int)q("SELECT COUNT(*) c FROM conges WHERE statut = 'demande'")->fetch()['c'] : '🌴' ?></strong><span><?= planning_niveau() === 'tout' ? 'demande(s) de congés' : 'Mes congés' ?></span><em>Demander, valider, poser au planning</em></a>
 </div>

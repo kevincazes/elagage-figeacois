@@ -257,3 +257,5 @@ html{scroll-padding-top:var(--bandeau,0px)}
 @media(max-width:700px){form.inline{flex-wrap:wrap;max-width:100%}form.inline select,form.inline input{max-width:100%;min-width:0}#ajout select[name=pack_id]{width:100%}}
 .ac{position:relative}.ac ul{position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #d5dccd;border-radius:8px;list-style:none;margin:2px 0 0;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,.12)}.ac li{padding:6px 8px;cursor:pointer;border-radius:6px}.ac li:hover{background:#f1f4ec}
 .notifs{position:relative;font-size:1.05rem;padding:6px 10px!important}.notifs b{position:absolute;top:0;right:2px;background:var(--rouge);color:#fff;font-size:.65rem;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
+
+.pi{width:1em;height:1em;vertical-align:-.15em;display:inline-block;flex:none}.pi-txt{font-size:.9em}

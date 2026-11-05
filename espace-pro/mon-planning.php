@@ -30,7 +30,7 @@ page_start('Mon planning', 'mon-planning.php');
 main{max-width:720px}
 .lst{list-style:none;margin:6px 0 0;padding:0}.lst li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #e4e8de;font-size:.92rem}.lst li.fait .l{text-decoration:line-through;opacity:.6}.lst .l{flex:1;min-width:0}.lst .qui{font-size:.78rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:24px!important;height:24px;margin:0!important;flex:none}
 .rdv.externe{opacity:.8;background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.025) 0 6px,transparent 6px 12px)}
-.pictos{letter-spacing:1px;margin-right:4px}.ft-bloc .pictos{font-size:1.3rem}
+.pictos{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-3px}.pictos .pi{width:17px;height:17px;color:var(--brun)}.ft-bloc .pictos .pi{width:28px;height:28px}
 .mp-haut{background:var(--brun);color:#fff;border-radius:0 0 26px 26px;margin:-22px -20px 16px;padding:14px 16px 16px;text-align:center}
 .mp-haut h2{color:#fff;margin:0 0 8px;font-size:1.25rem}.mp-nav{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .mp-nav a{color:#fff;text-decoration:none;font-size:1.6rem;font-weight:900;padding:0 12px}.mp-nav span{font-weight:700;text-transform:capitalize}
@@ -48,7 +48,7 @@ main>h1{position:absolute;left:-9999px}
 .fiche-t .ft-haut{background:var(--brun);color:#fff;padding:12px 16px 18px;padding-top:max(12px,env(safe-area-inset-top));border-radius:0 0 26px 26px}
 .fiche-t .ft-haut button{background:none;border:0;color:#fff;font:inherit;font-weight:700;font-size:1rem;cursor:pointer;padding:0}
 .fiche-t h3{color:#fff;margin:10px 0 2px;font-size:1.1rem;text-align:center}.fiche-t .ft-haut small{display:block;text-align:center;opacity:.85}
-.boutons{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:-4px 0 14px;padding:0 2px}.boutons a{width:46px;height:46px;border-radius:50%;background:#efe3d5;display:grid;place-items:center;font-size:1.35rem;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.boutons{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:-4px 0 14px;padding:0 2px}.boutons a{width:46px;height:46px;border-radius:50%;background:#efe3d5;display:grid;place-items:center;font-size:1.35rem;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.08);color:var(--brun)}.boutons a .pi{width:24px;height:24px}.gros .pi{width:22px;height:22px;vertical-align:-5px;margin-right:4px}
 .boutons a.off{opacity:.3;pointer-events:none}
 .ft-corps{padding:0 16px 40px;max-width:720px;margin:0 auto}.ft-bloc{background:var(--blanc);border:1px solid #e1e5da;border-radius:14px;padding:12px 14px;margin:0 0 10px}
 .ft-bloc b{color:var(--brun)}.gros{display:block;text-align:center;border-radius:999px;padding:12px;font-weight:700;text-decoration:none;margin:10px auto;max-width:360px;background:#efe3d5;color:var(--brun)}
@@ -68,6 +68,7 @@ main>h1{position:absolute;left:-9999px}
 <?php if (!$moi): ?><p class="muted small" style="text-align:center">Ton compte n'est relié à aucune fiche du personnel : demande à l'administrateur de le relier (Planning › Personnel, matériel, équipes).</p><?php endif; ?>
 <?php if ($mesTaches): ?><div class="card" id="mt" style="padding:10px 14px;margin-bottom:12px"><b>☐ Mes actions à faire (<?= count($mesTaches) ?>)</b>
   <ul class="lst"><?php foreach ($mesTaches as $t): $ret = $t['echeance'] && $t['echeance'] < date('Y-m-d'); ?><li class="<?= $ret ? 'retard' : '' ?>"><input type="checkbox" data-t="<?= $t['id'] ?>" aria-label="Fait"><span class="l"><?= e($t['libelle']) ?><br><small class="muted"><?= e($t['titre']) ?><?= $t['ville'] ? ' – ' . e($t['ville']) : '' ?></small></span><span class="qui"><?= $t['echeance'] ? 'avant le ' . date('d/m', strtotime($t['echeance'])) : ($t['debut'] ? 'chantier ' . date('d/m', strtotime($t['debut'])) : '') ?></span></li><?php endforeach; ?></ul></div><?php endif; ?>
+<?= pictos_sprite() ?>
 <div id="liste"><?php if (!$p): ?><p class="vide">Choisis une personne pour voir ses rendez-vous.</p><?php elseif (!$evs): ?><p class="vide">Rien de prévu ce jour-là.</p><?php endif; ?></div>
 <div class="fiche-t" id="ft" aria-modal="true" role="dialog"></div>
 <script>
@@ -95,16 +96,17 @@ function rendre() {
   let prec = ICI || (DEP.lat ? {lat: DEP.lat, lng: DEP.lng} : null);
   $('#liste').innerHTML = EVS.map((e, i) => {
     let dist = '';
-    if (e.lat && prec) { const k = km(prec.lat, prec.lng, e.lat, e.lng); dist = `<span>📍 ${k < 10 ? k.toFixed(1) : Math.round(k)} km</span><span>⏱ ${Math.max(1, Math.round(k / VIT * 60))} min</span>`; }
+    if (e.lat && prec) { const k = km(prec.lat, prec.lng, e.lat, e.lng); dist = `<span>${ico('pin')} ${k < 10 ? k.toFixed(1) : Math.round(k)} km</span><span>${ico('clock')} ${Math.max(1, Math.round(k / VIT * 60))} min</span>`; }
     if (e.lat && i === 0 && !ICI) dist += '<span class="muted" style="font-weight:400">depuis le dépôt</span>';
     if (e.lat) prec = {lat: e.lat, lng: e.lng};
     return `<div class="rdv${e.externe ? ' externe' : ''}" data-i="${i}"><div class="h">${anneau(e)}${e.journee ? 'Journée' : hm(e.debut) + ' – ' + hm(e.fin)}</div><div class="c">
       <div class="l1"><span class="hr">${e.journee ? (TYPES[e.type] || ['RDV'])[0] : hm(e.debut)}</span>${badge(e, proch)}</div>
-      <div class="t">${e.pictos.length ? '<span class="pictos" title="' + esc(e.pictos.map(p => p.libelle).join('\n')) + '">' + e.pictos.map(p => p.emoji).join('') + '</span>' : ''}${esc(e.client || e.titre)}${e.taches.some(t => !t.fait_le) ? ' <span class="muted">☐' + e.taches.filter(t => !t.fait_le).length + '</span>' : ''}${e.client && e.titre !== e.client ? ' <span class="muted">· ' + esc(e.titre) + '</span>' : ''}</div><div class="v">${esc([e.cp, e.ville].filter(Boolean).join(' '))}${e.motif ? ' · <span style="text-transform:none">' + esc(e.motif) + '</span>' : ''}</div>
-      <div class="km">${dist}${e.rapport ? `<span title="Rapport">📝${e.rapport.nb ? ' ' + e.rapport.nb + ' 📷' : ''}${e.rapport.signe_le ? ' ✓' : ''}</span>` : ''}${e.dict.length ? '<span style="color:#e6332a" title="' + esc(e.dict.join(' ')) + '">⚠ DT-DICT</span>' : ''}</div></div></div>`;
+      <div class="t">${e.pictos.length ? '<span class="pictos" title="' + esc(e.pictos.map(p => p.libelle).join('\n')) + '">' + e.pictos.map(p => p.html).join('') + '</span>' : ''}${esc(e.client || e.titre)}${e.taches.some(t => !t.fait_le) ? ' <span class="muted">☐' + e.taches.filter(t => !t.fait_le).length + '</span>' : ''}${e.client && e.titre !== e.client ? ' <span class="muted">· ' + esc(e.titre) + '</span>' : ''}</div><div class="v">${esc([e.cp, e.ville].filter(Boolean).join(' '))}${e.motif ? ' · <span style="text-transform:none">' + esc(e.motif) + '</span>' : ''}</div>
+      <div class="km">${dist}${e.rapport ? `<span title="Rapport">${ico('doc')}${e.rapport.nb ? ' ' + e.rapport.nb + ' ' + ico('camera') : ''}${e.rapport.signe_le ? ' ✓' : ''}</span>` : ''}${e.dict.length ? '<span style="color:#e6332a" title="' + esc(e.dict.join(' ')) + '">⚠ DT-DICT</span>' : ''}</div></div></div>`;
   }).join('');
   document.querySelectorAll('.rdv').forEach(d => d.onclick = () => ouvrir(EVS[+d.dataset.i]));
 }
+const ico = n => `<svg class="pi"><use href="#pi-${n}"/></svg>`;
 function ouvrir(e) {
   if (e.externe) { $('#ft').innerHTML = `<div class="ft-haut"><button type="button" id="ftR">‹ Retour</button><h3>${esc(e.titre)}</h3><small>${esc(e.agenda || 'Autre agenda')} · ${e.journee ? 'journée' : hm(e.debut) + ' – ' + hm(e.fin)}</small></div><div class="ft-corps">${e.adresse ? `<div class="ft-bloc">📍 ${esc(e.adresse)}</div>` : ''}<p class="muted small" style="text-align:center">Événement de ton autre calendrier (lecture seule) : il se modifie dans l'application d'origine.</p></div>`; $('#ft').classList.add('on'); document.body.style.overflow = 'hidden'; history.pushState({f: e.id}, '', '#x'); $('#ftR').onclick = () => history.back(); return; }
   const tel = (e.tel || '').replace(/[^0-9+]/g, ''), dest = e.lat ? e.lat + ',' + e.lng : encodeURIComponent([e.adresse, e.cp, e.ville].filter(Boolean).join(' '));
@@ -112,18 +114,18 @@ function ouvrir(e) {
   const b = (h, ic, t, ok = true) => `<a href="${esc(h)}" ${h.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} class="${ok ? '' : 'off'}" title="${t}" aria-label="${t}">${ic}</a>`;
   $('#ft').innerHTML = `<div class="ft-haut"><button type="button" id="ftR">‹ Retour</button><h3>${esc(e.titre)}</h3><small>${esc(e.motif || (TYPES[e.type] || ['RDV'])[0])} · ${e.journee ? 'journée' : hm(e.debut) + ' – ' + hm(e.fin)}${k ? ` · ${Math.round(k)} km · ${Math.round(k / VIT * 60)} min, arrivée vers ${(() => { const t = new Date(Date.now() + k / VIT * 36e5); return p2(t.getHours()) + ':' + p2(t.getMinutes()); })()}` : ''}</small></div>
     <div class="ft-corps"><div class="boutons" style="margin-top:14px">
-      ${b('https://www.google.com/maps/dir/?api=1&destination=' + dest, '🧭', 'Itinéraire Google Maps', !!dest)}${b(e.lat ? 'https://waze.com/ul?ll=' + e.lat + ',' + e.lng + '&navigate=yes' : '#', '🚗', 'Waze', !!e.lat)}
-      ${b(e.lat ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + e.lat + ',' + e.lng : '#', '🏠', 'Street View (voir la rue)', !!e.lat)}${b('tel:' + tel, '📞', 'Appeler', !!tel)}${b('sms:' + tel, '💬', 'SMS', !!tel)}${b('mailto:' + (e.email || ''), '✉️', 'E-mail', !!e.email)}${b('rapport.php?evt=' + e.id, '📷', 'Photos et rapport')}</div>
-      ${e.client || e.adresse || e.ville ? `<div class="ft-bloc"><b>${esc(e.client || 'Lieu')}</b>${e.adresse ? '<br>' + esc(e.adresse) : ''}${e.cp || e.ville ? '<br>' + esc([e.cp, e.ville].filter(Boolean).join(' ')) : ''}${tel ? '<br>📞 ' + esc(e.tel) : ''}${e.email ? '<br>✉️ ' + esc(e.email) : ''}${e.client_id ? `<br><a href="clients.php?id=${e.client_id}">Fiche client ›</a>` : ''}</div>` : ''}
-      ${e.avec.length ? `<div class="ft-bloc">👥 Avec <b>${esc(e.avec.join(', '))}</b></div>` : ''}
-      ${e.materiel.length ? `<div class="ft-bloc">🚜 ${esc(e.materiel.join(', '))}</div>` : ''}
-      ${e.pictos.length ? `<div class="ft-bloc"><span class="pictos">${e.pictos.map(p => p.emoji).join(' ')}</span><br><small>${e.pictos.map(p => esc(p.libelle)).join(' · ')}</small></div>` : ''}
+      ${b('https://www.google.com/maps/dir/?api=1&destination=' + dest, ico('route'), 'Itinéraire Google Maps', !!dest)}${b(e.lat ? 'https://waze.com/ul?ll=' + e.lat + ',' + e.lng + '&navigate=yes' : '#', ico('car'), 'Waze', !!e.lat)}
+      ${b(e.lat ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + e.lat + ',' + e.lng : '#', ico('eye'), 'Street View (voir la rue)', !!e.lat)}${b('tel:' + tel, ico('phone'), 'Appeler', !!tel)}${b('sms:' + tel, ico('chat'), 'SMS', !!tel)}${b('mailto:' + (e.email || ''), ico('mail'), 'E-mail', !!e.email)}${b('rapport.php?evt=' + e.id, ico('camera'), 'Photos et rapport')}</div>
+      ${e.client || e.adresse || e.ville ? `<div class="ft-bloc"><b>${esc(e.client || 'Lieu')}</b>${e.adresse ? '<br>' + esc(e.adresse) : ''}${e.cp || e.ville ? '<br>' + esc([e.cp, e.ville].filter(Boolean).join(' ')) : ''}${tel ? '<br>' + ico('phone') + ' ' + esc(e.tel) : ''}${e.email ? '<br>' + ico('mail') + ' ' + esc(e.email) : ''}${e.client_id ? `<br><a href="clients.php?id=${e.client_id}">Fiche client ›</a>` : ''}</div>` : ''}
+      ${e.avec.length ? `<div class="ft-bloc">${ico('users')} Avec <b>${esc(e.avec.join(', '))}</b></div>` : ''}
+      ${e.materiel.length ? `<div class="ft-bloc">${ico('machine')} ${esc(e.materiel.join(', '))}</div>` : ''}
+      ${e.pictos.length ? `<div class="ft-bloc"><span class="pictos">${e.pictos.map(p => p.html).join(' ')}</span><br><small>${e.pictos.map(p => esc(p.libelle)).join(' · ')}</small></div>` : ''}
       ${e.taches.length ? `<div class="ft-bloc"><b>☐ Actions à faire avant</b><ul class="lst">${e.taches.map(t => `<li class="${t.fait_le ? 'fait' : ''} ${t.retard ? 'retard' : ''}"><input type="checkbox" data-t="${t.id}" ${t.fait_le ? 'checked' : ''}><span class="l">${esc(t.libelle)}</span><span class="qui">${t.prenom ? esc(t.prenom) : ''}${t.echeance ? ' · ' + t.echeance.slice(8, 10) + '/' + t.echeance.slice(5, 7) : ''}</span></li>`).join('')}</ul></div>` : ''}
       ${e.prestations.length ? `<div class="ft-bloc"><b>✓ Relevé de chantier – prestations du devis</b> <small class="muted">(${e.prestations.filter(p => p.fait_le).length}/${e.prestations.length})</small><ul class="lst">${e.prestations.map(p => `<li class="${p.fait_le ? 'fait' : ''}"><input type="checkbox" data-p="${p.id}" ${p.fait_le ? 'checked' : ''}><span class="l">${esc(p.libelle)}${p.quantite !== null ? ' <span class="muted">(' + (+p.quantite).toLocaleString('fr-FR') + (p.unite ? ' ' + esc(p.unite) : '') + ')</span>' : ''}</span></li>`).join('')}</ul></div>` : ''}
-      ${e.consignes ? `<div class="ft-bloc" style="background:#fff8e6">⚠ ${esc(e.consignes).replace(/\n/g, '<br>')}</div>` : ''}
+      ${e.consignes ? `<div class="ft-bloc" style="background:#fff8e6">${ico('warning')} ${esc(e.consignes).replace(/\n/g, '<br>')}</div>` : ''}
       ${e.dict.length ? `<div class="ft-bloc" style="color:#e6332a">${e.dict.map(esc).join('<br>')}</div>` : ''}
-      ${e.phyto ? `<a class="gros" href="phyto.php?passeport=${e.id}&ecran=1" style="background:#e6f0d8">🌳 Passeport phytosanitaire (platane) ›</a>` : ''}
-      ${['chantier', 'visite', 'rdv'].includes(e.type) ? `<a class="gros" href="rapport.php?evt=${e.id}">📋 ${e.type === 'chantier' ? 'Bon de fin d\'intervention' : 'Rapport'} ›</a>` : ''}
+      ${e.phyto ? `<a class="gros" href="phyto.php?passeport=${e.id}&ecran=1" style="background:#e6f0d8">${ico('pass')} Passeport phytosanitaire (platane) ›</a>` : ''}
+      ${['chantier', 'visite', 'rdv'].includes(e.type) ? `<a class="gros" href="rapport.php?evt=${e.id}">${ico('doc')} ${e.type === 'chantier' ? 'Bon de fin d\'intervention' : 'Rapport'} ›</a>` : ''}
       <a class="gros" href="planning.php?fiche=${e.id}&jour=${JOUR}" style="background:#fff;border:1px solid #e1e5da">Ouvrir dans le planning ›</a></div>`;
   $('#ft').classList.add('on'); document.body.style.overflow = 'hidden';
   history.pushState({f: e.id}, '', '#evt' + e.id);

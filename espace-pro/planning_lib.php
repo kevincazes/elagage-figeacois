@@ -29,7 +29,8 @@ function planning_alters(): array { return ["ALTER TABLE materiel ADD COLUMN por
               "ALTER TABLE evenements ADD COLUMN pl_facture_id VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN pl_facture_num VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN pl_statut VARCHAR(20) NOT NULL DEFAULT ''",
               "ALTER TABLE clients ADD COLUMN pl_client_id INT NULL", "ALTER TABLE clients ADD COLUMN sepa_statut VARCHAR(30) NOT NULL DEFAULT ''", "ALTER TABLE clients ADD COLUMN sepa_ref VARCHAR(60) NOT NULL DEFAULT ''"]; }
 function planning_defauts(): array { return ['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
-    'planning_pictos' => "plantation|🌱|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|🚧|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|📦|Location de matériel spécifique|Réserver la location|7\nnacelle|🏗️|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|🪵|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|⚡|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|🏠|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|🔑|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|🐦|Période de nidification à vérifier||\nsouche|🚜|Rognage de souche||\nmairie|📋|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|🌳|Platane (chancre coloré)||",
+    'planning_pictos' => "plantation|plant|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|cone|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|box|Location de matériel spécifique|Réserver la location|7\nnacelle|crane|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|log|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|bolt|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|house|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|key|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|bird|Période de nidification à vérifier||\nsouche|stump|Rognage de souche||\nmairie|clipboard|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|tree|Platane (chancre coloré)||",
+
     'planning_motifs' => "Visite de chiffrage\nRendez-vous prospect\nRéunion de chantier\nVisite de fin de travaux\nRéception de travaux\nVisite de suivi / contrôle\nRendez-vous collectivité\nRendez-vous fournisseur\nFormation / sécurité",
     'planning_depot' => '133 rue Madeleine Brès, 46100 Cambes', 'planning_depot_lat' => '44.6001', 'planning_depot_lng' => '1.9475']; }
 function planning_migrate(): void {
@@ -93,7 +94,8 @@ function planning_migrate(): void {
     foreach (planning_alters() as $sql) { try { $pdo->exec($sql); } catch (Throwable $t) {} }
     foreach (planning_defauts() as $k => $v) if (setting($k) === '') set_setting($k, $v);
     foreach ([] + ['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
-              'planning_pictos' => "plantation|🌱|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|🚧|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|📦|Location de matériel spécifique|Réserver la location|7\nnacelle|🏗️|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|🪵|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|⚡|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|🏠|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|🔑|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|🐦|Période de nidification à vérifier||\nsouche|🚜|Rognage de souche||\nmairie|📋|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|🌳|Platane (chancre coloré)||",
+              'planning_pictos' => "plantation|plant|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|cone|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|box|Location de matériel spécifique|Réserver la location|7\nnacelle|crane|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|log|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|bolt|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|house|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|key|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|bird|Période de nidification à vérifier||\nsouche|stump|Rognage de souche||\nmairie|clipboard|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|tree|Platane (chancre coloré)||",
+
     'planning_motifs' => "Visite de chiffrage\nRendez-vous prospect\nRéunion de chantier\nVisite de fin de travaux\nRéception de travaux\nVisite de suivi / contrôle\nRendez-vous collectivité\nRendez-vous fournisseur\nFormation / sécurité",
               'planning_depot' => '133 rue Madeleine Brès, 46100 Cambes', 'planning_depot_lat' => '44.6001', 'planning_depot_lng' => '1.9475'] as $k => $v)
         if (setting($k) === '') set_setting($k, $v);
@@ -124,7 +126,7 @@ function agendas_modifiables(): ?array {
 /** Un événement est modifiable si l'on a tout, ou si toutes les personnes concernées font partie des agendas autorisés */
 function peut_modifier_evt(array $personnel): bool { $m = agendas_modifiables(); if ($m === null) return true; return $personnel && !array_diff(array_map('intval', $personnel), $m); }
 function peut_planifier(): bool { $m = agendas_modifiables(); return $m === null || count($m) > 0; }
-function require_planning(): void { require_login(); planning_migrate(); materiel_migrate(); phyto_migrate(); }
+function require_planning(): void { require_login(); planning_migrate(); materiel_migrate(); phyto_migrate(); livret_migrate(); }
 function equipes_liste(): array {
     $eq = q("SELECT * FROM equipes_pl WHERE actif = 1 ORDER BY ordre, nom")->fetchAll();
     foreach ($eq as &$e) { $e['membres'] = array_map('intval', array_column(q("SELECT personnel_id FROM equipe_membres WHERE equipe_id = ?", [$e['id']])->fetchAll(), 'personnel_id'));
@@ -425,11 +427,12 @@ function evt_libelle_client(array $e): string {
     return ['chantier' => 'notre intervention', 'visite' => 'notre visite pour établir le devis', 'rdv' => 'notre rendez-vous'][$e['type']] ?? 'notre rendez-vous';
 }
 /** Motifs de rendez-vous (réglage, un par ligne) */
-/** Pictogrammes de chantier : code|emoji|libellé|action à prévoir (optionnel)|délai en jours avant le chantier (optionnel) */
+const PICTO_EMOJI_VERS_ICONE = ['🌱' => 'plant', '🚧' => 'cone', '📦' => 'box', '🏗️' => 'crane', '🏗' => 'crane', '🪵' => 'log', '⚡' => 'bolt', '🏠' => 'house', '🔑' => 'key', '🐦' => 'bird', '🚜' => 'stump', '📋' => 'clipboard', '🌳' => 'tree', '🚚' => 'truck', '⚠️' => 'warning', '💧' => 'water', '📞' => 'phone', '🪚' => 'saw', '🪜' => 'ladder'];
+/** Pictogrammes de chantier : code|icône|libellé|action à prévoir (optionnel)|délai en jours avant le chantier (optionnel) */
 function pictos_liste(): array {
     $l = [];
-    foreach (preg_split('/\R/', setting('planning_pictos')) as $ln) { $c = array_map('trim', explode('|', $ln)); if (count($c) < 3 || $c[0] === '' || !preg_match('/^[a-z0-9_-]{1,30}$/', $c[0])) continue;
-        $l[$c[0]] = ['code' => $c[0], 'emoji' => $c[1], 'libelle' => $c[2], 'action' => $c[3] ?? '', 'delai' => ($c[4] ?? '') !== '' ? (int)$c[4] : null]; }
+    foreach (preg_split('/\R/', setting('planning_pictos')) as $ln) { $c = array_map('trim', explode('|', $ln)); if (isset($c[1])) $c[1] = PICTO_EMOJI_VERS_ICONE[$c[1]] ?? $c[1]; if (count($c) < 3 || $c[0] === '' || !preg_match('/^[a-z0-9_-]{1,30}$/', $c[0])) continue;
+        $l[$c[0]] = ['code' => $c[0], 'emoji' => $c[1], 'icone' => isset(PICTO_ICONES[$c[1]]) ? $c[1] : '', 'html' => picto_html($c[1], $c[2]), 'libelle' => $c[2], 'action' => $c[3] ?? '', 'delai' => ($c[4] ?? '') !== '' ? (int)$c[4] : null]; }
     return $l;
 }
 function pictos_evt(array $e): array { return array_values(array_intersect(array_filter(explode(',', (string)($e['pictos'] ?? ''))), array_keys(pictos_liste()))); }
@@ -484,6 +487,7 @@ function planning_alertes(): array {
     foreach (evt_periode(date('Y-m-d'), date('Y-m-d', strtotime('+21 days'))) as $e) foreach (evt_conflits($e) as $c) if (!str_starts_with($c, 'Tombe un week-end')) $a[] = ['niv' => 'haut', 'id' => (int)$e['id'], 'txt' => date('d/m', strtotime($e['debut'])) . " « {$e['titre']} » : $c"];
     foreach (q("SELECT t.*, e.titre, e.debut FROM evt_taches t JOIN evenements e ON e.id = t.evenement_id WHERE t.fait_le IS NULL AND e.statut NOT IN ('annule','termine') AND ((t.echeance IS NOT NULL AND t.echeance <= CURDATE()) OR (e.debut IS NOT NULL AND e.debut < DATE_ADD(NOW(), INTERVAL 3 DAY))) ORDER BY COALESCE(t.echeance, e.debut) LIMIT 30") as $t) $a[] = ['niv' => $t['echeance'] && $t['echeance'] < date('Y-m-d') ? 'haut' : 'moyen', 'id' => (int)$t['evenement_id'], 'txt' => "Action à faire « {$t['libelle']} » pour « {$t['titre']} »" . ($t['echeance'] ? ' (avant le ' . date('d/m', strtotime($t['echeance'])) . ')' : '')];
     try { $a = array_merge($a, materiel_alertes()); } catch (Throwable $t) {}
+    try { $a = array_merge($a, livret_alertes()); } catch (Throwable $t) {}
     $n = (int)q("SELECT COUNT(*) c FROM evenements WHERE statut = 'a_planifier'")->fetch()['c'];
     if ($n) $a[] = ['niv' => 'info', 'id' => 0, 'txt' => "$n chantier(s) ou visite(s) à planifier."];
     return $a;
@@ -492,3 +496,5 @@ function planning_alertes(): array {
 require_once __DIR__ . '/planning_ext.php';
 require_once __DIR__ . '/materiel_lib.php';
 require_once __DIR__ . '/phyto_lib.php';
+require_once __DIR__ . '/livret_lib.php';
+require_once __DIR__ . '/pictos.php';

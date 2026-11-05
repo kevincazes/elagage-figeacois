@@ -7,7 +7,7 @@ function phyto_migrate(): void {
     if (!$fait) db()->exec("CREATE TABLE IF NOT EXISTS phyto_chantiers (evenement_id INT PRIMARY KEY, travaux VARCHAR(200) NOT NULL DEFAULT '', surv_avant VARCHAR(200) NOT NULL DEFAULT '', surv_pendant VARCHAR(200) NOT NULL DEFAULT '',
         code_c VARCHAR(40) NOT NULL DEFAULT '', destination VARCHAR(200) NOT NULL DEFAULT '', usage_bois VARCHAR(120) NOT NULL DEFAULT '', volume_m3 DECIMAL(8,2) NULL, desinfection TINYINT NOT NULL DEFAULT 0, notes VARCHAR(500) NOT NULL DEFAULT '',
         maj_le DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    foreach (["ALTER TABLE phyto_chantiers ADD COLUMN desinf_entree TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN desinf_sortie TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN desinf_arbres TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN produit VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN griffes TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN declaration_le DATE NULL", "ALTER TABLE phyto_chantiers ADD COLUMN nb_arbres INT NULL", "ALTER TABLE phyto_chantiers ADD COLUMN transport TINYINT NOT NULL DEFAULT 1", "ALTER TABLE phyto_chantiers ADD COLUMN passeport_num VARCHAR(20) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN verrou_le DATETIME NULL", "ALTER TABLE phyto_chantiers ADD COLUMN pp_b VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN pp_c VARCHAR(40) NOT NULL DEFAULT ''"] as $sql) { try { db()->exec($sql); } catch (Throwable $t) {} } // colonnes ajoutées après coup : toujours tentées
+    foreach (["ALTER TABLE phyto_chantiers ADD COLUMN proprietaire VARCHAR(150) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN coordonnees VARCHAR(200) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN localisation VARCHAR(250) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN manuel TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN desinf_entree TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN desinf_sortie TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN desinf_arbres TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN produit VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN griffes TINYINT NOT NULL DEFAULT 0", "ALTER TABLE phyto_chantiers ADD COLUMN declaration_le DATE NULL", "ALTER TABLE phyto_chantiers ADD COLUMN nb_arbres INT NULL", "ALTER TABLE phyto_chantiers ADD COLUMN transport TINYINT NOT NULL DEFAULT 1", "ALTER TABLE phyto_chantiers ADD COLUMN passeport_num VARCHAR(20) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN verrou_le DATETIME NULL", "ALTER TABLE phyto_chantiers ADD COLUMN pp_b VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE phyto_chantiers ADD COLUMN pp_c VARCHAR(40) NOT NULL DEFAULT ''"] as $sql) { try { db()->exec($sql); } catch (Throwable $t) {} } // colonnes ajoutées après coup : toujours tentées
     if ($fait) return;
     if (setting('phyto_inupp') === '') set_setting('phyto_inupp', 'FR-0460072V');
     if (setting('phyto_produit') === '') set_setting('phyto_produit', 'Sitonal');
@@ -37,17 +37,20 @@ function phyto_verrouiller(int $evtId): void {
     q("UPDATE phyto_chantiers SET verrou_le = NOW(), pp_b = ?, pp_c = ?, code_c = ?, passeport_num = ? WHERE evenement_id = ?", [$pp['B'], $pp['C'], $pp['C'], $num, $evtId]);
     evt_journal($evtId, "Fiche platane verrouillée avec le passeport $num (code C {$pp['C']})");
 }
-function phyto_enregistrer(int $evtId, array $in): void {
-    if (phyto_verrouille($evtId)) return; // chantier terminé : fiche figée
+function phyto_enregistrer(int $evtId, array $in, bool $forcer = false): void {
+    if (!$forcer && phyto_verrouille($evtId)) return; // chantier terminé : fiche figée (sauf déverrouillage par l'administration)
     $dt = fn($v) => ($v = trim((string)$v)) !== '' && strtotime($v) ? date('Y-m-d', strtotime($v)) : null;
     $v = ['travaux' => mb_substr(trim((string)($in['travaux'] ?? '')), 0, 200), 'surv_avant' => array_key_exists($x = (string)($in['surv_avant'] ?? ''), PHYTO_SURV) ? $x : '', 'surv_pendant' => array_key_exists($x = (string)($in['surv_pendant'] ?? ''), PHYTO_SURV) ? $x : '',
           'code_c' => strtoupper(mb_substr(preg_replace('/[^A-Za-z0-9\-]/', '', (string)($in['code_c'] ?? '')), 0, 40)), 'destination' => mb_substr(trim((string)($in['destination'] ?? '')), 0, 200), 'usage_bois' => array_key_exists($x = (string)($in['usage_bois'] ?? ''), PHYTO_USAGES) ? $x : '',
           'volume_m3' => ($in['volume_m3'] ?? '') === '' || $in['volume_m3'] === null ? null : nb($in['volume_m3']), 'desinfection' => !empty($in['desinf_entree']) && !empty($in['desinf_sortie']) ? 1 : 0, 'notes' => mb_substr(trim((string)($in['notes'] ?? '')), 0, 500),
           'desinf_entree' => !empty($in['desinf_entree']) ? 1 : 0, 'desinf_sortie' => !empty($in['desinf_sortie']) ? 1 : 0, 'desinf_arbres' => !empty($in['desinf_arbres']) ? 1 : 0, 'produit' => mb_substr(trim((string)($in['produit'] ?? '')), 0, 60), 'griffes' => !empty($in['griffes']) ? 1 : 0,
           'declaration_le' => $dt($in['declaration_le'] ?? ''), 'nb_arbres' => ($in['nb_arbres'] ?? '') === '' || $in['nb_arbres'] === null ? null : (int)$in['nb_arbres'], 'transport' => isset($in['transport']) && empty($in['transport']) ? 0 : 1];
+    foreach (['proprietaire' => 150, 'coordonnees' => 200, 'localisation' => 250] as $k => $max) if (array_key_exists($k, $in)) $v[$k] = mb_substr(trim((string)$in[$k]), 0, $max); // surcharges du registre : conservées si le formulaire ne les envoie pas
     $cols = array_keys($v);
     q("INSERT INTO phyto_chantiers (evenement_id, " . implode(', ', $cols) . ") VALUES (?" . str_repeat(',?', count($cols)) . ") ON DUPLICATE KEY UPDATE " . implode(', ', array_map(fn($c) => "$c = VALUES($c)", $cols)), array_merge([$evtId], array_values($v)));
 }
+/** Déverrouillage par l'administration pour corriger une fiche (le numéro de passeport est conservé, le verrou est reposé au prochain « Terminé » ou à la demande) */
+function phyto_deverrouiller(int $evtId): void { q("UPDATE phyto_chantiers SET verrou_le = NULL WHERE evenement_id = ?", [$evtId]); evt_journal($evtId, 'Fiche platane déverrouillée pour correction'); }
 /** Communes en zone délimitée (réglage, une par ligne) : la commune du chantier y est-elle ? */
 function phyto_zone_delimitee(string $ville, string $cp = ''): bool {
     $n = fn($s) => strtoupper(trim(preg_replace('/[\s\-\']+/', ' ', (string)@iconv('UTF-8', 'ASCII//TRANSLIT', $s))));
@@ -69,13 +72,13 @@ function phyto_alertes(array $e): array {
 /** Colonnes disponibles pour le registre et les exports (clé => [en-tête DRAAF, fonction de valeur]) */
 function phyto_colonnes(): array {
     return [
-        'proprietaire' => ["Propriétaire des arbres\nNom Prénom/Société", fn($e) => $e['client_nom']],
-        'coordonnees' => ["Coordonnées du propriétaire\nTéléphone/Mail", fn($e) => trim($e['client_tel'] . ' ' . $e['client_email'])],
+        'proprietaire' => ["Propriétaire des arbres\nNom Prénom/Société", fn($e) => $e['proprietaire'] ?: $e['client_nom']],
+        'coordonnees' => ["Coordonnées du propriétaire\nTéléphone/Mail", fn($e) => $e['coordonnees'] ?: trim($e['client_tel'] . ' ' . $e['client_email'])],
         'du' => ["Date réalisation du chantier\nDu", fn($e) => $e['debut'] ? date('d/m/Y', strtotime($e['debut'])) : ''],
         'au' => ["Au", fn($e) => $e['fin'] ? date('d/m/Y', strtotime($e['fin']) - 1) : ''],
         'travaux' => ["Type de travaux (abattage, élagage, ramassage bois mort,…)", fn($e) => $e['travaux']],
         'nb_arbres' => ["Nombre de platanes", fn($e) => $e['nb_arbres'] !== null ? (int)$e['nb_arbres'] : ''],
-        'localisation' => ["Localisation du chantier adresse ou coordonnées GPS", fn($e) => trim($e['adresse'] . ' ' . $e['cp'] . ' ' . $e['ville']) . ($e['lat'] !== null ? " ({$e['lat']}, {$e['lng']})" : '')],
+        'localisation' => ["Localisation du chantier adresse ou coordonnées GPS", fn($e) => $e['localisation'] ?: trim($e['adresse'] . ' ' . $e['cp'] . ' ' . $e['ville']) . ($e['lat'] !== null ? " ({$e['lat']}, {$e['lng']})" : '')],
         'surv_avant' => ["Surveillance phytosanitaire visuelle\nAvant chantier", fn($e) => PHYTO_SURV[$e['surv_avant']] ?? ''],
         'surv_pendant' => ["Surveillance phytosanitaire visuelle\nEn cours de chantier", fn($e) => PHYTO_SURV[$e['surv_pendant']] ?? ''],
         'code_c' => ["Code de traçabilité C\npour le passeport phytosanitaire", fn($e) => $e['code_c']],
@@ -96,7 +99,7 @@ function phyto_colonnes(): array {
 const PHYTO_COLS_DRAAF = ['proprietaire', 'coordonnees', 'du', 'au', 'travaux', 'localisation', 'surv_avant', 'surv_pendant', 'code_c', 'destination', 'usage', 'volume'];
 /** Registre : chantiers platane entre deux dates (incluses), avec leur fiche */
 function phyto_registre(string $du, string $au, string $client = ''): array {
-    $l = q("SELECT e.*, p.travaux, p.surv_avant, p.surv_pendant, p.code_c, p.destination, p.usage_bois, p.volume_m3, p.desinfection, p.desinf_entree, p.desinf_sortie, p.desinf_arbres, p.produit, p.griffes, p.declaration_le, p.nb_arbres, p.transport, p.notes pnotes, p.passeport_num, p.verrou_le, p.pp_b, p.pp_c
+    $l = q("SELECT e.*, p.proprietaire, p.coordonnees, p.localisation, p.manuel, p.travaux, p.surv_avant, p.surv_pendant, p.code_c, p.destination, p.usage_bois, p.volume_m3, p.desinfection, p.desinf_entree, p.desinf_sortie, p.desinf_arbres, p.produit, p.griffes, p.declaration_le, p.nb_arbres, p.transport, p.notes pnotes, p.passeport_num, p.verrou_le, p.pp_b, p.pp_c
            FROM evenements e JOIN phyto_chantiers p ON p.evenement_id = e.id WHERE e.statut <> 'annule' AND COALESCE(DATE(e.debut), DATE(e.cree_le)) BETWEEN ? AND ?" . ($client !== '' ? " AND e.client_nom LIKE ?" : '') . " ORDER BY e.debut", array_merge([$du, $au], $client !== '' ? ["%$client%"] : []))->fetchAll();
     foreach ($l as &$e) { $e['code_c'] = $e['pp_c'] !== '' ? $e['pp_c'] : phyto_code($e, $e['code_c']); $e['notes'] = $e['pnotes']; $e['personnel'] = array_map('intval', array_column(q("SELECT personnel_id FROM evenement_personnel WHERE evenement_id = ?", [$e['id']])->fetchAll(), 'personnel_id')); } unset($e);
     return $l;

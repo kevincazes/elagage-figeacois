@@ -591,6 +591,7 @@ function planning_taches_ext(): void {
     try { contrats_generer(); } catch (Throwable $t) {}
     try { taches_rappels(); } catch (Throwable $t) {}
     try { agendas_sync_tous(); } catch (Throwable $t) {}
+    if (setting('livret_taches_le') !== date('Y-m-d')) { set_setting('livret_taches_le', date('Y-m-d')); try { livret_taches(); } catch (Throwable $t) {} }
     try { contrats_echeances(); } catch (Throwable $t) {}
     if (pennylane_pret() && setting('pl_synchro_le') !== date('Y-m-d')) { set_setting('pl_synchro_le', date('Y-m-d')); try { pl_synchro_factures(); pl_synchro_mandats(); } catch (Throwable $t) {} }
     if (setting('avis_actif') === '1' && setting('avis_lien') !== '') {

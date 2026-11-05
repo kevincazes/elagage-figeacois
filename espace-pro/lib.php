@@ -434,7 +434,8 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     $admin = $u && $u['role'] === 'admin'; $gestion = $u && in_array($u['role'], ['admin', 'secretaire'], true);
     // Menu principal en groupes déroulants : chantiers & agenda / chiffrage / compte
     $chantiers = ['planning.php' => 'Planning', 'mon-planning.php' => 'Mon planning', 'clients.php' => 'Clients', 'conges.php' => 'Congés', 'materiel.php' => 'Matériel'];
-    if ($gestion) $chantiers += ['contrats.php' => 'Contrats', 'charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes'];
+    if ($gestion) $chantiers += ['contrats.php' => 'Contrats', 'charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes', 'livret.php' => 'Livrets du personnel'];
+    else $chantiers['livret.php'] = 'Mon livret';
     $chiffrage = $gestion ? ['bordereaux.php' => 'Bordereaux', 'bpu.php' => 'Catalogue', 'packs.php' => 'Packs', 'actions.php' => 'Actions', 'historique.php' => 'Historique'] + ($admin ? ['parametres.php' => 'Paramètres de prix'] : []) : [];
     $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
     $nav = [['index.php' => 'Tableau de bord'], ['Chantiers & agenda', $chantiers], ['Chiffrage', $chiffrage], ['Compte', $compte]];
