@@ -787,14 +787,14 @@ function agendas_bloc(array $personnes, bool $choixPersonne): string {
 }
 
 // ---------- Extrabat : appel brut d'exploration (adresse, clé et mode d'authentification réglés dans Réglages) ----------
-function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null): array { // [code HTTP, corps (texte), message]
-    $base = rtrim(setting('xb_api', 'https://api.extrabat.com/v1'), '/'); $cle = setting('xb_cle'); if ($base === '' || $cle === '') return [0, '', "Renseigne l'adresse de l'API et la clé."];
+function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null, ?string $baseForce = null, ?string $authForce = null, int $timeout = 20): array { // [code HTTP, corps (texte), message]
+    $base = rtrim($baseForce ?? setting('xb_api', 'https://api.extrabat.com/v1'), '/'); $cle = setting('xb_cle'); if ($base === '' || $cle === '') return [0, '', "Renseigne l'adresse de l'API et la clé."];
     if (!preg_match('#^https://#i', $base)) return [0, '', "L'adresse doit commencer par https://"];
     $chemin = '/' . ltrim(trim($chemin), '/'); if (preg_match('/[\s<>"]/', $chemin)) return [0, '', 'Chemin invalide.'];
-    $url = $base . $chemin; $h = ['Accept: application/json', 'User-Agent: ElagageFigeacois-EspacePro/1.0']; $auth = setting('xb_auth', 'bearer'); $nom = trim(setting('xb_entete', 'X-API-KEY')) ?: 'X-API-KEY';
+    $url = $base . $chemin; $h = ['Accept: application/json', 'User-Agent: ElagageFigeacois-EspacePro/1.0']; $auth = $authForce ?? setting('xb_auth', 'bearer'); $nom = trim(setting('xb_entete', 'X-API-KEY')) ?: 'X-API-KEY';
     if ($auth === 'bearer') $h[] = 'Authorization: Bearer ' . $cle; elseif ($auth === 'entete') $h[] = "$nom: $cle"; elseif ($auth === 'param') $url .= (str_contains($url, '?') ? '&' : '?') . rawurlencode($nom) . '=' . rawurlencode($cle);
     if (!function_exists('curl_init')) return [0, '', 'curl indisponible sur le serveur'];
-    $ch = curl_init($url); $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_HTTPHEADER => $h, CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_HEADER => true];
+    $ch = curl_init($url); $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout, CURLOPT_HTTPHEADER => $h, CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_HEADER => true];
     if ($auth === 'basic') { $o[CURLOPT_USERPWD] = 'api:' . $cle; }
     if ($corps !== null) { $o[CURLOPT_POSTFIELDS] = json_encode($corps); $h[] = 'Content-Type: application/json'; $o[CURLOPT_HTTPHEADER] = $h; }
     curl_setopt_array($ch, $o); $r = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); $ht = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);

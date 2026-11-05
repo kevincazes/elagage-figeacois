@@ -23,6 +23,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($a === 'xb_explorer') { $out = date('d/m/Y H:i') . " – exploration de " . setting('xb_api', 'https://api.extrabat.com/v1') . "\n"; $trouves = 0;
         foreach (['', '/me', '/user', '/users/me', '/account', '/docs', '/doc', '/openapi.json', '/swagger.json', '/api-docs', '/devis', '/quotes', '/quotations', '/estimates', '/clients', '/customers', '/contacts', '/agenda', '/events', '/appointments', '/planning', '/chantiers', '/projects', '/documents'] as $c) { [$code, $corps, $m] = xb_appel($c ?: '/'); $ok = $code >= 200 && $code < 300; if ($ok) $trouves++; $out .= str_pad(($c ?: '/'), 16) . ' → ' . ($code ?: 'échec') . ($m && !$code ? " ($m)" : '') . ($ok || $code === 400 || $code === 422 ? '   ' . mb_substr(preg_replace('/\s+/', ' ', preg_replace('/^\[[^\]]*\]\n/', '', $corps)), 0, 160) : '') . "\n"; if (!$code) break; }
         set_setting('xb_dernier_test', mb_substr($out, 0, 6000)); flash($trouves ? "$trouves chemin(s) répondent : voir ci-dessous." : "Aucun chemin n'a répondu positivement : voir les codes ci-dessous (401/403 = clé ou mode d'envoi à revoir, 404 = chemin inconnu).", $trouves ? 'ok' : 'err'); }
+    if ($a === 'xb_profond') { // plusieurs adresses de base × modes d'envoi de la clé × quelques chemins : on cherche tout ce qui n'est pas 404
+        $out = date('d/m/Y H:i') . " – exploration approfondie (réponses autres que 404 seulement)\n"; $n = 0; $vus = [];
+        foreach (['https://api.extrabat.com/v1', 'https://api.extrabat.com', 'https://api.extrabat.com/v2', 'https://api.extrabat.com/api/v1', 'https://api.extrabat.com/api', 'https://myextrabat.com/api/v1', 'https://www.myextrabat.com/api'] as $b) {
+            foreach (['bearer', 'entete', 'basic', 'param'] as $m) { foreach (['/', '/me', '/user', '/clients', '/devis', '/customers', '/quotes', '/webhook'] as $c) {
+                [$code, $corps, $msg] = xb_appel($c, 'GET', null, $b, $m, 8); $n++;
+                if ($code === 0) { $out .= "$b : injoignable ($msg)\n"; continue 3; }
+                if ($code !== 404) { $k = "$b$c"; $out .= str_pad($k, 52) . " [clé: $m] → $code  " . mb_substr(preg_replace('/\s+/', ' ', preg_replace('/^\[[^\]]*\]\n/', '', $corps)), 0, 140) . "\n"; $vus[] = $code; }
+                if ($m !== 'bearer' && $c === '/' && $code === 404) { /* même 404 sans clé particulière : inutile d'insister sur ce mode */ }
+            } } }
+        if (!$vus) $out .= "Rien d'autre que des 404 après $n appels : l'API ne reconnaît aucun de ces chemins. Il faut la documentation d'Extrabat (support) ou le nom exact des points d'accès.\n";
+        set_setting('xb_dernier_test', mb_substr($out, 0, 6000)); flash($vus ? count($vus) . ' réponse(s) intéressante(s) : voir ci-dessous.' : "Toujours 404 partout ($n essais) : voir ci-dessous.", $vus ? 'ok' : 'err'); }
     if ($a === 'push_test') { notifier([(int)user()['id']], 'Notification de test', 'Si tu lis ceci sur ton téléphone, tout fonctionne.', 'notifications.php'); flash('Notification de test envoyée à tes appareils (' . (int)q("SELECT COUNT(*) c FROM push_abonnements WHERE utilisateur_id = ?", [user()['id']])->fetch()['c'] . ').'); }
     if ($champs || $cases) flash('Réglages enregistrés.');
     redirect('reglages-planning.php#' . $a);
@@ -82,5 +93,6 @@ page_start('Réglages du planning', 'reglages-planning.php', ['planning.php', 'P
   <button class="btn">Enregistrer</button></form>
 <form method="post" class="inline" style="margin:-6px 0 8px"><?= csrf_field() ?><input type="hidden" name="action" value="xb_test"><input name="chemin" value="<?= e($_GET['chemin'] ?? '/') ?>" placeholder="/chemin à appeler (ex. /devis, /clients, /me)" style="min-width:260px"><button class="mini">Tester l'appel</button></form>
 <form method="post" style="margin:-4px 0 8px"><?= csrf_field() ?><input type="hidden" name="action" value="xb_explorer"><button class="mini" title="Essaie une vingtaine de chemins courants (/me, /devis, /clients, /agenda…) et affiche la réponse de chacun">Explorer automatiquement les chemins courants</button></form>
+<form method="post" style="margin:-4px 0 8px"><?= csrf_field() ?><input type="hidden" name="action" value="xb_profond"><button class="mini" title="Essaie plusieurs adresses de base et plusieurs façons d'envoyer la clé (une à deux minutes)">Exploration approfondie (adresses + modes d'envoi de la clé)</button></form>
 <?php if (setting('xb_dernier_test') !== ''): ?><pre class="card" style="white-space:pre-wrap;word-break:break-all;font-size:.78rem;max-height:420px;overflow:auto;margin-bottom:18px"><?= e(setting('xb_dernier_test')) ?></pre><?php endif; ?>
 <?php page_end(); ?>
