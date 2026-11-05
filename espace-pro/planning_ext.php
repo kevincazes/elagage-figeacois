@@ -792,7 +792,7 @@ function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null,
     if (!preg_match('#^https://#i', $base)) return [0, '', "L'adresse doit commencer par https://"];
     $chemin = '/' . ltrim(trim($chemin), '/'); if (preg_match('/[\s<>"]/', $chemin)) return [0, '', 'Chemin invalide.'];
     $url = $base . $chemin; $h = ['Accept: application/json', 'User-Agent: ElagageFigeacois-EspacePro/1.0']; $auth = $authForce ?? setting('xb_auth', 'bearer'); $nom = trim(setting('xb_entete', 'X-API-KEY')) ?: 'X-API-KEY';
-    if (str_starts_with($auth, 'jwt:')) $h[] = 'Authorization: Bearer ' . substr($auth, 4); elseif ($auth === 'aucun') {} elseif ($auth === 'bearer') $h[] = 'Authorization: Bearer ' . $cle; elseif ($auth === 'entete') $h[] = "$nom: $cle"; elseif ($auth === 'param') $url .= (str_contains($url, '?') ? '&' : '?') . rawurlencode($nom) . '=' . rawurlencode($cle);
+    if (str_starts_with($auth, 'jwt:')) $h[] = 'Authorization: Bearer ' . substr($auth, 4); elseif ($auth === 'aucun') {} elseif ($auth === 'basicbrut') $h[] = 'Authorization: Basic ' . $cle; elseif ($auth === 'bearer') $h[] = 'Authorization: Bearer ' . $cle; elseif ($auth === 'entete') $h[] = "$nom: $cle"; elseif ($auth === 'param') $url .= (str_contains($url, '?') ? '&' : '?') . rawurlencode($nom) . '=' . rawurlencode($cle);
     if (!function_exists('curl_init')) return [0, '', 'curl indisponible sur le serveur'];
     $ch = curl_init($url); $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout, CURLOPT_HTTPHEADER => $h, CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_HEADER => true];
     if ($auth === 'basic') { $o[CURLOPT_USERPWD] = 'api:' . $cle; }
@@ -818,6 +818,9 @@ function xb_jeton(bool $forcer = false): array { // [jeton|'' , journal]
     $log = ''; $n = 0; $extraire = function (string $txt) { $j = json_decode(preg_replace('/^\[[^\]]*\]\n/', '', $txt), true); $t = $j['token'] ?? $j['access_token'] ?? $j['jwt'] ?? $j['data']['token'] ?? $j['accessToken'] ?? ''; return is_string($t) && substr_count($t, '.') === 2 ? $t : ''; };
     foreach ($bases as $b) { $log .= "— $b\n";
         foreach ($chemins as $c) { $premier = true;
+            foreach (['GET', 'POST'] as $meth) { $n++; [$code, $txt, $m] = xb_appel($c, $meth, $meth === 'POST' ? [] : null, $b, 'basicbrut', 10); if ($code === 0) { $log .= "  injoignable ($m)\n"; continue 3; }
+                if ($code !== 404 && $code !== 405) { $log .= '  ' . str_pad($c, 18) . "[$meth, Authorization: Basic <clé>] → $code  " . mb_substr(preg_replace('/\s+/', ' ', preg_replace('/^\[[^\]]*\]\n/', '', $txt)), 0, 110) . "\n";
+                    if ($code >= 200 && $code < 300 && ($tok = $extraire($txt)) !== '') { set_setting('xb_jwt', $tok); set_setting('xb_jwt_exp', (string)(time() + 3000)); set_setting('xb_login_chemin', $c); set_setting('xb_login_corps', 'BASIC'); if ($b !== $base) set_setting('xb_login_base', $b); $log .= "✔ Jeton obtenu via $b$c avec Authorization: Basic\n"; return [$tok, $log]; } } }
             foreach ($corps as $i => $bd) foreach ([false, true] as $form) {
                 $n++; [$code, $txt, $m] = xb_appel($c, 'POST', $bd, $b, 'aucun', 10, $form);
                 if ($code === 0) { $log .= "  injoignable ($m)\n"; continue 3; }
@@ -829,6 +832,15 @@ function xb_jeton(bool $forcer = false): array { // [jeton|'' , journal]
                     $log .= "✔ Jeton obtenu via $b$c (valable jusqu'au " . date('d/m H:i', $exp) . ")\n"; return [$tok, $log]; }
             } } }
     return ['', $log . "Aucun point de connexion n'a rendu de jeton ($n essais).\n"];
+}
+/** Forme de la clé (sans la révéler) : longueur, base64 ?, contenu décodé « a:b » ? */
+function xb_diag_cle(): string {
+    $cle = setting('xb_cle'); if ($cle === '') return 'clé absente';
+    $d = ['longueur ' . strlen($cle)]; $d[] = substr_count($cle, '.') === 2 ? 'ressemble à un JWT (2 points)' : 'pas un JWT';
+    $dec = base64_decode($cle, true);
+    if ($dec !== false && strlen($dec) > 4) { $imp = preg_match('/^[\x20-\x7e]+$/', $dec); $d[] = 'base64 valide → ' . strlen($dec) . ' octets ' . ($imp ? 'lisibles' : 'binaires'); if ($imp && str_contains($dec, ':')) { [$g, $dr] = explode(':', $dec, 2); $d[] = "contenu de la forme « identifiant:secret » (identifiant de " . strlen($g) . " caractères, commence par « " . mb_substr($g, 0, 3) . "… », secret de " . strlen($dr) . " caractères)"; } elseif ($imp) $d[] = 'contenu décodé : ' . mb_substr($dec, 0, 4) . '… (' . (json_decode($dec, true) ? 'JSON' : 'texte') . ')'; }
+    else $d[] = 'pas du base64';
+    return implode(' ; ', $d);
 }
 /** Appel Extrabat avec jeton JWT (obtenu automatiquement) ; renouvelle le jeton si 401 */
 function xb_get(string $chemin): array {
