@@ -76,7 +76,7 @@ $gOrdre = array_values(array_filter((array)($prefs['groupes'] ?? []), fn($g) => 
 page_start('Tableau de bord', 'index.php');
 ?>
 <?= pictos_sprite() ?>
-<style>.tdb-barre{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.tdb-barre .btn.on{background:var(--sapin)}
+<style>.tdb-barre{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.tdb-barre .btn.on{background:var(--sapin);color:#fff;border-color:var(--sapin)}.edit .tiles .tile{padding-top:40px}
 .tdb-grp h2{display:flex;align-items:center;gap:8px}.tdb-grp h2 .gmv{display:none;gap:2px}.edit .tdb-grp h2 .gmv{display:inline-flex}.edit .tdb-grp>h2{cursor:grab;touch-action:none}.edit .tdb-grp{outline:2px dashed #b9c9a6;outline-offset:3px}.tdb-grp.gdrag{opacity:.55;outline:3px solid var(--sapin)!important;box-shadow:0 16px 40px rgba(28,59,43,.25)}body.gtire,body.gtire *{cursor:grabbing!important;user-select:none}.gpoig{display:inline-flex;align-items:center;gap:6px;border:1px solid #d5dccd;background:#fff;border-radius:6px;height:26px;padding:0 8px;font-size:.78rem;font-weight:700;color:#5b6b5f;margin-right:4px}
 .gmv button{border:1px solid #d5dccd;background:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:.8rem;line-height:1}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));grid-auto-rows:minmax(120px,auto);grid-auto-flow:dense;gap:14px;margin:0 0 8px}.tile.cache{display:none}
