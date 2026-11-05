@@ -3,6 +3,7 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.7', '2026-11-05', [
+        'Bordereau : « Importer les quantités d\'un DQE » (fichier Excel, Word, PDF, CSV ou copier-coller) : chaque ligne du DQE est rapprochée d\'une ligne du bordereau (code, N° et désignation, désignation proche), aperçu avec les lignes sûres, à vérifier et non trouvées, correction possible avant d\'enregistrer ; lignes absentes du DQE gardées ou vidées',
         'Bordereau : moyens ponctuels propres au bordereau (« + moyen » sous le PU calculé) : une ressource des paramètres (son taux) ou un moyen libre (nom et taux) ajouté en heures à une ligne, ou à toutes les lignes du même code (ex. ABT), sans toucher au catalogue ; repris dans le PU, le curseur, la comparaison des équipes, l\'export, la copie du bordereau et le figeage',
         'Bordereau : « Quantité pour tout le bordereau » met en un clic la même quantité (ex. 1) sur toutes les lignes, ou seulement sur celles sans quantité, ou vide la colonne ; chaque quantité reste modifiable ligne par ligne',
         'Tableau de bord : en mode « Personnaliser », chaque famille se déplace entière en attrapant son titre (souris ou doigt) pour la placer au-dessus ou en dessous d\'une autre ; logo Grality',

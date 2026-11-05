@@ -167,6 +167,7 @@ if ($COMP): ?>
   <button type="button" class="mini" data-qt="toutes" title="Remplace la quantité de chaque ligne">Mettre sur toutes les lignes</button>
   <button type="button" class="mini" data-qt="vides" title="Ne touche pas aux quantités déjà saisies">Seulement les lignes sans quantité</button>
   <button type="button" class="mini" data-qt="effacer" title="Vide la colonne Qté">Effacer toutes les quantités</button>
+  <a class="mini" href="dqe.php?id=<?= $bid ?>" title="Reprendre les quantités du DQE de la collectivité (fichier Excel, Word, PDF, CSV ou copier-coller), avec vérification avant d'enregistrer"><svg class="pi"><use href="#pi-upload"/></svg> Importer les quantités d'un DQE</a>
   <span class="small muted">Enregistré aussitôt (avec les autres modifications du tableau) ; chaque quantité reste modifiable ligne par ligne.</span></div><?php endif; ?>
 <form method="post" id="f" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="save">
 <div class="scroll"><table class="tbl bord">
