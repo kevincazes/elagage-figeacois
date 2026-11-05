@@ -2,6 +2,7 @@
 // Rapport d'un rendez-vous : compte rendu de visite ou bon de fin d'intervention (photos annotées, ressenti, signature, PDF)
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
+require_once __DIR__ . '/assistant_lib.php';
 require_planning();
 $id = (int)($_GET['evt'] ?? 0);
 $e = evt_charger($id);
@@ -113,7 +114,9 @@ page_start($fin ? "Bon de fin d'intervention" : 'Rapport de visite', 'mon-planni
   <div class="carte" id="cRess"><strong>Comment s'est déroulé le rendez-vous ?</strong>
     <div class="ress"><?php foreach (RESSENTIS as $k => [$l, $c]): ?><button type="button" data-r="<?= $k ?>" class="<?= $r['ressenti'] === $k ? 'on' : '' ?>"><i style="background:<?= $c ?>"><?= $k === 'bien' ? '✓' : '' ?></i><?= e($l) ?></button><?php endforeach; ?></div>
     <p class="muted small" style="margin:0;text-align:center">Pour toi seulement : n'apparaît pas sur le PDF.</p></div>
-  <div class="carte"><strong id="lTexte"><?= $fin ? 'Travaux réalisés' : 'Compte rendu' ?></strong><textarea id="texte" rows="6" placeholder="<?= $fin ? 'Ex. Taille douce de 3 tilleuls, abattage d\'un frêne mort, rognage de 2 souches…' : 'Ex. 4 chênes à élaguer, accès nacelle par le chemin, prévoir broyeur…' ?>"><?= e($r['texte']) ?></textarea></div>
+  <div class="carte"><strong id="lTexte"><?= $fin ? 'Travaux réalisés' : 'Compte rendu' ?></strong>
+    <?php if ($peut && !$r['signe_le'] && acces_chiffrage() && assistant_ok()): ?><p class="small muted" style="margin:0 0 6px">Dicte ou tape tes notes en vrac, puis <button type="button" class="mini" id="rediger">✦ Mettre en forme en rapport de visite</button> <button type="button" class="mini" id="dicter" hidden>🎤 Dicter</button></p><?php endif; ?>
+    <textarea id="texte" rows="6" placeholder="<?= $fin ? 'Ex. Taille douce de 3 tilleuls, abattage d\'un frêne mort, rognage de 2 souches…' : 'Ex. 4 chênes à élaguer, accès nacelle par le chemin, prévoir broyeur…' ?>"><?= e($r['texte']) ?></textarea></div>
   <div class="carte f-fin"><strong>Déchets verts</strong><select id="dechets"><option value="">—</option><option value="evacues" <?= $r['dechets'] === 'evacues' ? 'selected' : '' ?>>Évacués par nos soins</option><option value="sur_place" <?= $r['dechets'] === 'sur_place' ? 'selected' : '' ?>>Laissés sur place à la demande du client</option><option value="broyes" <?= $r['dechets'] === 'broyes' ? 'selected' : '' ?>>Broyés et laissés en paillage</option></select>
     <label style="margin-top:8px">Remarques ou réserves du client<textarea id="reserves" rows="2"><?= e($r['reserves']) ?></textarea></label></div>
   <div class="carte"><strong>Photos</strong><p class="muted small" style="margin:0 0 8px">Touche une photo pour la légender, l'annoter au doigt (cercles, flèches) ou la retirer du PDF.</p>
@@ -178,6 +181,16 @@ if ($('#sig')) { let zs = null; const init = () => { if (!zs && $('#sig').offset
   $('#sigEff').onclick = () => zs && zs.effacer();
   $('#sigOk').onclick = async () => { if (!zs || zs.vide()) { etat('Le client doit signer dans le cadre.', true); return; }
     try { await post(lire()); await post({a: 'signer', signataire: $('#signataire').value, signature: zs.image()}); location.reload(); } catch (e) { etat(e.message, true); } }; }
+if ($('#rediger')) { const R = $('#rediger'), T = $('#texte'), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  R.onclick = async () => { if (!T.value.trim()) { etat('Écris ou dicte d\'abord quelques notes.', true); return; } R.disabled = true; etat('Mise en forme en cours…');
+    try { const r = await fetch('assistant.php?api=1', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': CSRF}, body: JSON.stringify({csrf: CSRF, action: 'rediger', texte: T.value, contexte: <?= json_encode(($e['titre'] ?: '') . ($e['client_nom'] ? ' – ' . $e['client_nom'] : '') . ($e['ville'] ? ' – ' . $e['ville'] : '') . ($e['debut'] ? ' – ' . date('d/m/Y', strtotime($e['debut'])) : ''), JSON_UNESCAPED_UNICODE) ?>})});
+      const j = await r.json(); if (j.erreur) throw new Error(j.erreur); T.dataset.brut = T.value; T.value = j.texte; sauver(); etat('Rapport mis en forme (tes notes d\'origine sont conservées : bouton « Revenir aux notes »).'); if (!$('#retourNotes')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'mini'; b.id = 'retourNotes'; b.textContent = 'Revenir aux notes'; b.onclick = () => { T.value = T.dataset.brut || ''; sauver(); b.remove(); }; R.after(' ', b); } }
+    catch (err) { etat(err.message, true); } R.disabled = false; };
+  if (SR) { const D = $('#dicter'); D.hidden = false; let rec = null, on = false;
+    D.onclick = () => { if (on) { rec.stop(); return; } rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = true; const base = T.value ? T.value.replace(/\s+$/, '') + '\n' : '';
+      rec.onresult = ev => { let f = '', c = ''; for (const x of ev.results) (x.isFinal ? (f += x[0].transcript + ' ') : (c += x[0].transcript)); T.value = base + f + c; };
+      rec.onend = () => { on = false; D.textContent = '🎤 Dicter'; sauver(); }; rec.onerror = () => { on = false; D.textContent = '🎤 Dicter'; };
+      try { rec.start(); on = true; D.textContent = '⏹ Arrêter'; } catch (e) {} }; } }
 if ($('#term')) $('#term').onclick = async () => { await post({a: 'terminer'}); etat('Rendez-vous marqué terminé.'); $('#term').remove(); };
 const URLPDF = 'rapport.php?evt=' + ID + '&pdf=1', MAIL = <?= json_encode($e['client_email']) ?>;
 $('#pdfMenu').onclick = async () => {

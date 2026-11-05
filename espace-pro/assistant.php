@@ -17,6 +17,13 @@ if (isset($_GET['api'])) {
     try {
         if (!assistant_ok()) throw new RuntimeException("Clé API non configurée : ajoute CLAUDE_API_KEY dans config-espace-pro.php.");
         $action = $in['action'] ?? 'message';
+        if ($action === 'rediger') { // mise en forme de notes de terrain en rapport de visite (appel unique, sans conversation)
+            $notes = trim((string)($in['texte'] ?? '')); if ($notes === '') throw new RuntimeException('Notes vides.');
+            $ctx = trim((string)($in['contexte'] ?? ''));
+            $rep = assistant_appel([['role' => 'user', 'content' => [['type' => 'text', 'text' => "Mets en forme ces notes de terrain en « Rapport de visite – préparation devis » (version courte si la visite est simple), selon la compétence rapport de visite et la doctrine. Réponds uniquement par le rapport, en texte simple sans mise en forme Markdown (titres en majuscules, tirets), prêt à être enregistré tel quel. N'invente rien : ce qui manque va dans « À confirmer ».\n\n" . ($ctx ? "Contexte du rendez-vous : $ctx\n\n" : '') . "Notes :\n$notes"]]]], null);
+            $texte = ''; foreach ($rep['content'] ?? [] as $bloc) if ($bloc['type'] === 'text') $texte .= $bloc['text'];
+            echo json_encode(['texte' => trim($texte)], JSON_UNESCAPED_UNICODE); exit;
+        }
         $cid = (int)($in['conversation_id'] ?? 0);
         if ($cid) { $c = q("SELECT * FROM conversations WHERE id = ? AND utilisateur_id = ?", [$cid, $uid])->fetch(); if (!$c) throw new RuntimeException('Conversation introuvable.'); }
         if ($action === 'message') {
