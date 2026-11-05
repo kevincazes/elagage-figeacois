@@ -282,3 +282,11 @@ body.panneau main{padding:14px 18px 30px}body.panneau h1{font-size:1.2rem;margin
 .fen-tete{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;background:var(--blanc);border-bottom:1px solid #e0e5da;font-weight:700}.fen-tete button{border:0;background:#eef1ea;border-radius:999px;width:32px;height:32px;cursor:pointer;font-size:1.1rem}
 .fen iframe{border:0;flex:1;width:100%;background:var(--creme,#f6f7f2)}
 @media(max-width:700px){.fen{padding:0}.fen-box{border-radius:0;height:100%}}
+
+/* Tableaux à taille réglable et plein écran */
+.scroll.fenetre{resize:both;min-width:320px;min-height:200px;max-width:calc(100vw - 2 * clamp(20px,2.5vw,56px) - 2px)}
+.scroll.fenetre::-webkit-resizer{background:linear-gradient(135deg,transparent 0 40%,var(--sapin) 40% 50%,transparent 50% 65%,var(--sapin) 65% 75%,transparent 75%);border-radius:0 0 var(--rayon) 0}
+.tbl-outils{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px}
+.scroll.fenetre.plein{position:fixed;inset:44px 0 0 0;z-index:900;width:auto!important;height:auto!important;max-height:none!important;max-width:none!important;border-radius:0;resize:none;background:var(--blanc)}
+.tbl-outils.plein{position:fixed;top:0;left:0;right:0;height:44px;z-index:901;background:var(--blanc);border-bottom:1px solid #e0e5da;margin:0;padding:6px 14px}
+body.tbl-plein{overflow:hidden}

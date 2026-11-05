@@ -563,6 +563,17 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
   window.addEventListener('beforeunload',memoPos);
   document.querySelectorAll('.scroll').forEach(function(sc){ if(sc.querySelector('.tbl.bpu,.tbl.bord,.tbl.imp')) sc.classList.add('fenetre'); });
   document.querySelectorAll('.scroll.fenetre').forEach(function(sc){
+    // Taille réglable : poignée en bas à droite (largeur et hauteur, mémorisées par page) et bouton plein écran
+    (function(){ var cle='tbl_'+location.pathname.split('/').pop()+'_'+(sc.querySelector('table')||{}).className; try{ var m=JSON.parse(localStorage.getItem(cle)||'null'); if(m&&m.w){ sc.style.width=m.w+'px'; sc.style.maxWidth='none'; } if(m&&m.h){ sc.style.height=m.h+'px'; sc.style.maxHeight='none'; } }catch(e){}
+      var ro=new ResizeObserver(function(){ if(sc.dataset.plein) return; if(sc.style.width||sc.style.height){ try{ localStorage.setItem(cle, JSON.stringify({w:sc.style.width?sc.offsetWidth:0, h:sc.style.height?sc.offsetHeight:0})); }catch(e){} } }); ro.observe(sc);
+      sc.addEventListener('mouseup',function(){ if(sc.dataset.plein) return; var w=sc.offsetWidth, h=sc.offsetHeight; setTimeout(function(){ if(sc.offsetWidth!==w||sc.offsetHeight!==h||sc.style.width||sc.style.height){ sc.style.maxWidth='none'; sc.style.maxHeight='none'; } },0); });
+      var outils=document.createElement('div'); outils.className='tbl-outils'; outils.innerHTML='<button type="button" class="mini" data-act="plein" title="Afficher le tableau sur tout l\'écran (Échap pour revenir)">⤢ Plein écran</button><button type="button" class="mini" data-act="reset" title="Revenir à la taille d\'origine">Taille d\'origine</button><span class="small muted">Tire le coin en bas à droite du tableau pour l\'agrandir.</span>';
+      sc.parentNode.insertBefore(outils, sc);
+      function plein(on){ sc.dataset.plein=on?'1':''; sc.classList.toggle('plein',on); document.body.classList.toggle('tbl-plein',on); outils.querySelector('[data-act=plein]').textContent=on?'⤡ Réduire':'⤢ Plein écran'; if(on){ outils.classList.add('plein'); sc.parentNode.insertBefore(outils, sc); } else outils.classList.remove('plein'); }
+      outils.querySelector('[data-act=plein]').onclick=function(){ plein(!sc.dataset.plein); };
+      outils.querySelector('[data-act=reset]').onclick=function(){ sc.style.width=''; sc.style.height=''; sc.style.maxWidth=''; sc.style.maxHeight=''; try{ localStorage.removeItem(cle); }catch(e){} };
+      document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&sc.dataset.plein) plein(false); });
+    })();
     // Quand la molette arrive dans le tableau, la page se cale d'abord pour que la fenêtre occupe l'écran
     sc.addEventListener('wheel',function(e){
       var r=sc.getBoundingClientRect();
