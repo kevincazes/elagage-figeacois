@@ -34,7 +34,8 @@ main.large{max-width:none}
 .pl-filtres{display:flex;gap:6px;flex-wrap:wrap}
 .pl-filtres label{display:inline-flex;gap:5px;align-items:center;margin:0;font-weight:700;font-size:.82rem;padding:4px 10px;border-radius:999px;border:1px solid #d5dccd;background:var(--blanc);cursor:pointer}
 .pl-filtres input{width:auto;margin:0}
-.pl-cadre{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.pl-cadre{display:grid;grid-template-columns:200px minmax(0,1fr) 300px;gap:14px;align-items:start}.pl-gauche{position:sticky;top:calc(var(--bandeau,70px) + 10px)}.pl-gauche .card{padding:12px 14px;margin:0 0 12px}.pl-gauche h3{margin:0 0 8px;font-size:.95rem}.pl-filtres.col{flex-direction:column;gap:4px}.pl-filtres.col label{justify-content:flex-start}
+@media(min-width:1101px){details.filtres,#fPers{display:none}}
 .pl-cote{position:sticky;top:calc(var(--bandeau,0px) + 8px);display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - var(--bandeau,0px) - 20px);overflow:auto}
 .pl-cote .card{margin:0;padding:12px 14px}.pl-cote h3{margin:0 0 8px;font-size:1rem}
 .pl-zone{background:var(--blanc);border-radius:var(--rayon);box-shadow:0 4px 18px rgba(28,59,43,.06);overflow:auto;position:relative}
@@ -120,7 +121,7 @@ main.large{max-width:none}
 .etape .num{width:26px;height:26px;border-radius:50%;background:var(--sapin);color:#fff;font-weight:900;display:grid;place-items:center;flex:none}
 .cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px}.cmp div{background:var(--clair);border-radius:8px;padding:9px 11px}.cmp strong{font-size:1.2rem;color:var(--sapin)}
 .legende{display:flex;gap:10px;flex-wrap:wrap;font-size:.78rem;color:var(--doux);margin:8px 0 0}.legende span{display:inline-flex;gap:5px;align-items:center}.legende i{width:12px;height:12px;border-radius:3px;display:inline-block}
-@media(max-width:1100px){.pl-cadre{grid-template-columns:1fr}.pl-cote{position:static;max-height:none}.tournee{grid-template-columns:1fr}}
+@media(max-width:1100px){.pl-cadre{grid-template-columns:1fr}.pl-cote{position:static;max-height:none}.tournee{grid-template-columns:1fr}.pl-gauche{display:none}}
 @media(max-width:700px){.fiche .g2,.fiche .g3{grid-template-columns:1fr}.pl-barre .periode{min-width:0;flex:1 0 100%;order:-1}}
 </style>
 
@@ -144,6 +145,10 @@ main.large{max-width:none}
 <details class="filtres" open><summary class="mini">Types affichés</summary><div class="pl-filtres" id="fTypes"></div></details>
 <p class="flash" id="lecture" hidden style="margin:0 0 10px">Tu consultes les agendas de toute l'équipe. Pour modifier, demande à un administrateur de t'en donner le droit.</p>
 <div class="pl-cadre">
+  <aside class="pl-gauche">
+    <section class="card"><h3>Agendas</h3><div class="pl-filtres" id="fTypesG"></div><p class="small" style="margin:8px 0 0"><a href="#" id="typesTous">Tout</a> · <a href="#" id="typesAucun">Aucun</a></p></section>
+    <section class="card"><h3>Personnel</h3><div class="pl-filtres col" id="fPersG"></div><p class="small" style="margin:8px 0 0"><a href="#" id="persTous">Tout le monde</a></p></section>
+  </aside>
   <div class="pl-zone" id="zone"></div>
   <aside class="pl-cote">
     <section class="card gestion"><h3>À planifier <span class="muted" id="nbAp"></span></h3><p class="small muted" style="margin:0 0 8px">Glisse une fiche sur un jour (semaine, mois ou ressources), ou ouvre-la et clique « Trouver un créneau ».</p><div id="ap"></div></section>
@@ -162,7 +167,7 @@ const COMPS = <?= json_encode(COMPETENCES, JSON_UNESCAPED_UNICODE) ?>, TMAT = <?
 const BORDS = <?= json_encode($bords, JSON_UNESCAPED_UNICODE) ?>, PL = <?= pennylane_pret() && planning_niveau() === 'tout' ? 'true' : 'false' ?>, NOUV_CLIENT = <?= json_encode($nouvClient, JSON_UNESCAPED_UNICODE) ?>;
 const JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'], MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const H0 = 7, H1 = 20, PXH = 44; // grille horaire : 7 h à 20 h, 44 px par heure
-let S = {vue: localStorage.getItem('pl_vue') || (innerWidth < 760 ? 'liste' : 'semaine'), ref: new Date(), data: null, types: JSON.parse(localStorage.getItem('pl_types') || 'null') || Object.keys(TYPES), pers: ''};
+let S = {vue: localStorage.getItem('pl_vue') || (innerWidth < 760 ? 'liste' : 'semaine'), ref: new Date(), data: null, types: JSON.parse(localStorage.getItem('pl_types') || 'null') || Object.keys(TYPES), pers: (JSON.parse(localStorage.getItem('pl_pers') || '[]') || []).map(Number).filter(Boolean)};
 try { if (!localStorage.getItem('pl_types_x')) { if (!S.types.includes('externe')) S.types.push('externe'); localStorage.setItem('pl_types_x', '1'); } } catch (e) {}
 try { const u = new URLSearchParams(location.search); if (u.get('jour')) S.ref = new Date(u.get('jour') + 'T12:00'); if (u.get('vue')) S.vue = u.get('vue'); } catch (e) {}
 
@@ -211,14 +216,15 @@ async function charger() {
   try { S.data = await api('liste', {du: ymd(du), au: ymd(au)}); } catch (e) { $('#zone').innerHTML = '<p class="flash err" style="margin:14px">' + esc(e.message) + '</p>'; return; }
   rendre(); meteo();
 }
-const visibles = () => (S.data?.evenements || []).filter(e => S.types.includes(e.type) && (!S.pers || e.personnel.includes(+S.pers)));
+const visibles = () => (S.data?.evenements || []).filter(e => S.types.includes(e.type) && (!S.pers.length || e.personnel.some(p => S.pers.includes(+p))));
+const persVisibles = () => (S.data?.personnel || []).filter(p => !S.pers.length || S.pers.includes(+p.id));
 
 // ---------- rendu général ----------
 function rendre() {
   document.querySelectorAll('#vues button').forEach(b => b.classList.toggle('on', b.dataset.v === S.vue));
   $('#periode').textContent = libellePeriode();
   const fp = $('#fPers'); if (fp.options.length <= 1) (S.data.personnel || []).forEach(p => fp.add(new Option(p.prenom + ' ' + p.nom, p.id)));
-  fp.value = S.pers;
+  fp.value = S.pers.length === 1 ? String(S.pers[0]) : ''; filtresGauche();
   ({semaine: vueSemaine, mois: vueMois, ressources: vueRessources, liste: vueListe, tournee: vueTournee, carte: vueCarte})[S.vue]();
   document.querySelectorAll('.pl-cote .card.gestion').forEach(c => c.style.display = toutDroit() ? '' : 'none');
   $('#nouveau').parentElement.style.display = S.data.droits.planifier ? '' : 'none';
@@ -240,6 +246,15 @@ function filtresTypes() {
   $('#fTypes').innerHTML = Object.entries(TYPES).map(([k, [l, c]]) => `<label style="border-color:${c}"><input type="checkbox" value="${k}" ${S.types.includes(k) ? 'checked' : ''}><i style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block"></i>${l}</label>`).join('');
   if (matchMedia('(max-width:700px)').matches && S.types.length === Object.keys(TYPES).length) $('.filtres').open = false;
   $('#fTypes').querySelectorAll('input').forEach(i => i.addEventListener('change', () => { S.types = [...$('#fTypes').querySelectorAll('input:checked')].map(x => x.value); try { localStorage.setItem('pl_types', JSON.stringify(S.types)); } catch (e) {} rendre(); }));
+}
+function filtresGauche() {
+  const g = $('#fTypesG'); g.innerHTML = Object.entries(TYPES).map(([k, [l, c]]) => `<label style="border-color:${c}"><input type="checkbox" value="${k}" ${S.types.includes(k) ? 'checked' : ''}><i style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block"></i>${esc(l)}</label>`).join('');
+  g.querySelectorAll('input').forEach(i => i.addEventListener('change', () => { S.types = [...g.querySelectorAll('input:checked')].map(x => x.value); try { localStorage.setItem('pl_types', JSON.stringify(S.types)); } catch (e) {} filtresTypes(); rendre(); }));
+  const pg = $('#fPersG'); pg.innerHTML = (S.data.personnel || []).map(p => `<label style="border-color:${p.couleur}"><input type="checkbox" value="${p.id}" ${!S.pers.length || S.pers.includes(+p.id) ? 'checked' : ''}><i style="width:9px;height:9px;border-radius:50%;background:${p.couleur};display:inline-block"></i>${esc(p.prenom)}</label>`).join('') || '<span class="muted small">Aucune personne enregistrée.</span>';
+  pg.querySelectorAll('input').forEach(i => i.addEventListener('change', () => { const coches = [...pg.querySelectorAll('input:checked')].map(x => +x.value); S.pers = coches.length === (S.data.personnel || []).length ? [] : coches; try { localStorage.setItem('pl_pers', JSON.stringify(S.pers)); } catch (e) {} $('#fPers').value = S.pers.length === 1 ? String(S.pers[0]) : ''; S.vue === 'tournee' ? vueTournee() : rendre(); }));
+  $('#typesTous').onclick = ev => { ev.preventDefault(); S.types = Object.keys(TYPES); try { localStorage.setItem('pl_types', JSON.stringify(S.types)); } catch (e) {} filtresTypes(); rendre(); };
+  $('#typesAucun').onclick = ev => { ev.preventDefault(); S.types = []; try { localStorage.setItem('pl_types', '[]'); } catch (e) {} filtresTypes(); rendre(); };
+  $('#persTous').onclick = ev => { ev.preventDefault(); S.pers = []; try { localStorage.setItem('pl_pers', '[]'); } catch (e) {} $('#fPers').value = ''; S.vue === 'tournee' ? vueTournee() : rendre(); };
 }
 const PICTO = c => (S.data?.pictos || []).find(p => p.code === c);
 const pictosHtml = e => { const l = (e.pictos_l || []).map(PICTO).filter(Boolean); if (+e.phyto && !l.some(p => p.code === 'platane') && PICTO('platane')) l.push(PICTO('platane')); return l.length ? '<span class="pictos" title="' + esc(l.map(p => p.libelle).join('\n')) + '">' + l.map(p => p.html).join('') + '</span>' : ''; };
@@ -385,7 +400,7 @@ function vueRessources() {
   const persLigne = (p, ind) => ligne('p:' + p.id, p.prenom + ' ' + p.nom, p.poste || p.competences.split(',').filter(Boolean).map(c => COMPS[c] || c).join(', '), p.couleur, ind ? 'padding-left:22px' : '');
   const eqs = S.data.equipes || [], dansEq = new Set(eqs.flatMap(q => q.membres));
   if (eqs.length) h += `<div class="sect">Équipes <span style="font-weight:400;text-transform:none;letter-spacing:0">· glisse un chantier sur la ligne d'une équipe pour lui affecter toute l'équipe et son matériel</span></div>` + eqs.map(q => ligne('e:' + q.id, q.nom, q.membres.map(persNom).join(', ') + (q.materiel.length ? ' · ' + q.materiel.map(matNom).join(', ') : ''), q.couleur, 'font-weight:900') + S.data.personnel.filter(p => q.membres.includes(+p.id)).map(p => persLigne(p, true)).join('')).join('');
-  const autres = S.data.personnel.filter(p => !dansEq.has(+p.id));
+  const autres = persVisibles().filter(p => !dansEq.has(+p.id));
   h += `<div class="sect">${eqs.length ? 'Autres personnes' : 'Personnel'}</div>` + (autres.length ? autres.map(p => persLigne(p, false)).join('') : (S.data.personnel.length ? '' : `<div class="cel" style="grid-column:1/-1;padding:10px">Aucune personne : ajoute ton équipe dans <a href="planning-ressources.php">Personnel, matériel, équipes</a>.</div>`));
   const mats = S.data.materiel, porteurs = mats.filter(m => !m.porteur_id);
   h += `<div class="sect">Matériel</div>` + (mats.length ? porteurs.map(m => ligne('m:' + m.id, m.nom, (TMAT[m.type] || m.type) + (m.controle_le ? ' · contrôle ' + m.controle_le.split('-').reverse().join('/') : ''), m.couleur) + mats.filter(o => +o.porteur_id === +m.id).map(o => ligne('m:' + o.id, '↳ ' + o.nom, 'monté sur ' + m.nom + ' : même machine', o.couleur, 'padding-left:22px')).join('')).join('') + mats.filter(o => o.porteur_id && !mats.some(m => +m.id === +o.porteur_id)).map(o => ligne('m:' + o.id, o.nom, TMAT[o.type] || o.type, o.couleur)).join('') : `<div class="cel" style="grid-column:1/-1;padding:10px">Aucun matériel enregistré.</div>`);
@@ -422,7 +437,7 @@ let carte = null;
 async function vueTournee() {
   const j = ymd(bornes()[0]);
   $('#zone').innerHTML = `<div class="tournee"><div><p class="muted small" style="margin:0 0 8px">Visites, rendez-vous et chantiers de la journée, dans l'ordre le plus court depuis le dépôt (${esc(S.data.reglages.depot.nom)}) et retour. Distances estimées sur la route (vol d'oiseau × facteur), à vérifier sur le GPS.</p><div id="tInfo">Calcul…</div></div><div id="carte"></div></div>`;
-  let t; try { t = await api('tournee', {jour: j, personnel: S.pers || ''}); } catch (e) { $('#tInfo').textContent = e.message; return; }
+  let t; try { t = await api('tournee', {jour: j, personnel: S.pers.length === 1 ? S.pers[0] : ''}); } catch (e) { $('#tInfo').textContent = e.message; return; }
   const A = t.actuel, O = t.optimise, gain = Math.round((A.km - O.km) * 10) / 10;
   const etape = (x, i) => `<div class="etape"><span class="num">${i + 1}</span><span style="flex:1"><strong>${esc(x.titre)}</strong><br><small class="muted">${esc(x.adresse)} · ${x.km_depuis} km</small></span><span><strong>${x.arrivee.slice(11, 16)}</strong><br><small class="muted">${x.duree_min} min</small></span></div>`;
   $('#tInfo').innerHTML = (O.etapes.length ? `<div class="cmp"><div>Ordre actuel<br><strong>${A.km} km</strong><br><small>retour ${A.retour}</small></div><div>Ordre optimisé<br><strong>${O.km} km</strong><br><small>retour ${O.retour}${gain > 0.2 ? ' · ' + gain + ' km de moins' : ''}</small></div></div>` +
@@ -705,7 +720,7 @@ const pas = () => ({mois: 'm', ressources: 14, liste: 7, tournee: 1, carte: 14})
 $('#prec').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref.getFullYear(), S.ref.getMonth() - 1, 15) : plus(S.ref, -p); charger(); };
 $('#suiv').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref.getFullYear(), S.ref.getMonth() + 1, 15) : plus(S.ref, p); charger(); };
 $('#auj').onclick = () => { S.ref = new Date(); charger(); };
-$('#fPers').onchange = ev => { S.pers = ev.target.value; S.vue === 'tournee' ? vueTournee() : rendre(); };
+$('#fPers').onchange = ev => { S.pers = ev.target.value ? [+ev.target.value] : []; try { localStorage.setItem('pl_pers', JSON.stringify(S.pers)); } catch (e) {} S.vue === 'tournee' ? vueTournee() : rendre(); };
 $('#nouveau').onclick = ev => { const m = document.createElement('div'); m.className = 'card'; Object.assign(m.style, {position: 'absolute', zIndex: 60, padding: '8px', margin: 0}); const r = ev.currentTarget.getBoundingClientRect(); m.style.left = (r.left + scrollX) + 'px'; m.style.top = (r.bottom + scrollY + 4) + 'px';
   m.innerHTML = Object.entries(TYPES).filter(([k]) => !['urgence', 'externe'].includes(k)).map(([k, [l, c]]) => `<button class="mini" style="display:block;width:100%;text-align:left;margin:3px 0;border-left:4px solid ${c}" data-t="${k}">${l}</button>`).join(''); document.body.appendChild(m);
   const f = e2 => { if (!m.contains(e2.target)) { m.remove(); document.removeEventListener('click', f, true); } }; setTimeout(() => document.addEventListener('click', f, true));

@@ -35,8 +35,7 @@ $packsListe = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_
 page_start('Bordereaux de prix', 'bordereaux.php');
 ?>
 <?php $packPre = (int)($_GET['pack'] ?? 0); $eqNoms = []; foreach ($equipes as $x) $eqNoms[(int)$x['id']] = $x['nom']; ?>
-<p class="lead">Un bordereau = le document de prix d'un marché. Ouvre-en un pour le modifier, ou crée-en un nouveau en bas de page (import du fichier reçu, ou à partir d'un pack).</p>
-<p><a class="btn" href="importer.php">Importer un bordereau reçu</a> <a class="btn secondary" href="#nouveau">Nouveau bordereau</a></p>
+<p class="lead">Un bordereau = le document de prix d'un marché. Ouvre-en un pour le modifier, ou crée-en un nouveau : import du fichier reçu, ou à partir d'un pack (les packs se préparent dans Chiffrage › Packs).</p>
 <h2>Mes bordereaux</h2>
 <?php if (!$bords): ?><p class="muted">Aucun bordereau pour l'instant : importe le fichier d'une collectivité ou crée-en un à partir d'un pack ci-dessous.</p><?php else: ?>
 <div class="scroll"><table class="tbl">
@@ -59,14 +58,15 @@ page_start('Bordereaux de prix', 'bordereaux.php');
 </tbody></table></div>
 <?php endif; ?>
 
-<div class="cols" id="nouveau" style="margin-top:28px">
+<h2 id="nouveau">Créer un bordereau</h2>
+<div class="cols">
 <section class="card" style="border-left:5px solid var(--anis)">
-  <h2>Importer un bordereau reçu</h2>
+  <h3 style="margin-top:0">Importer un bordereau reçu</h3>
   <p>Le cas courant : la collectivité t'envoie son BPU / DQE. Dépose le fichier (Excel, Word, CSV, PDF texte) : chaque ligne est rapprochée d'une prestation du catalogue, tu vérifies, le bordereau est créé à son format, avec ses quantités.</p>
   <a class="btn" href="importer.php">Importer un fichier</a>
 </section>
 <section class="card">
-  <h2>Nouveau bordereau</h2>
+  <h3 style="margin-top:0">Nouveau bordereau (vide ou à partir d'un pack)</h3>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="creer">
     <label>Nom du marché <input name="nom" placeholder="Ex. Lot Habitat – entretien du patrimoine arboré 2026" required <?= isset($_GET['nouveau']) || $packPre ? 'autofocus' : '' ?>></label>
     <label>Collectivité / client <input name="client"></label>
