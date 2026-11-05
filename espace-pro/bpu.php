@@ -87,6 +87,7 @@ $temps = temps_par_ligne(); $compo = actions_par_ligne(); $actionsDispo = action
 $total = (int)q("SELECT COUNT(*) c FROM bpu_lignes WHERE actif = 1")->fetch()['c'];
 page_start('Catalogue des prestations', 'bpu.php');
 ?>
+<?php $ficheUne = $fLigne && count($lignes) === 1 && (isset($_GET['panneau']) || ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') === 'iframe'); if ($ficheUne): ?><script>document.body.classList.add('fiche-une')</script><?php endif; ?>
 <p class="lead">Chaque ligne a ses temps par ressource ; le prix se recalcule en direct : <strong>PU HT = (Σ heures × taux + forfait) × <?= e(setting('coef')) ?></strong>, arrondi à <?= e(setting('arrondi')) ?> €. La colonne « Réf. » rappelle le prix remis sur un bordereau précédent, pour comparer.</p>
 
 <?php if ($total === 0 || isset($_GET['import'])): ?>
@@ -151,7 +152,7 @@ page_start('Catalogue des prestations', 'bpu.php');
 </tbody>
 </table>
 </div>
-<p><button class="btn" type="submit">Enregistrer toutes les lignes</button> <a class="btn secondary" href="bordereaux.php#nouveau">Créer un bordereau →</a></p>
+<p><button class="btn" type="submit"><?= $ficheUne ? 'Enregistrer la prestation' : 'Enregistrer toutes les lignes' ?></button> <?php if ($ficheUne): ?><span class="muted small">Le prix du catalogue change pour tous les bordereaux non figés qui utilisent cette prestation. Pour un seul bordereau, utilise « + moyen » ou le PU imposé.</span><?php else: ?><a class="btn secondary" href="bordereaux.php#nouveau">Créer un bordereau →</a><?php endif; ?></p>
 </form>
 <form id="fvar" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fvar_a"><input type="hidden" name="id" id="fvar_id"><input type="hidden" name="houppier" id="fvar_h"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>"><input type="hidden" name="f_ligne" value="<?= $fLigne ?: '' ?>"><input type="hidden" name="f_action" value="<?= $fAction ?: '' ?>"><input type="hidden" name="f_equipe" value="<?= $eqApercu ?: '' ?>"></form>
 <form id="fact" method="post"><?= csrf_field() ?><input type="hidden" name="action" id="fact_a"><input type="hidden" name="ligne_id" id="fact_l"><input type="hidden" name="action_id" id="fact_x"><input type="hidden" name="nb" value="1"><input type="hidden" name="f_famille" value="<?= e($fFam) ?>"><input type="hidden" name="f_hauteur" value="<?= e($fHaut) ?>"><input type="hidden" name="f_q" value="<?= e($fQ) ?>"><input type="hidden" name="f_pack" value="<?= $fPack ?>"><input type="hidden" name="f_ligne" value="<?= $fLigne ?: '' ?>"><input type="hidden" name="f_action" value="<?= $fAction ?: '' ?>"><input type="hidden" name="f_equipe" value="<?= $eqApercu ?: '' ?>"></form>
@@ -168,6 +169,9 @@ page_start('Catalogue des prestations', 'bpu.php');
   <p class="muted">Boutons de ligne : <strong>↕</strong> génère les variantes de taille (10–20 m, > 20 m, houppiers) à partir d'une ligne de base, avec les pourcentages de « Paramètres » ; <strong>⛓</strong> signale une variante liée (temps calculés, cliquer pour la détacher) ; <strong>⧉</strong> duplique ; <strong>×</strong> supprime.</p>
 </section>
 <script>
+if (document.body.classList.contains('fiche-une')) { const t = document.querySelector('.tbl.bpu'), ths = [...t.tHead.rows[0].cells].map(th => th.textContent.trim());
+  t.querySelectorAll('tbody tr:not(.grp):not(.sousgrp)').forEach(tr => [...tr.cells].forEach((td, i) => { td.dataset.lab = ths[i] || ''; if (td.classList.contains('pu')) td.dataset.lab = 'PU HT'; else if (!td.dataset.lab && td.querySelector('button')) td.dataset.lab = 'Variantes, copie, suppression'; }));
+  const lib = t.querySelector('textarea.lib'); if (lib) { lib.rows = 3; } }
 const TAUX = <?= json_encode($taux) ?>, COEF = <?= json_encode($coef) ?>, PAS = <?= json_encode($pas) ?>;
 const num = v => parseFloat(String(v).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.')) || 0;
 const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';

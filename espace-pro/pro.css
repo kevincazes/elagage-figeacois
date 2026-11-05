@@ -278,8 +278,8 @@ html{scroll-padding-top:var(--bandeau,0px)}
 /* Mode panneau (page ouverte dans une fenêtre superposée) : seulement le contenu */
 body.panneau header.top,body.panneau .fil,body.panneau .sousnav,body.panneau footer.bottom,body.panneau .bulle-ia,body.panneau .pan-ia{display:none!important}
 body.panneau main{padding:14px 18px 30px}body.panneau h1{font-size:1.2rem;margin-top:0}
-.fen{position:fixed;inset:0;background:rgba(28,59,43,.45);z-index:300;display:flex;align-items:center;justify-content:center;padding:24px}.fen[hidden]{display:none}
-.fen-box{background:var(--creme,#f6f7f2);border-radius:14px;width:min(1200px,100%);height:min(88vh,100%);position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column}
+.fen{position:fixed;inset:0;background:rgba(28,59,43,.45);z-index:300;display:flex;align-items:center;justify-content:center;padding:2vh 2vw}.fen[hidden]{display:none}
+.fen-box{background:var(--creme,#f6f7f2);border-radius:14px;width:min(1500px,100%);height:min(94vh,100%);position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column}
 .fen-tete{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;background:var(--blanc);border-bottom:1px solid #e0e5da;font-weight:700}.fen-tete button{border:0;background:#eef1ea;border-radius:999px;width:32px;height:32px;cursor:pointer;font-size:1.1rem}
 .fen iframe{border:0;flex:1;width:100%;background:var(--creme,#f6f7f2)}
 @media(max-width:700px){.fen{padding:0}.fen-box{border-radius:0;height:100%}}
@@ -305,3 +305,13 @@ body.tbl-plein{overflow:hidden}
 .moy-pop{position:absolute;z-index:950;width:min(380px,calc(100vw - 16px));background:var(--blanc);border:1px solid #d5dccd;border-radius:12px;box-shadow:0 14px 34px rgba(28,59,43,.22);padding:12px 14px;display:flex;flex-direction:column;gap:8px}.moy-pop label{margin:0;font-size:.85rem}.moy-pop select,.moy-pop input{margin:2px 0 0}.moy-pop .mp-ligne{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}.moy-pop .mp-ligne label{flex:1}.moy-pop .num{width:100px}.moy-pop .mp-case{display:flex;gap:8px;align-items:center;font-weight:400}.moy-pop .mp-case input{width:auto;margin:0}.moy-pop .btn{margin:0}
 @media print{.moy-plus,.moy-x{display:none}}
 .moy-pop [hidden]{display:none!important}
+/* Une seule prestation ouverte dans la fenêtre superposée : présentée en fiche (tout visible, sans défilement horizontal) */
+body.fiche-une main>.lead,body.fiche-une main>form.card,body.fiche-une .scroll-aide,body.fiche-une .tbl-outils,body.fiche-une .defil,body.fiche-une .fen-poig,body.fiche-une main>form.inline,body.fiche-une main>section.card,body.fiche-une main>.bloc:has(form.inline[method=get]),body.fiche-une .flash.ok{display:none!important}
+body.fiche-une .fen-cadre{width:auto}body.fiche-une .scroll.fenetre{width:auto!important;height:auto!important;max-height:none!important;max-width:none!important;overflow:visible;resize:none;cursor:auto}
+body.fiche-une .tbl.bpu,body.fiche-une .tbl.bpu tbody{display:block;width:100%}body.fiche-une .tbl.bpu thead{display:none}
+body.fiche-une .tbl.bpu tr.grp{display:block}body.fiche-une .tbl.bpu tr.grp td{display:block;border-radius:10px}body.fiche-une .tbl.bpu tr.sousgrp{display:none}
+body.fiche-une .tbl.bpu tbody tr:not(.grp):not(.sousgrp){display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 14px;padding:14px 4px;background:none}
+body.fiche-une .tbl.bpu tbody td{display:flex;flex-direction:column;gap:4px;padding:0;border:0;text-align:left;position:static!important;background:none!important;min-width:0}
+body.fiche-une .tbl.bpu tbody td::before{content:attr(data-lab);font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5b6b5f}
+body.fiche-une .tbl.bpu tbody td:nth-child(3),body.fiche-une .tbl.bpu tbody td.acts{grid-column:1/-1}body.fiche-une .tbl.bpu tbody td input,body.fiche-une .tbl.bpu tbody td select,body.fiche-une .tbl.bpu tbody td textarea{width:100%!important;max-width:none}
+body.fiche-une .tbl.bpu tbody td.pu{font-size:1.5rem;font-weight:900;color:var(--sapin)}body.fiche-une .tbl.bpu tbody td.r{align-items:stretch}
