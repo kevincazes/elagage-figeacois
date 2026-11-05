@@ -1,6 +1,7 @@
 <?php
 // Assistant intégré : appel à l'API Claude côté serveur, contexte de l'application, outils d'écriture avec confirmation, mémoire d'entreprise
 declare(strict_types=1);
+require_once __DIR__ . '/assistant_connaissances.php';
 
 function assistant_ok(): bool { return defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '' && CLAUDE_API_KEY !== 'COLLE_ICI_LA_CLE'; }
 function assistant_modele(): string { return defined('CLAUDE_MODELE') ? CLAUDE_MODELE : 'claude-sonnet-5-5'; }
@@ -19,8 +20,8 @@ function assistant_tables(): void {
 function assistant_contexte(?int $bordereauId): string {
     $u = user(); $lignes = [];
     $lignes[] = "Utilisateur connecté : {$u['prenom']} (" . mb_strtolower(role_libelle($u['role'])) . "). Date : " . date('d/m/Y H:i') . ".";
-    $PAGES = ['index.php' => 'Tableau de bord', 'parametres.php' => 'Paramètres (taux horaires des ressources, coefficient, arrondi, progression par taille)', 'actions.php' => 'Actions dans l\'arbre', 'bpu.php' => 'Catalogue des prestations', 'packs.php' => 'Packs', 'bordereaux.php' => 'Liste des bordereaux', 'bordereau.php' => 'Un bordereau ouvert', 'importer.php' => 'Import d\'un bordereau reçu', 'historique.php' => 'Historique', 'guide.php' => 'Guide d\'utilisation', 'utilisateurs.php' => 'Comptes', 'compte.php' => 'Mon compte'];
-    if (!empty($GLOBALS['assistant_page']) && isset($PAGES[$GLOBALS['assistant_page']])) $lignes[] = "Page où se trouve l'utilisateur : " . $PAGES[$GLOBALS['assistant_page']] . ". Si sa question porte sur l'écran, explique ce qu'il voit et où agir (menus : Tableau de bord, Paramètres, Actions, Catalogue, Packs, Bordereaux, Historique, Guide, Comptes).";
+    $PAGES = ['index.php' => 'Tableau de bord', 'parametres.php' => 'Paramètres (taux horaires des ressources, coefficient, arrondi, progression par taille)', 'actions.php' => 'Actions dans l\'arbre', 'bpu.php' => 'Catalogue des prestations', 'packs.php' => 'Packs', 'bordereaux.php' => 'Liste des bordereaux', 'bordereau.php' => 'Un bordereau ouvert', 'planning.php' => 'Planning des chantiers et rendez-vous', 'mon-planning.php' => 'Mon planning (appli de terrain)', 'clients.php' => 'Répertoire clients', 'contrats.php' => 'Contrats d\'entretien', 'conges.php' => 'Congés', 'charge.php' => 'Tableau de charge', 'materiel.php' => 'Suivi du matériel', 'phyto.php' => 'Chantiers platanes (chancre coloré)', 'rapport.php' => 'Rapport de visite / bon d\'intervention', 'planning-ressources.php' => 'Personnel, matériel, équipes', 'reglages-planning.php' => 'Réglages du planning', 'importer.php' => 'Import d\'un bordereau reçu', 'historique.php' => 'Historique', 'guide.php' => 'Guide d\'utilisation', 'utilisateurs.php' => 'Comptes', 'compte.php' => 'Mon compte'];
+    if (!empty($GLOBALS['assistant_page']) && isset($PAGES[$GLOBALS['assistant_page']])) $lignes[] = "Page où se trouve l'utilisateur : " . $PAGES[$GLOBALS['assistant_page']] . ". Si sa question porte sur l'écran, explique ce qu'il voit et où agir (menus : Tableau de bord, Planning, Clients, Paramètres, Actions, Catalogue, Packs, Bordereaux, Historique, Guide, Comptes ; dans Planning : Personnel-matériel-équipes, Mon planning, Congés, Contrats, Tableau de charge, Matériel, Platanes, Réglages).";
     $lignes[] = "Règles de calcul : PU HT = (Σ heures × taux horaire + forfait) × coefficient " . setting('coef') . ", arrondi à " . setting('arrondi') . " €, TVA " . setting('tva') . " %.";
     $lignes[] = "Progression du temps par taille : 10–20 m +" . setting('prog_h2', '80') . " %, > 20 m +" . setting('prog_h3', '200') . " %, houppier 5–10 m +" . setting('prog_d2', '50') . " %, houppier > 10 m +" . setting('prog_d3', '120') . " %.";
     $r = []; foreach (ressources() as $x) $r[] = "#{$x['id']} {$x['nom']} : {$x['taux']} €/h" . ($x['role'] ? " [{$x['role']}]" : '');
@@ -54,8 +55,10 @@ function assistant_contexte(?int $bordereauId): string {
     return implode("\n\n", $lignes);
 }
 
+/** Doctrine arboricole V3 (fichier lib/doctrine-ef-v3.md, hors accès web) */
+function assistant_doctrine(): string { $f = __DIR__ . '/lib/doctrine-ef-v3.md'; return is_file($f) ? (string)file_get_contents($f) : '(doctrine absente)'; }
 function assistant_system(): string {
-    return "Tu es l'assistant intégré à l'espace pro d'Élagage Figeacois, entreprise d'arboristes grimpeurs à Figeac (Lot). Tu aides l'équipe à chiffrer les marchés d'élagage : temps à passer par action dans l'arbre, prix unitaires des bordereaux (BPU), comparaison avec les prix déjà remis, règles de calcul, et toute question sur l'application ou le métier.
+    return "Tu es l'assistant intégré à l'espace pro d'Élagage Figeacois, entreprise d'arboristes grimpeurs à Figeac (Lot). Tu aides l'équipe à chiffrer les marchés d'élagage : temps à passer par action dans l'arbre, prix unitaires des bordereaux (BPU), comparaison avec les prix déjà remis, règles de calcul, et toute question sur l'application ou le métier, y compris le planning, l'appli de terrain, les clients et contrats, le suivi du matériel et la procédure chancre coloré du platane (passeport phytosanitaire, registre, désinfection) décrite dans tes connaissances.
 Règles :
 - Réponds en français, tutoie, sois concis et concret ; donne ton avis et les ordres de grandeur quand c'est utile.
 - Le prix d'une prestation = Σ (heures × taux de la ressource) + forfait, × coefficient. L'équipe est tout compris (personnel, nacelle, broyeur, matériel) ; le rognage et les moyens spécifiques sont à part. On raisonne en temps par action dans l'arbre ; les actions sont indépendantes et se cumulent.
@@ -140,7 +143,8 @@ function assistant_appel(array $messages, ?int $bordereauId): array {
     $mois = date('Y-m');
     $u = q("SELECT * FROM assistant_usage WHERE mois = ?", [$mois])->fetch();
     if ($u && (int)$u['echanges'] >= ASSISTANT_PLAFOND_MOIS) throw new RuntimeException("Plafond mensuel de l'assistant atteint (" . ASSISTANT_PLAFOND_MOIS . " échanges). Un administrateur peut l'augmenter.");
-    $body = ['model' => assistant_modele(), 'max_tokens' => 1500, 'system' => [['type' => 'text', 'text' => assistant_system()], ['type' => 'text', 'text' => "Contexte de l'application :\n\n" . assistant_contexte($bordereauId), 'cache_control' => ['type' => 'ephemeral']]], 'tools' => assistant_outils(), 'messages' => $messages];
+    $body = ['model' => assistant_modele(), 'max_tokens' => 1500, 'system' => [['type' => 'text', 'text' => assistant_system()], ['type' => 'text', 'text' => "Fonctionnement de l'espace pro et procédures de l'entreprise (planning, terrain, clients, contrats, matériel, chancre coloré du platane) :\n\n" . assistant_connaissances()],
+        ['type' => 'text', 'text' => "DOCTRINE ARBORICOLE D'ÉLAGAGE FIGEACOIS (V3, 15 septembre 2026) — source de vérité pour tout raisonnement, préconisation, devis, rapport, diagnostic, consolidation (distinguer haubanage et brochage), travaux, biodiversité, avifaune et espèces protégées. Applique-la telle qu'elle est écrite : ne la résume pas, ne la réinterprète pas, ne la complète pas en la présentant comme doctrine ; si une information en est absente, dis-le et présente-la comme complément éventuel. En cas de conflit avec une habitude de rédaction, la doctrine prévaut. Pour les devis, rapports de visite, diagnostics, préparations de chantier et échanges clients, utilise-la comme cadre de décision avant de rédiger.\n\n" . assistant_doctrine(), 'cache_control' => ['type' => 'ephemeral']], ['type' => 'text', 'text' => "Contexte de l'application :\n\n" . assistant_contexte($bordereauId), 'cache_control' => ['type' => 'ephemeral']]], 'tools' => assistant_outils(), 'messages' => $messages];
     $ch = curl_init('https://api.anthropic.com/v1/messages');
     curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 90, CURLOPT_HTTPHEADER => ['content-type: application/json', 'anthropic-version: 2023-06-01', 'x-api-key: ' . CLAUDE_API_KEY], CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE)]);
     $res = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);

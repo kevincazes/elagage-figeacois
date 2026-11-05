@@ -7,7 +7,9 @@ if (is_file(__DIR__ . '/config.php')) require_once __DIR__ . '/config.php';
 elseif (is_file(__DIR__ . '/../../config-espace-pro.php')) require_once __DIR__ . '/../../config-espace-pro.php';
 else { http_response_code(500); exit('Fichier de configuration introuvable : dépose config-espace-pro.php à la racine de l\'hébergement (à côté de www).'); }
 
+date_default_timezone_set('Europe/Paris'); // heures du planning, rappels, journaux : heure de Paris quel que soit le serveur
 ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.gc_maxlifetime', (string)(12 * 3600)); // session active 12 h
 ini_set('session.cookie_lifetime', (string)(12 * 3600));
 ini_set('session.use_strict_mode', '1');
@@ -42,6 +44,7 @@ function db(): PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        try { $pdo->exec("SET time_zone = '" . date('P') . "'"); } catch (Throwable $t) {} // NOW() de MySQL à la même heure que PHP
     }
     return $pdo;
 }
@@ -430,6 +433,8 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     $u = user();
     $nav = [
         'index.php' => 'Tableau de bord',
+        'planning.php' => 'Planning',
+        'clients.php' => 'Clients',
         'parametres.php' => 'Paramètres',
         'actions.php' => 'Actions',
         'bpu.php' => 'Catalogue',
@@ -438,12 +443,14 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         'historique.php' => 'Historique',
         'guide.php' => 'Guide',
     ];
-    if ($u && !in_array($u['role'], ['admin', 'secretaire'], true)) $nav = ['index.php' => 'Tableau de bord']; // utilisateur : pas de calculateur
+    if ($u && !in_array($u['role'], ['admin', 'secretaire'], true)) $nav = ['index.php' => 'Tableau de bord', 'mon-planning.php' => 'Mon planning', 'planning.php' => 'Planning', 'clients.php' => 'Clients', 'conges.php' => 'Congés']; // utilisateur : pas de calculateur
     elseif ($u && $u['role'] !== 'admin') unset($nav['parametres.php']);                   // secrétariat : pas de réglages de prix
     if ($u && $u['role'] === 'admin') $nav['utilisateurs.php'] = 'Comptes';
     $nav['compte.php'] = 'Mon compte';
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
-    echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '"></head><body>';
+    echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '">'
+       . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'
+       . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body>';
     echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span>';
     if ($u) { $nn0 = nouveautes_non_lues(); echo '<a class="bell mob' . ($nn0 ? ' has' : '') . '" href="nouveautes.php">&#128276;' . ($nn0 ? '<b>' . $nn0 . '</b>' : '') . '</a>'; }
     echo '<button class="burger" type="button" aria-label="Menu" onclick="document.body.classList.toggle(\'nav-open\')"><span></span><span></span><span></span></button><nav>';
@@ -451,6 +458,8 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         if ($active === 'securite.php') $active = 'compte.php';
         if ($active === 'bordereau.php') $active = 'bordereaux.php';
         foreach ($nav as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="active"' : '') . '>' . $l . '</a>';
+        $nNotif = 0; try { $nNotif = (int)q("SELECT COUNT(*) c FROM notifications WHERE utilisateur_id = ? AND lu_le IS NULL", [$u['id']])->fetch()['c']; } catch (Throwable $t) {}
+        echo '<a class="notifs' . ($nNotif ? ' has' : '') . '" href="notifications.php" title="Mes notifications">📣' . ($nNotif ? '<b>' . $nNotif . '</b>' : '') . '</a>';
         $nn = nouveautes_non_lues();
         echo '<a class="bell' . ($nn ? ' has' : '') . '" href="nouveautes.php" title="Nouveautés de l\'espace pro">&#128276;' . ($nn ? '<b>' . $nn . '</b>' : '') . '</a>';
         echo '<a class="out site" href="../index.html" title="Ouvrir le site elagage-figeacois.com">Site ↗</a>';
@@ -481,8 +490,9 @@ function page_end(): void {
         echo '<button type="button" class="bulle-ia" id="bulleIA" title="Assistant : pose une question sur cet écran ou sur un chiffrage">✦<span>Assistant</span></button>'
            . '<aside class="pan-ia" id="panIA" hidden><button type="button" class="pan-fermer" title="Fermer">×</button><iframe data-src="assistant.php?panneau=1&' . e($ctx) . '" title="Assistant"></iframe></aside>';
     }
-    echo '</main>' . <<<'JS'
+    echo '</main>' . (user() ? '<script src="notif.js?v=' . e(app_version()) . '" defer></script>' : '') . <<<'JS'
 <script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 (function(){
   // Hauteur réelle du bandeau (une ou deux lignes selon l'écran) : sert aux ancres et éléments collants
   function bandeau(){ var t=document.querySelector('header.top'); if(t) document.documentElement.style.setProperty('--bandeau', (getComputedStyle(t).position==='sticky'?t.offsetHeight:0)+'px'); }

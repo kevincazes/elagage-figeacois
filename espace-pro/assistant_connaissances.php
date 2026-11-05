@@ -1,0 +1,41 @@
+<?php
+// Base de connaissances de l'assistant : fonctionnement du planning, de l'appli de terrain, des clients, contrats, matériel,
+// et procédure chancre coloré du platane (réglementation + organisation de l'entreprise). Texte envoyé au modèle en contexte.
+declare(strict_types=1);
+
+function assistant_connaissances(): string {
+    $inupp = setting('phyto_inupp', 'FR-0460072V'); $produit = setting('phyto_produit', 'Sitonal'); $resp = setting('phyto_responsables') ?: 'Taurand / Cazes Bouchet';
+    return <<<TXT
+## Planning (menu Planning)
+- Vues : Semaine (grille horaire, glisser-déposer), Mois, Ressources (une ligne par équipe, personne et machine ; les outils montés sur un porte-outil – ex. tête forestière et rogneuse sur le Robo Evo Energreen – partagent la même machine : réserver l'un bloque les autres, case hachurée), Liste, Tournée (carte et ordre le plus court depuis le dépôt, bouton pour appliquer les horaires).
+- Fiche d'un événement : types Chantier / Visite de chiffrage / Rendez-vous / Absence / Entretien matériel (Urgence vient d'Urgence Élagage). Statuts : À planifier → Date proposée au client → Confirmé → Terminé / Annulé. « Trouver un créneau » propose les premières dates où l'équipe et le matériel sont libres (chantier) ou le jour qui ajoute le moins de kilomètres aux tournées (visite). « Envoyer la date au client » envoie un e-mail (et un SMS si activé) avec un lien de confirmation en un clic ; le client peut demander une autre date (alerte). Rappel automatique la veille. Si la date d'un chantier confirmé change, il repasse « à reconfirmer ».
+- Conflits détectés : personne déjà prise ou absente, machine réservée (y compris via un outil frère), contrôle réglementaire dépassé, machine immobilisée, compétence manquante (ex. CACES nacelle), week-end et jours fériés, DT-DICT (déclaration à faire, délai de réponse de 9 jours, validité 3 mois), platane en zone délimitée.
+- Droits : tout le monde consulte tous les agendas ; administrateurs et secrétariat modifient tout ; un utilisateur peut avoir le droit « son propre agenda » ou des agendas confiés (Comptes). Les montants sont masqués aux salariés.
+- Personnel, matériel, équipes (lien dans le planning) : compétences, lien avec un compte, lien agenda pour le téléphone (ICS), matériel « monté sur », équipes avec chef, membres et matériel habituel ; journées secteur (zone + jours réservés) ; réglages des tournées (dépôt, horaires, vitesse, seuil de vent).
+- Congés : le salarié demande (téléphone), le responsable accepte ou refuse, l'absence est posée au planning.
+- Tableau de charge : chantiers par statut (planifié, validation client en cours, validé, terminé), chiffre d'affaires planifié HT, occupation des équipes par semaine ou par mois.
+
+## Appli de terrain « Mon planning » (téléphone)
+- Rendez-vous du jour avec km et temps de route depuis la position, badge Prochain / À venir / En cours ; fiche avec boutons itinéraire (Google Maps, Waze), appel, SMS, e-mail, photos ; « Ouvrir dans le planning ».
+- Rapport : modèle « Rapport de visite (devis) » ou « Bon de fin d'intervention ». Photos prises ou choisies, annotation au doigt (cercles, flèches), légendes, retrait du PDF ; ressenti (Très bien / Moyen / Mal, interne) ; pour le bon : travaux réalisés, déchets verts, réserves du client, signature du client sur l'écran (date, heure, IP, empreinte SHA-256 → le bon est verrouillé, le chantier passe « Terminé »). Bouton « Rapport PDF » : voir, envoyer sur le porte-document du client, e-mail, partager.
+- Notifications sur le téléphone (bouton 🔔 ; iPhone : ajouter d'abord l'espace pro à l'écran d'accueil). Signalement de panne matériel depuis le terrain.
+
+## Clients, contrats, facturation
+- Répertoire clients : fiche créée automatiquement à partir des rendez-vous ; contact, adresses (correspondance, chantier…), rendez-vous, devis et contrats (admin/secrétariat), porte-document (rapports, bons, contrats signés, photos, documents ajoutés), autorisations SMS / e-mail (respectées par les envois automatiques).
+- Contrats d'entretien : modèle rempli automatiquement, envoi au client, signature en ligne (signature électronique simple), passages créés automatiquement dans « À planifier » environ deux mois avant chaque mois prévu, avis d'échéance avant reconduction tacite.
+- Pennylane (si activé dans Réglages) : « Facturer dans Pennylane » crée la facture en brouillon à partir du montant du devis ; statut relu chaque jour ; mandat GoCardless demandé au client à la signature d'un contrat (option).
+- Avis Google après chantier terminé (option), SMS OVH (option), Urgence Élagage : interventions d'urgence reprises au planning et astreinte affichée.
+
+## Suivi du matériel (menu Matériel)
+- Fiche par machine (marque, modèle, série, compteur h/km, monté sur, attribué à), contrôles périodiques (VGP nacelle/grue tous les 6 mois, contrôle technique, extincteurs… ; « obligatoire » = bloque au planning si dépassé), entretiens par échéance de temps ou de compteur, carnet (contrôles, entretiens, réparations, pannes, notes, coûts, pièces jointes), documents. Un contrôle non conforme ou une panne « immobilisé » retire la machine du planning jusqu'à la réparation. « Poser un entretien au planning » réserve la machine. Les EPI sont suivis dans Vérif EPI (elagage-hevea.com), pas ici.
+
+## Chancre coloré du platane – procédure de l'entreprise (menu Platanes)
+- Cadre : arrêté ministériel du 31 janvier 2025 (lutte contre Ceratocystis platani, obligatoire sur tout le territoire) et arrêté préfectoral Occitanie du 24 juillet 2025 (communes en zones délimitées ; le Lot, l'Aveyron, le Cantal et la Corrèze ne sont pas concernés). Responsable(s) phytosanitaire(s) : $resp. Numéro d'enregistrement professionnel (code B, INUPP) : $inupp.
+- Organismes de quarantaine à connaître sur platane : Ceratocystis fimbriata f. sp. platani (chancre coloré), Anoplophora glabripennis et chinensis (capricornes asiatiques), Xylella fastidiosa et ses vecteurs, Popillia japonica.
+- Surveillance visuelle : au moment du devis ou d'un diagnostic, puis pendant les travaux. Symptômes du chancre coloré : taches brunes-violacées sur l'écorce en flammèches, bois coloré bleu-noir sous l'écorce, dépérissement rapide d'une charpentière puis de l'arbre. En cas de soupçon : stopper le chantier, ne rien transporter, signaler à la DRAAF (formulaire en ligne « signaler un organisme nuisible aux végétaux »).
+- Mesures préventives (article 18, partout) : outils et engins nettoyés (terre, débris) puis désinfectés avec un produit fongicide autorisé ($produit) à chaque entrée et sortie de site et pendant le chantier ; pas de griffes ni de crampons sauf abattage par démontage ; stockage des résidus loin des platanes et des cours d'eau ; BRF remis au pied du platane taillé ; transport en camion benne ou remorque.
+- Zone délimitée (article 19) : déclaration préalable à la DRAAF au moins 15 jours ouvrés avant les travaux, désinfection entre chaque platane ; produits d'abattage incinérés sur place (article 14) sauf dérogation préfectorale ; dessouchage à la rogneuse interdit.
+- Passeport phytosanitaire (article 21) : obligatoire pour mettre en circulation du bois ou des écorces de platane (y compris vers une déchèterie) en zone saine. Contenu : A = Platanus sp. ; B = $inupp ; C = code de traçabilité = numéro du devis du chantier ; D = FR. Chaque passeport reçoit un numéro PP-AAAA-NNN. Il se trouve dans la fiche du chantier et dans « Mon planning » (bouton « Passeport phytosanitaire »), lisible sur le téléphone pendant le transport, et en PDF à imprimer.
+- Dans l'application : cocher « Chantier sur platane » dans la fiche chantier, remplir type de travaux, nombre d'arbres, surveillance avant / pendant, désinfection entrée / sortie (/ entre chaque arbre), produit, griffes, transport, destination et usage du bois, volume. Quand le chantier est terminé (bon signé ou statut Terminé), la fiche platane et le passeport sont verrouillés. Le registre « Chantiers platanes » reprend le tableau DRAAF (propriétaire, coordonnées, dates, travaux, localisation, surveillance avant / en cours, code C, destination, usage, volume) et s'exporte en Excel, CSV ou PDF, avec les colonnes et la période au choix.
+TXT;
+}

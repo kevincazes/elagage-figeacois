@@ -56,6 +56,12 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <li><a href="#assistant">L'assistant</a></li>
 <li><a href="#equipe">Travailler à plusieurs</a></li>
 <li><a href="#faq">Questions fréquentes</a></li>
+<li><a href="#planning">Le planning</a></li>
+<li><a href="#terrain">Mon planning : l'appli de terrain</a></li>
+<li><a href="#clients">Clients, contrats, tableau de charge</a></li>
+<li><a href="#materiel">Suivi du matériel</a></li>
+<li><a href="#platanes">Chantiers platanes et passeport</a></li>
+<li><a href="#reglages-planning">Réglages : SMS, avis, Pennylane…</a></li>
 </ol></aside>
 <div class="corps">
 <p class="lead">Ce guide explique, écran par écran, où cliquer et à quoi sert chaque élément. Les <strong>pastilles orange numérotées</strong> sur les captures renvoient aux explications juste en dessous. Clique sur une image pour l'ouvrir en grand.</p>
@@ -195,7 +201,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 ]); ?>
 <?php fig('import-validation', 'Étape 2 : vérifier l\'appariement', [
     '<strong>Équipe appliquée aux prix</strong> : la colonne « Prix catalogue » suit ce choix immédiatement. Renseigne aussi le nom du marché et la collectivité à gauche.',
-    '<strong>Pastille de confiance</strong> : <span style="color:#5d8f1c">vert</span> = rapprochement sûr ; <span style="color:#d08a00">orange</span> = à vérifier ; <span style="color:#b3403a">rouge</span> = rien trouvé. Survole la ligne pour voir la raison.',
+    '<strong>Pastille de confiance</strong> : <span style="color:#5d8f1c">vert</span> = rapprochement sûr ; <span style="color:#d08a00">orange</span> = à vérifier ; <span style="color:#e6332a">rouge</span> = rien trouvé. Survole la ligne pour voir la raison.',
     '<strong>Prestation proposée</strong> : le menu permet de choisir une autre prestation du catalogue, ou « Sans prestation » si la ligne n\'existe pas chez toi.',
     '<strong>Prix catalogue</strong> : le prix que donnera la prestation choisie.',
     '<strong>Quantité</strong> : reprise du DQE quand le fichier en contient. Modifiable.',
@@ -298,6 +304,169 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <h3>Comment sont arrondis les prix ?</h3><p>Le prix brut (heures × taux + forfait, × coefficient) est arrondi au pas choisi dans Paramètres, au plus proche, les demis vers le haut : 85,50 € donne 86 € à l'euro, 87,50 € donne 90 € aux 5 €. Le même calcul est fait partout : catalogue, bordereau, export, figement.</p>
 <h3>Je ne peux pas modifier un bordereau</h3><p>Soit il est figé (bouton « Défiger »), soit quelqu'un d'autre l'a ouvert (bandeau rouge en haut, voir partie 12).</p>
 <h3>Où changer le modèle d'IA ou la clé de l'assistant ?</h3><p>Dans le fichier <code>config-espace-pro.php</code> à la racine de l'hébergement (hors du site), lignes <code>CLAUDE_API_KEY</code> et <code>CLAUDE_MODELE</code>. Réservé à l'administrateur technique.</p>
+<h2 id="planning">14. Le planning des chantiers et rendez-vous</h2>
+<p>Le menu <kbd>Planning</kbd> organise les chantiers, les visites de chiffrage et les rendez-vous de toute l'équipe. Tout le monde voit tous les agendas ; l'administration et le secrétariat modifient tout, et chaque compte peut recevoir des droits précis (voir « Qui peut modifier quoi » plus bas).</p>
+<?php fig('planning-semaine', 'La vue Semaine', [
+ 'Les vues : <strong>Semaine</strong> (grille horaire), <strong>Mois</strong>, <strong>Ressources</strong> (une ligne par équipe, personne et machine), <strong>Liste</strong> et <strong>Tournée</strong> (carte).',
+ '« Aujourd\'hui » et les flèches ‹ › pour changer de période.',
+ 'N\'afficher que l\'agenda d\'une personne.',
+ '<strong>+ Nouveau</strong> : chantier, visite de chiffrage, rendez-vous, absence ou entretien matériel. Tu peux aussi double-cliquer sur une case vide.',
+ 'Les cases à cocher masquent ou affichent chaque type. Les jours fériés sont marqués, les journées secteur aussi (étiquette bleue).',
+ 'La bande « Journée » : les chantiers sur une ou plusieurs journées entières. <strong>Glisse</strong> un événement pour le déplacer ; un point d\'exclamation signale un conflit (personne prise, machine réservée, contrôle dépassé…).',
+ 'Les événements à l\'heure : visites et rendez-vous. Tire le bas d\'un événement pour changer sa durée.',
+ '<strong>À planifier</strong> : les chantiers et visites sans date (devis signés, passages de contrats…). Glisse une fiche sur un jour, ou clique « Trouver un créneau ».',
+ '<strong>Alertes</strong> : réponses des clients, conflits à venir, contrôles de matériel, pannes. Un clic ouvre la fiche concernée.',
+]); ?>
+<h3>La fiche d'un événement</h3>
+<?php fig('planning-fiche', 'La fiche (volet de droite)', [
+ 'Le type : chantier, visite de chiffrage, rendez-vous, absence, entretien matériel.',
+ 'Le client : tape son nom, le répertoire propose les fiches existantes avec leurs adresses ; sinon la fiche client est créée automatiquement à l\'enregistrement.',
+ 'L\'adresse : tape-la puis choisis-la dans la liste pour la localiser (itinéraire, tournées, créneaux).',
+ 'Les dates ; « Journée(s) entière(s) » prend les horaires de l\'équipe réglés dans Personnel, matériel, équipes.',
+ '<strong>Trouver un créneau</strong> : pour un chantier, les premières dates où l\'équipe et le matériel sont libres (les jours où vous êtes déjà dans le secteur passent devant) ; pour une visite, les jours qui ajoutent le moins de kilomètres aux tournées déjà prévues.',
+ 'L\'équipe : la choisir coche d\'un coup ses membres et son matériel habituel.',
+ 'Les personnes affectées ; celles déjà prises ce jour-là apparaissent grisées. Les conflits s\'affichent en direct en haut de la fiche.',
+ '<strong>Enregistrer</strong>.',
+ '<strong>Envoyer la date au client</strong> : e-mail (et SMS si activé) avec la date et un lien pour confirmer en un clic ou demander une autre date. Un rappel part automatiquement la veille.',
+]); ?>
+<?php fig('planning-fiche-bas', 'Le bas de la fiche', [
+ 'Le matériel affecté : un outil « monté sur » un porte-outil (ex. tête forestière et rogneuse sur le Robo Evo) partage la même machine, réserver l\'un bloque les autres.',
+ '<strong>DT-DICT</strong> : coche la case si le chantier touche des réseaux ; le planning t\'alerte si le chantier commence avant la fin du délai de réponse (9 jours) ou si la déclaration a plus de 3 mois.',
+ 'Le devis : référence, montant HT (il alimente le tableau de charge), devis signé, lien, bordereau lié. Si Pennylane est connecté, « Facturer dans Pennylane » crée la facture en brouillon.',
+ 'Les consignes pour l\'équipe (visibles dans Mon planning) et les notes internes (jamais visibles par les salariés).',
+]); ?>
+<div class="ex"><strong>Statuts :</strong> <em>À planifier</em> (pas de date) → <em>Date proposée au client</em> → <em>Confirmé</em> (par le client ou par toi) → <em>Terminé</em> (bon de fin signé ou statut changé) ou <em>Annulé</em>. Si tu déplaces un chantier confirmé, il repasse « à reconfirmer » et le client reçoit la nouvelle proposition quand tu cliques « Envoyer la date au client ».</div>
+<?php fig('planning-creneaux', 'Trouver un créneau', [
+ 'La liste des créneaux proposés, avec les personnes et le matériel disponibles, et ce qui est déjà prévu à proximité.',
+ 'Un clic pose le créneau dans la fiche : vérifie, puis « Enregistrer » ou « Envoyer la date au client ».',
+]); ?>
+<h3>La vue Ressources et les équipes</h3>
+<?php fig('planning-ressources', 'La vue Ressources', [
+ 'Les <strong>équipes</strong> : glisse un chantier sur la ligne d\'une équipe pour lui affecter toute l\'équipe et son matériel.',
+ 'Chaque personne : ses chantiers et absences. Glisser un chantier d\'une personne à une autre change l\'affectation.',
+ 'Le <strong>matériel</strong>, avec les outils sous leur porte-outil.',
+ 'Case hachurée : la machine est occupée par un outil frère (même porte-outil).',
+ 'Week-ends et jours fériés grisés.',
+]); ?>
+<?php fig('planning-tournee', 'La vue Tournée', [
+ 'La carte des visites, rendez-vous et chantiers du jour, numérotés dans l\'ordre le plus court depuis le dépôt.',
+ 'L\'ordre actuel et l\'ordre optimisé, avec les kilomètres gagnés ; « Appliquer » recale les horaires des visites (les chantiers ne bougent pas).',
+]); ?>
+<h3>Personnel, matériel, équipes</h3>
+<?php fig('planning-personnel', 'Le personnel', [
+ 'Une ligne par personne : poste, compétences (grimpeur, CACES nacelle, poids lourd…), couleur.',
+ 'La dernière ligne sert à ajouter quelqu\'un.',
+ '« Compte de l\'espace pro » relie la personne à son compte (elle voit alors ses chantiers dans Mon planning) ; « Lien agenda du téléphone » s\'ajoute dans Google Agenda ou l\'iPhone pour y voir ses chantiers automatiquement.',
+]); ?>
+<?php fig('planning-materiel', 'Le matériel (liste rapide)', [
+ '« Monté sur » : déclare un outil monté sur un porte-outil ; ils ne pourront pas servir à deux chantiers en même temps.',
+ 'Le prochain contrôle réglementaire : s\'il est dépassé, le planning le signale comme conflit. Le suivi complet (contrôles, entretiens, pannes) se fait dans le menu <kbd>Matériel</kbd>.',
+]); ?>
+<?php fig('planning-equipes', 'Les équipes', [
+ 'Une carte par équipe : nom, chef, membres, matériel habituel, couleur. Une équipe se modifie à tout moment ; les chantiers déjà planifiés gardent leurs personnes.',
+ 'Coche les membres et le matériel.',
+]); ?>
+<p>Sur la même page : les <strong>journées secteur</strong> (une zone = une commune centrale et un rayon ; donne-lui des jours, et « Trouver un créneau » proposera ces jours pour les visites de la zone) et les <strong>réglages des tournées</strong> (adresse du dépôt, horaires de journée, vitesse moyenne, seuil d'alerte vent). Les administrateurs ont aussi <kbd>⚙ Réglages</kbd> pour les SMS, les avis Google, les notifications, Pennylane et Urgence Élagage.</p>
+<h3>Qui peut modifier quoi</h3>
+<table><tr><th>Compte</th><th>Planning</th></tr>
+<tr><td>Administrateur, Secrétaire</td><td>Tout : création, déplacement, suppression, envoi aux clients, montants, personnel, matériel, équipes, contrats, tableau de charge, registre platanes.</td></tr>
+<tr><td>Utilisateur – « Consultation seule »</td><td>Voit tous les agendas, sans montants ni notes internes. Peut signaler une panne et demander des congés.</td></tr>
+<tr><td>Utilisateur – « Modifie son propre agenda »</td><td>Idem, plus ses propres événements (sa fiche du personnel doit être reliée à son compte).</td></tr>
+<tr><td>Utilisateur – « Modifie tous les agendas »</td><td>Comme le secrétariat pour le planning (y compris les montants).</td></tr>
+<tr><td>+ « Agendas confiés »</td><td>Dans <kbd>Comptes</kbd>, tu peux confier à un compte l'agenda de personnes précises (ex. le chef d'équipe gère celui de son équipe).</td></tr></table>
+
+<h2 id="terrain">15. Mon planning : l'appli de terrain</h2>
+<p>Sur le téléphone, <kbd>Mon planning</kbd> est l'écran du jour de chaque salarié. Ajoute l'espace pro à l'écran d'accueil (Safari › Partager › « Sur l'écran d'accueil ») : il s'ouvre comme une appli et peut recevoir les notifications.</p>
+<?php fig('terrain-jour', 'Les rendez-vous du jour', [
+ 'Le jour affiché ; ‹ › pour changer, « Aujourd\'hui » pour revenir.',
+ '🔔 Activer les notifications : nouveaux chantiers, changements de date, réponses des clients arrivent sur le téléphone. « Lien agenda » ajoute tes chantiers à l\'agenda du téléphone.',
+ 'Chaque rendez-vous : horaire (cadran), client, commune, badge Prochain / À venir / En cours / Terminé.',
+ 'Kilomètres et minutes depuis ta position (ou depuis le dépôt pour le premier), et l\'état du rapport (📝 photos, ✓ signé).',
+], 'tel'); ?>
+<?php fig('terrain-fiche', 'La fiche terrain', [
+ 'Les boutons rapides : itinéraire Google Maps, Waze, appeler, SMS, e-mail, photos / rapport.',
+ 'Le rapport de visite ou le bon de fin d\'intervention, le passeport phytosanitaire pour un chantier platane, et « Ouvrir dans le planning ».',
+], 'tel'); ?>
+<?php fig('terrain-rapport', 'Le rapport de visite', [
+ 'Le modèle : « Rapport de visite (devis) » pour une visite, « Bon de fin d\'intervention » pour un chantier.',
+ 'Comment s\'est passé le rendez-vous (pour toi seulement, n\'apparaît pas sur le PDF).',
+ 'Le compte rendu, enregistré automatiquement.',
+ 'Les photos : prises ou choisies dans la galerie, puis touche une photo pour la légender, l\'<strong>annoter au doigt</strong> (cercles, flèches), la retirer du PDF ou la supprimer.',
+ '<strong>Rapport PDF</strong> : voir le PDF, l\'envoyer sur le porte-document du client, par e-mail (adresse préremplie) ou le partager (WhatsApp, Mail, Fichiers…).',
+], 'tel'); ?>
+<?php fig('terrain-bon', 'Le bon de fin d\'intervention', [
+ 'Les travaux réalisés, le devenir des déchets verts et les remarques ou réserves du client.',
+ 'Le client signe sur l\'écran : la date, l\'heure et une empreinte du bon sont enregistrées, le bon ne peut plus être modifié, le chantier passe « Terminé » (et la demande d\'avis Google part si elle est activée).',
+], 'tel'); ?>
+<div class="ex"><strong>Panne ou anomalie sur une machine :</strong> depuis <kbd>Matériel</kbd> › « Signaler une panne » (photo, compteur, machine immobilisée ou non). Le responsable est prévenu aussitôt et la machine est retirée du planning si elle est immobilisée.</div>
+
+<h2 id="clients">16. Clients, contrats et tableau de charge</h2>
+<?php fig('clients-fiche', 'La fiche client', [
+ 'Les boutons rapides : itinéraire, appel, SMS, e-mail, nouveau rendez-vous pour ce client.',
+ 'Les onglets : Contact (téléphones, e-mail, plusieurs adresses), Rendez-vous (historique et à venir), Devis et contrats (administration et secrétariat), Porte-doc, Autres (autorisations SMS et e-mail : si le client refuse, aucun SMS ni rappel automatique ne lui est envoyé).',
+ 'Le <strong>porte-document</strong> : rapports de rendez-vous, bons d\'intervention, contrats signés et photos y sont rangés automatiquement.',
+ 'Tu peux y ajouter tes propres documents (PDF, photos, Word, Excel), dans le dossier de ton choix.',
+]); ?>
+<p>Les fiches clients se créent toutes seules à partir des rendez-vous (nom + téléphone ou e-mail) ; tu peux aussi en créer à la main depuis <kbd>Clients</kbd>.</p>
+<h3>Contrats d'entretien</h3>
+<?php fig('contrats-fiche', 'Un contrat d\'entretien', [
+ 'Les prestations (une par ligne), le montant annuel HT, la TVA et le modèle de contrat (le texte se remplit tout seul avec ces informations).',
+ 'Les mois des passages : à chaque mois coché, un chantier « à planifier » est créé automatiquement environ deux mois avant, avec le client, l\'adresse, l\'équipe et le montant au prorata.',
+ '« Enregistrer », puis « Envoyer au client pour signature » : il reçoit le PDF et un lien pour relire et <strong>signer en ligne</strong> (sur téléphone ou ordinateur). Le contrat signé revient dans son porte-document et tu es prévenu.',
+]); ?>
+<p>Les modèles de contrat se modifient dans <kbd>Contrats</kbd> › « Modèles de contrat », avec des champs automatiques (<code>{{client_nom}}</code>, <code>{{montant_ht}}</code>, <code>{{periodes}}</code>…). Un contrat signé ne se modifie plus : fais-en un nouveau. Deux mois avant l'échéance d'un contrat à reconduction tacite, le client reçoit un avis d'échéance (loi Chatel). Si Pennylane est connecté, la demande de mandat de prélèvement SEPA (GoCardless) peut partir automatiquement à la signature.</p>
+<?php fig('charge', 'Le tableau de charge', [
+ 'Les chiffres clés : à planifier, chiffre d\'affaires planifié, validé par les clients, en attente du client, et (si Pennylane est connecté) facturé et encaissé.',
+ 'Par semaine ou par mois : nombre de chantiers et montant HT par statut (planifié, validation client en cours, le client demande une autre date, validé, terminé).',
+ 'L\'occupation des équipes : jours-personne affectés par rapport aux jours disponibles (personnel actif, hors congés, week-ends et fériés). Rouge au-delà de 100 %.',
+]); ?>
+<?php fig('conges', 'Les congés', [
+ 'Le salarié fait sa demande (dates, type, demi-journée éventuelle) depuis son téléphone ; le responsable est notifié, accepte ou refuse, et l\'absence est posée au planning : personne ne pourra lui affecter un chantier ces jours-là. L\'administration peut poser une absence directement.',
+]); ?>
+
+<h2 id="materiel">17. Suivi du matériel</h2>
+<?php fig('materiel-liste', 'Le tableau de bord du matériel', [
+ '<strong>À faire</strong> : contrôles et entretiens en retard (rouge) ou à prévoir (orange), pannes en cours.',
+ 'Le parc : une carte par machine, avec son compteur et son état (à jour, en retard, immobilisé).',
+ '« Signaler une panne » (accessible à tout le monde) et « Nouvelle machine ou outil ».',
+]); ?>
+<?php fig('materiel-controles', 'Les contrôles périodiques d\'une machine', [
+ '« Contrôle réalisé » : date, résultat (conforme, réserves, non conforme), organisme, coût, rapport joint. L\'échéance suivante est calculée automatiquement ; un contrôle non conforme immobilise la machine.',
+ 'Les réglages du contrôle : périodicité, rappel, prestataire, obligatoire ou non (un contrôle obligatoire dépassé bloque la machine au planning).',
+]); ?>
+<p>Chaque fiche a aussi ses <strong>entretiens</strong> (par échéance de temps et/ou de compteur : vidange tous les 6 mois ou toutes les 250 h…), son <strong>carnet</strong> (contrôles, entretiens, réparations, pannes, notes, coûts, pièces jointes), ses <strong>documents</strong> (carte grise, notice, rapports…) et le coût des 12 derniers mois. À la création d'une machine, les contrôles et entretiens habituels de son type sont proposés d'office. « Poser un entretien au planning » réserve la machine ce jour-là. Les EPI (harnais, cordes, casques) restent suivis dans Vérif EPI.</p>
+
+<h2 id="platanes">18. Chantiers platanes : chancre coloré et passeport phytosanitaire</h2>
+<p>L'arrêté du 31 janvier 2025 impose, sur tout le territoire, des précautions pour toute intervention sur platane, et un <strong>passeport phytosanitaire</strong> pour transporter le bois ou les rémanents. L'espace pro tient le registre demandé par la DRAAF et fournit le passeport sur le téléphone.</p>
+<?php fig('platane-fiche', 'Le bloc « Platane » de la fiche chantier', [
+ 'Coche <strong>Chantier sur platane</strong> : le bloc s\'ouvre et le chantier entre dans le registre.',
+ 'Le <strong>code C</strong> de traçabilité : le numéro du devis, repris automatiquement (modifiable). Le code B (notre numéro d\'enregistrement FR-0460072V) est un réglage.',
+ 'La check-list réglementaire : bois transporté (passeport), outils et engins désinfectés à l\'entrée et à la sortie du site, entre chaque arbre (zone délimitée), griffes utilisées (démontage seulement).',
+ 'Le devenir du bois : destination, usage, volume. Surveillance visuelle avant et pendant le chantier : en cas de symptômes suspects, on stoppe le chantier et on signale à la DRAAF.',
+]); ?>
+<?php fig('platane-passeport', 'Le passeport sur le téléphone', [
+ 'Depuis Mon planning, bouton « Passeport phytosanitaire » : A Platanus sp., B notre enregistrement, C le code du chantier, D FR, avec son numéro (PP-année-n°) et le devis. Reste lisible sans réseau une fois ouvert ; « PDF à imprimer » donne deux exemplaires par page pour le camion.',
+], 'tel'); ?>
+<?php fig('platane-registre', 'Le registre des chantiers platanes', [
+ 'La période (par défaut l\'année) et le filtre par propriétaire.',
+ 'Les colonnes de l\'export : les 12 du tableau DRAAF sont cochées d\'office, tu peux en ajouter (désinfection, n° de passeport, intervenants…) et mémoriser ton choix. Export en Excel, CSV ou PDF.',
+ 'Le registre : propriétaire, dates, travaux, localisation, surveillance, code C et devis, n° de passeport et date de verrouillage, destination, usage, volume, désinfection. Une ligne rouge = commune en zone délimitée.',
+]); ?>
+<div class="att"><strong>Verrouillage :</strong> dès que le chantier est terminé (bon signé ou statut « Terminé »), la fiche platane et le passeport sont figés avec leur numéro et leurs codes ; plus rien ne se modifie. Les <strong>zones délimitées</strong> (communes listées en bas de la page Platanes ; le Lot, l'Aveyron, le Cantal et la Corrèze ne sont pas concernés) déclenchent des alertes : déclaration préalable à la DRAAF 15 jours ouvrés avant, désinfection entre chaque arbre, bois non transportable sans dérogation.</div>
+<p>L'assistant ✦ connaît toute la procédure (arrêtés, symptômes, mesures, passeport) ainsi que la doctrine arboricole de l'entreprise : pose-lui tes questions, en écrivant ou en parlant (bouton 🎤).</p>
+
+<h2 id="reglages-planning">19. Réglages : SMS, avis, notifications, Pennylane, Urgence Élagage</h2>
+<?php fig('reglages-planning', 'Les SMS (réglages administrateur)', [
+ 'Chaque envoi vers l\'extérieur se règle séparément et reste coupé tant que tu ne l\'actives pas : SMS aux clients (OVH, par motif : proposition de date, rappel, avis, contrat), avis Google après chantier, notifications, Pennylane (factures en brouillon, mandats GoCardless), Urgence Élagage (interventions et astreinte au planning).',
+ 'L\'interrupteur d\'activation, et un bouton de test pour chaque service.',
+]); ?>
+<table><tr><th>Service</th><th>Ce qu'il faut</th></tr>
+<tr><td>SMS</td><td>Un compte SMS OVH (crédits) et ses clés d'API (application key, secret, consumer key, nom du compte sms-xxxx), un expéditeur validé chez OVH. Les SMS ne partent que vers des mobiles et si le client les accepte.</td></tr>
+<tr><td>Avis Google</td><td>Le lien d'avis de la fiche Google (« Demander des avis »), le délai après la fin du chantier, le canal. Un seul envoi par chantier.</td></tr>
+<tr><td>Notifications</td><td>Rien côté serveur ; chaque salarié active le 🔔 sur son téléphone (iPhone : espace pro ajouté à l'écran d'accueil).</td></tr>
+<tr><td>Pennylane / GoCardless</td><td>Un jeton d'API Pennylane (Paramètres › Connectivité › Développeurs ; droits clients, factures clients, mandats) et GoCardless connecté dans Pennylane. Les factures sont créées en brouillon : tu les relis et les valides dans Pennylane.</td></tr>
+<tr><td>Urgence Élagage</td><td>Une clé d'API « lecture » créée dans Urgence Élagage › Administration › Entreprise › Intégrations. Dans l'autre sens, colle le lien agenda de chaque salarié dans son compte Urgence Élagage pour que ses chantiers comptent dans sa disponibilité d'astreinte.</td></tr></table>
+<p>Les rappels automatiques (veille), les passages de contrats, les avis et les synchronisations se font à l'ouverture des pages, au plus une fois par heure. Pour qu'ils tournent même sans ouverture, crée dans OVH une tâche planifiée (cron) qui appelle l'adresse indiquée dans Personnel, matériel, équipes › Réglages.</p>
 </div>
 <a class="retour" href="#sommaire">☰ Sommaire</a>
 </div>

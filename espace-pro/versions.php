@@ -2,6 +2,20 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.6', '2026-11-05', [
+        'Planning complet des chantiers, visites et rendez-vous : vues semaine, mois, ressources, liste et tournée (carte) ; glisser-déposer ; personnel, matériel et équipes ; outils « montés sur » un porte-outil (Robo Evo) comptés comme une seule machine ; conflits détectés (personne prise, machine réservée, contrôle dépassé, compétence manquante, week-end, jour férié, DT-DICT) ; recherche de créneaux par équipe ; tournées optimisées ; météo (rafales)',
+        'Clients : proposition de date par e-mail (et SMS) avec confirmation en un clic, rappel la veille, alerte quand le client demande une autre date ; lecture croisée des agendas et droits de modification par personne',
+        'Appli de terrain « Mon planning » : rendez-vous du jour avec km et temps de route, itinéraire, appel, SMS, e-mail ; rapport de visite et bon de fin d\'intervention avec photos annotées au doigt, signature du client sur l\'écran et PDF (envoi, porte-document, partage) ; abonnement de l\'agenda du téléphone ; notifications sur le téléphone',
+        'Répertoire clients : fiche, adresses, rendez-vous, devis et contrats, porte-document, autorisations SMS / e-mail',
+        'Contrats d\'entretien : modèle rempli automatiquement, envoi, signature en ligne, passages créés d\'eux-mêmes dans « À planifier », avis d\'échéance',
+        'Congés : demande depuis le téléphone, validation, absence posée au planning ; journées secteur ; tableau de charge (statuts, chiffre d\'affaires planifié, occupation des équipes)',
+        'Suivi du matériel : fiches, contrôles périodiques (VGP, contrôle technique…), entretiens par date ou compteur, pannes signalées du terrain (machine immobilisée retirée du planning), carnet et coûts, documents',
+        'Chantiers platanes (chancre coloré) : bloc dédié dans la fiche chantier (surveillance, désinfection, devenir du bois), passeport phytosanitaire numéroté sur le téléphone et en PDF (code C = numéro de devis), registre de traçabilité au modèle DRAAF avec export Excel, CSV ou PDF paramétrable, verrouillage à la fin du chantier, alertes en zone délimitée',
+        'Assistant : connaît le fonctionnement du planning, de l\'appli de terrain, des clients, contrats, du matériel et toute la procédure chancre coloré, ainsi que la doctrine arboricole d\'Élagage Figeacois (V3) ; dictée vocale (🎤) et lecture des réponses à voix haute (🔈)',
+        'Guide : six nouvelles parties illustrées (planning, appli de terrain, clients et contrats, matériel, platanes, réglages)',
+        'Réglages : SMS (OVH), avis Google après chantier, notifications, Pennylane (factures en brouillon, mandats GoCardless), Urgence Élagage (interventions et astreinte) — chacun activable ou non',
+        'Couleurs de la charte graphique (rouge #e6332a, vert #8caa31, brun #683c11) appliquées à l\'espace pro et aux PDF',
+    ]],
     ['2.5', '2026-11-04', [
         'Nouveau rôle Secrétaire : tout le calculateur (bordereaux, import, export, catalogue, actions, packs, historique, assistant, guide), sans Paramètres ni comptes',
         'Paramètres (taux, coefficient, TVA, ressources, liens) réservés aux administrateurs',

@@ -85,6 +85,8 @@ if ($panneau) {
   </div>
   <form id="fchat" class="chat-saisie" onsubmit="envoyer(event)">
     <textarea id="texte" rows="2" placeholder="Ex. : combien de temps pour le démontage d'un platane de 22 m avec rétention, et quel prix avec l'équipe marché public ?"></textarea>
+    <button class="mini" type="button" id="micro" title="Parler au lieu d'écrire (maintenir ou appuyer pour commencer, appuyer pour arrêter)" hidden>🎤</button>
+    <button class="mini" type="button" id="lire" title="Lire les réponses à voix haute" hidden>🔈</button>
     <button class="btn" type="submit" id="btn">Envoyer</button>
   </form>
 </section>
@@ -110,7 +112,7 @@ async function api(data) {
 async function traiter(rep) {
   if (rep.erreur) { bulle('err', esc(rep.erreur)); return; }
   CID = rep.conversation_id; if (PANNEAU) { try { sessionStorage.setItem('assistant_cid', CID); } catch (e) {} }
-  if (rep.texte) bulle('a', esc(rep.texte).replace(/\n/g, '<br>'));
+  if (rep.texte) { bulle('a', esc(rep.texte).replace(/\n/g, '<br>')); lireVoix(rep.texte); }
   for (const o of rep.outils || []) {
     const d = bulle('outil', '<strong>' + esc(LIBO[o.nom] || o.nom) + '</strong><pre>' + esc(o.resume || resume(o.nom, o.input)) + '</pre><div class="btns"><button class="btn" type="button">Appliquer</button> <button class="mini" type="button">Refuser</button></div>');
     const [ok, non] = d.querySelectorAll('button');
@@ -125,6 +127,20 @@ async function envoyer(e) {
   try { const r = await api({action: 'message', texte: v}); att.remove(); await traiter(r); } catch (err) { att.remove(); bulle('err', 'Erreur de connexion.'); }
   document.getElementById('btn').disabled = false; t.focus();
 }
+// ---- Voix : dictée (reconnaissance vocale du navigateur) et lecture des réponses ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null, ecoute = false, VOIX = false;
+try { VOIX = localStorage.getItem('assistant_voix') === '1'; } catch (e) {}
+if (SR) { const m = document.getElementById('micro'); m.hidden = false;
+  m.onclick = () => { if (ecoute) { rec.stop(); return; }
+    rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; const t = document.getElementById('texte'); const base = t.value ? t.value.replace(/\s+$/, '') + ' ' : '';
+    rec.onresult = ev => { let fin = '', enCours = ''; for (const r of ev.results) (r.isFinal ? (fin += r[0].transcript) : (enCours += r[0].transcript)); t.value = base + fin + enCours; };
+    rec.onend = () => { ecoute = false; m.textContent = '🎤'; m.classList.remove('on'); t.focus(); if (t.value.trim() && m.dataset.auto === '1') document.getElementById('fchat').requestSubmit(); };
+    rec.onerror = ev => { ecoute = false; m.textContent = '🎤'; m.classList.remove('on'); if (ev.error === 'not-allowed') bulle('err', "Le micro est bloqué : autorise-le pour ce site dans le navigateur."); };
+    try { rec.start(); ecoute = true; m.textContent = '⏹'; m.classList.add('on'); m.dataset.auto = '1'; } catch (e) {} };
+}
+if ('speechSynthesis' in window) { const l = document.getElementById('lire'); l.hidden = false; const maj = () => { l.textContent = VOIX ? '🔊' : '🔈'; l.title = VOIX ? 'Lecture à voix haute activée (cliquer pour couper)' : 'Lire les réponses à voix haute'; }; maj();
+  l.onclick = () => { VOIX = !VOIX; try { localStorage.setItem('assistant_voix', VOIX ? '1' : '0'); } catch (e) {} if (!VOIX) speechSynthesis.cancel(); else { const u = new SpeechSynthesisUtterance('Lecture activée.'); u.lang = 'fr-FR'; speechSynthesis.speak(u); } maj(); }; }
+function lireVoix(txt) { if (!VOIX || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt.replace(/[*#_`]/g, '').slice(0, 1500)); u.lang = 'fr-FR'; u.rate = 1.05; speechSynthesis.speak(u); }
 document.getElementById('texte').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('fchat').requestSubmit(); } });
 fil.scrollTop = fil.scrollHeight;
 if (PANNEAU && !CID && !location.search.includes('nouvelle')) { try { const c = sessionStorage.getItem('assistant_cid'); if (c) location.replace('assistant.php?panneau=1&c=' + c + (BORD ? '&bordereau=' + BORD : '') + (PAGE ? '&page=' + PAGE : '')); } catch (e) {} }

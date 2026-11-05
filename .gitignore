@@ -1,3 +1,4 @@
 # Fichiers à ne jamais publier
 espace-pro/config.php
 .DS_Store
+espace-pro/fichiers/

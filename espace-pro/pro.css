@@ -1,5 +1,5 @@
 /* Espace pro – même charte que le site */
-:root{--sapin:#1c3b2b;--anis:#8fb339;--clair:#e4ecd7;--creme:#f5f6f1;--blanc:#fff;--texte:#1d2a22;--doux:#5b6a60;--rouge:#b3403a;--rayon:12px}
+:root{--sapin:#1c3b2b;--anis:#8caa31;--clair:#e4ecd7;--creme:#f5f6f1;--blanc:#fff;--texte:#1d2a22;--doux:#5b6a60;--rouge:#e6332a;--brun:#683c11;--rayon:12px}
 *{box-sizing:border-box}
 body{margin:0;font-family:Lato,system-ui,sans-serif;font-size:15px;line-height:1.5;color:var(--texte);background:var(--creme)}
 a{color:var(--sapin)}
@@ -55,7 +55,7 @@ main{max-width:1240px;margin:0 auto;padding:22px 20px 60px}
 .bulle.res{align-self:flex-start;font-size:.85rem;color:var(--doux);background:transparent;padding:0 14px}
 .chat-saisie{display:flex;gap:10px;padding:12px;border-top:1px solid #edf0e8;align-items:flex-end}
 .chat-saisie textarea{flex:1;margin:0;resize:vertical}
-.chat-saisie .btn{margin:0}
+.chat-saisie .btn{margin:0}.chat-saisie .mini{margin:0;font-size:1.1rem;padding:8px 10px}.chat-saisie .mini.on{background:var(--rouge);color:#fff;border-color:var(--rouge);animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.6}}
 @media(max-width:900px){.chat-layout{grid-template-columns:1fr}.chat-fil{max-height:55vh}.bulle{max-width:95%}}
 .conf{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
 .conf.c1{background:#5a9a3a}.conf.c2{background:#e0a200}.conf.c3{background:var(--rouge)}
@@ -65,6 +65,8 @@ tr.c2 td{background:#fff8e3}tr.c3 td{background:#fbeae8}
 .bell.mob{display:none}
 .burger{display:none;background:none;border:0;width:42px;height:42px;cursor:pointer;padding:6px}
 .burger span{display:block;height:3px;background:var(--sapin);margin:7px 0;border-radius:2px}
+@media(max-width:1500px) and (min-width:901px){.top nav a{font-size:.84rem;padding:7px 6px}.top nav a.out.site{display:none}.apptitle{display:none}.top .logo{margin-right:auto}}
+@media(max-width:1250px) and (min-width:901px){.top nav a{font-size:.8rem;padding:6px 6px}.top .logo img{height:40px}}
 @media(max-width:900px){
   .top{flex-wrap:nowrap;position:sticky;gap:8px}
   .top .logo img{height:40px}
@@ -246,3 +248,5 @@ body.panneau .pan-tete{flex:none}body.panneau .bulle.outil pre{font-family:inher
 @media(min-width:1200px){body.ia-ouvert{padding-right:min(520px,40vw)}body.ia-ouvert .pan-ia{width:min(520px,40vw)}}
 html{scroll-padding-top:var(--bandeau,0px)}
 @media(max-width:700px){form.inline{flex-wrap:wrap;max-width:100%}form.inline select,form.inline input{max-width:100%;min-width:0}#ajout select[name=pack_id]{width:100%}}
+.ac{position:relative}.ac ul{position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #d5dccd;border-radius:8px;list-style:none;margin:2px 0 0;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,.12)}.ac li{padding:6px 8px;cursor:pointer;border-radius:6px}.ac li:hover{background:#f1f4ec}
+.notifs{position:relative;font-size:1.05rem;padding:6px 10px!important}.notifs b{position:absolute;top:0;right:2px;background:var(--rouge);color:#fff;font-size:.65rem;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}

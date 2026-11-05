@@ -179,7 +179,7 @@ function calc(tr) {
   const pu = PAS > 0 ? Math.round(Math.round(brut / PAS * 1e6) / 1e6) * PAS : Math.round(brut * 100) / 100;
   tr.querySelector('.pu').textContent = fmt(pu);
   const ref = num(tr.querySelector('.ref').value), ec = tr.querySelector('.ecart');
-  if (ref > 0) { const d = Math.round((pu - ref) * 100) / 100, r = Math.sign(d) * Math.round(Math.abs(d)); ec.textContent = (r > 0 ? '+' : '') + r + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#b3403a' : '#5b6a60'; } else ec.textContent = '';
+  if (ref > 0) { const d = Math.round((pu - ref) * 100) / 100, r = Math.sign(d) * Math.round(Math.abs(d)); ec.textContent = (r > 0 ? '+' : '') + r + ' €'; ec.style.color = Math.abs(d) / ref > 0.1 ? '#e6332a' : '#5b6a60'; } else ec.textContent = '';
 }
 document.querySelectorAll('tr[data-id]').forEach(tr => { calc(tr); tr.addEventListener('input', () => calc(tr)); });
 // Désignations : hauteur ajustée au texte
