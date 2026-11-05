@@ -131,14 +131,15 @@ if ($lecture): ?>
 <form id="defiger" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="defiger"></form>
 <?php // Comparaison des équipes : total du bordereau recalculé avec chaque équipe (lignes à prix manuel inchangées)
 $COMP = [];
-if (count($equipes) > 1 && !$fige && $nbQte) foreach ($equipes as $x) { $man = 0.0; $ls = [];
-    foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $qt = (float)$l['quantite'];
-        if ($l['pu_manuel'] !== null) $man += (float)$l['pu_manuel'] * $qt; elseif (isset($cat[$l['ligne_id']])) $ls[] = [round(prix_catalogue_brut($cat[$l['ligne_id']], (int)$x['id']), 4), $qt]; }
+if (count($equipes) > 1 && !$fige) foreach ($equipes as $x) { $man = 0.0; $ls = [];
+    foreach ($lignes as $l) if ($l['type'] === 'ligne') { $qt = $l['quantite'] !== null ? (float)$l['quantite'] : null; // sans quantité : compte seulement dans le total des PU
+        if ($l['pu_manuel'] !== null) { $man += (float)$l['pu_manuel'] * ($qt ?? 0); $ls[] = [-(float)$l['pu_manuel'], 0]; }
+        elseif (isset($cat[$l['ligne_id']])) $ls[] = [round(prix_catalogue_brut($cat[$l['ligne_id']], (int)$x['id']), 4), $qt ?? 0]; }
     $COMP[] = ['id' => (int)$x['id'], 'nom' => $x['nom'], 'taux' => (float)$x['taux'], 'man' => $man, 'l' => $ls]; }
 if ($COMP): ?>
 <section class="card comp-eq no-print" id="compEq">
-  <h3>Comparer les équipes <span class="muted small">(total HT de ce bordereau avec chaque équipe, ajustement du curseur compris ; les lignes à prix saisi à la main ne changent pas)</span></h3>
-  <div class="scroll"><table class="tbl"><thead><tr><th>Équipe</th><th class="r">Taux horaire</th><th class="r">Total HT</th><th class="r">Écart avec l'équipe appliquée</th><th></th></tr></thead><tbody id="compCorps"></tbody></table></div>
+  <h3>Comparer les équipes <span class="muted small">(ce bordereau recalculé avec chaque équipe, ajustement du curseur compris ; les prix imposés à la main ne changent pas)</span></h3>
+  <div class="scroll"><table class="tbl"><thead><tr><th>Équipe</th><th class="r">Taux horaire</th><th class="r">Total des PU retenus<br><span style="font-weight:400;text-transform:none;letter-spacing:0">une unité par ligne</span></th><?php if ($nbQte): ?><th class="r">Total HT<br><span style="font-weight:400;text-transform:none;letter-spacing:0">avec les quantités</span></th><?php endif; ?><th class="r">Écart avec l'équipe appliquée</th><th></th></tr></thead><tbody id="compCorps"></tbody></table></div>
   <?php if (est_admin()): ?><p class="small muted">Ajouter une équipe (par exemple une équipe intermédiaire) : <a href="parametres.php#ressources">Chiffrage › Paramètres de prix › Ajouter une ressource</a>, type « Équipe ».</p><?php endif; ?>
 </section>
 <?php endif; ?>
@@ -235,15 +236,17 @@ const num = v => parseFloat(String(v).replace(/[\s\u00a0\u202f]/g, '').replace('
 const fmt = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 const TVA = <?= json_encode($tva) ?>, PAS = <?= json_encode((float)setting('arrondi', '1')) ?>, AJUST0 = <?= json_encode($ajust) ?>;
 const arrondir = v => PAS > 0 ? Math.round(v / PAS) * PAS : Math.round(v * 100) / 100;
-const COMP = <?= json_encode($COMP, JSON_UNESCAPED_UNICODE) ?>, EQ_ACTU = <?= json_encode($eqId) ?>, RO = <?= $ro ? 'true' : 'false' ?>;
+const COMP = <?= json_encode($COMP, JSON_UNESCAPED_UNICODE) ?>, AVECQ = <?= $nbQte ? 'true' : 'false' ?>, EQ_ACTU = <?= json_encode($eqId) ?>, RO = <?= $ro ? 'true' : 'false' ?>;
 const eurC = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 function comparer() {
   const c = document.getElementById('compCorps'); if (!c || !COMP.length) return;
   const cu = document.getElementById('ajust'), a = cu ? +cu.value : 0;
-  const tot = COMP.map(x => x.man + x.l.reduce((s, [b, q]) => s + arrondir(b * (1 + a / 100)) * q, 0));
-  const ref = tot[COMP.findIndex(x => x.id === EQ_ACTU)] ?? tot[0], mx = Math.max(...tot) || 1;
+  const pu = b => b < 0 ? -b : arrondir(b * (1 + a / 100)); // b < 0 : prix imposé (inchangé)
+  const spu = COMP.map(x => x.l.reduce((s, [b]) => s + pu(b), 0));
+  const tht = COMP.map(x => x.man + x.l.reduce((s, [b, q]) => s + (b < 0 ? 0 : pu(b) * q), 0));
+  const tot = AVECQ ? tht : spu, ia = COMP.findIndex(x => x.id === EQ_ACTU), ref = tot[ia] ?? tot[0], mx = Math.max(...tot) || 1;
   c.innerHTML = COMP.map((x, i) => { const d = tot[i] - ref, p = ref ? d / ref * 100 : 0, actu = x.id === EQ_ACTU;
-    return `<tr class="${actu ? 'actu' : ''}"><td><strong>${x.nom.replace(/[<&]/g, '')}</strong>${actu ? ' <span class="pastille">appliquée</span>' : ''}<div class="barre"><i style="width:${Math.round(tot[i] / mx * 100)}%"></i></div></td><td class="r">${eurC(x.taux)}/h</td><td class="r"><strong>${eurC(tot[i])}</strong></td><td class="r">${actu ? '—' : (d > 0 ? '+' : '') + eurC(d) + ' (' + (d > 0 ? '+' : '') + p.toFixed(1).replace('.', ',') + ' %)'}</td><td>${actu || RO ? '' : `<button type="button" class="mini" data-eq="${x.id}">Appliquer</button>`}</td></tr>`; }).join('');
+    return `<tr class="${actu ? 'actu' : ''}"><td><strong>${x.nom.replace(/[<&]/g, '')}</strong>${actu ? ' <span class="pastille">appliquée</span>' : ''}<div class="barre"><i style="width:${Math.round(tot[i] / mx * 100)}%"></i></div></td><td class="r">${eurC(x.taux)}/h</td><td class="r">${AVECQ ? eurC(spu[i]) : '<strong>' + eurC(spu[i]) + '</strong>'}</td>${AVECQ ? '<td class="r"><strong>' + eurC(tht[i]) + '</strong></td>' : ''}<td class="r">${actu ? '—' : (d > 0 ? '+' : '') + eurC(d) + ' (' + (d > 0 ? '+' : '') + p.toFixed(1).replace('.', ',') + ' %)'}</td><td>${actu || RO ? '' : `<button type="button" class="mini" data-eq="${x.id}">Appliquer</button>`}</td></tr>`; }).join('');
   c.querySelectorAll('[data-eq]').forEach(b => b.onclick = () => { const f = document.getElementById('fEntete'), s = f.querySelector('select[name=equipe_id]'); if (s) { s.value = b.dataset.eq; f.submit(); } });
 }
 comparer();
