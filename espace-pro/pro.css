@@ -57,8 +57,8 @@ main{max-width:1900px;margin:0 auto;padding:22px clamp(20px,2.5vw,56px) 60px}
 .bulle.outil.fait{opacity:.8;background:#f3f5ee;border-color:#dfe5d4}
 .bulle.outil pre{font-size:.8rem;white-space:pre-wrap;margin:6px 0;color:var(--texte-doux)}
 .bulle.res{align-self:flex-start;font-size:.85rem;color:var(--doux);background:transparent;padding:0 14px}
-.chat-saisie{display:flex;gap:10px;padding:12px;border-top:1px solid #edf0e8;align-items:flex-end}
-.chat-saisie textarea{flex:1;margin:0;resize:vertical}
+.chat-saisie{display:flex;flex-wrap:wrap;gap:8px;padding:12px;border-top:1px solid #edf0e8;align-items:center}
+.chat-saisie textarea{flex:1 0 100%;width:100%;margin:0;resize:vertical}.chat-saisie .btn{margin-left:auto}
 .chat-saisie .btn{margin:0}.chat-saisie .mini{margin:0;font-size:1.1rem;padding:8px 10px}.chat-saisie .mini.on{background:var(--rouge);color:#fff;border-color:var(--rouge);animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.6}}
 @media(max-width:900px){.chat-layout{grid-template-columns:1fr}.chat-fil{max-height:55vh}.bulle{max-width:95%}}
 .conf{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}

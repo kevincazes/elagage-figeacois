@@ -36,6 +36,9 @@ const PICTO_ICONES = [
     'plus'      => '<path d="M12 5v14"/><path d="M5 12h14"/>',
     'bell'      => '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
     'megaphone' => '<path d="M3 10v4h3l8 5V5l-8 5z"/><path d="M17 9a4 4 0 0 1 0 6"/><path d="M6 14l1 6h3l-1-6"/>',
+    'mic'       => '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M9 21h6"/>',
+    'speaker'   => '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
+    'stop'      => '<rect x="6" y="6" width="12" height="12" rx="2"/>',
     'ladder'    => '<path d="M7 3v18"/><path d="M17 3v18"/><path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h10"/>',
 ];
 /** Feuille de symboles à insérer une fois dans la page */

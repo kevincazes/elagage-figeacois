@@ -7,6 +7,7 @@ function assistant_connaissances(): string {
     $inupp = setting('phyto_inupp', 'FR-0460072V'); $produit = setting('phyto_produit', 'Sitonal'); $resp = setting('phyto_responsables') ?: 'Taurand / Cazes Bouchet';
     return <<<TXT
 ## Navigation
+- Chiffrage › Paramètres de prix : classes de taille (hauteur < 10 / 10–20 / > 20 m ; houppier ≤ 5 / 5–10 / 10–20 / > 20 m, extensibles) avec le % de temps en plus par classe ; les deux facteurs se multiplient ; enregistrer recalcule les variantes du catalogue.
 - Tableau de bord : widgets (planning, mon planning, à planifier, charge, contrats, matériel, livrets, clients, congés, platanes, chiffrage, outils) ; bouton « Personnaliser » pour les déplacer par glisser-déposer, en masquer (✕) ou les remettre ; l'ordre est propre à chaque compte.
 - Menu principal : Tableau de bord ; « Chantiers & agenda » (Planning, Mon planning, Clients, Congés, Matériel, Contrats, Tableau de charge, Platanes, Personnel/matériel/équipes) ; « Chiffrage » (Bordereaux, Catalogue, Packs, Actions, Historique, Paramètres de prix – administration et secrétariat) ; « Compte » (Comptes, Réglages SMS/Pennylane/Urgence, Mon compte, Nouveautés, Guide). Sur les cartes, le bouton 📍 centre la carte sur la position de l'appareil.
 

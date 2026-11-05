@@ -100,8 +100,8 @@ $total = 0; $nbQte = 0;
 foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $total += $puDe($l) * (float)$l['quantite']; $nbQte++; }
 $packs = q("SELECT p.*, (SELECT COUNT(*) FROM pack_lignes pl WHERE pl.pack_id = p.id) nb FROM packs p ORDER BY nom")->fetchAll();
 $familles = array_column(q("SELECT DISTINCT famille FROM bpu_lignes WHERE actif = 1 AND famille <> '' ORDER BY famille")->fetchAll(), 'famille');
-$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id")->fetchAll();
-$HLIB = ['' => '', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
+$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, " . classes_ordre_sql() . ", ordre, id")->fetchAll();
+$HLIB = ['' => ''] + array_map(fn($c) => ucfirst(str_replace('arbre ', 'arbres ', $c['long'])), classes_h());
 page_start($b['nom'], 'bordereau.php', ['bordereaux.php', 'Bordereaux']);
 if ($lecture): ?>
 <div class="flash err">Dossier ouvert par <strong><?= e($detenteur['prenom'] . ' ' . $detenteur['nom']) ?></strong> depuis <?= date('H:i', strtotime($detenteur['verrou_le'])) ?> : tu peux le consulter, pas le modifier. Il se libérera quand cette personne quittera la page, ou après <?= VERROU_MINUTES ?> min sans activité.
@@ -152,7 +152,8 @@ if ($lecture): ?>
 </tr>
 <?php endif; endforeach; ?>
 </tbody>
-<tfoot><tr><td colspan="9" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr></tfoot>
+<tfoot><tr><td colspan="9" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr>
+<tr><td colspan="9" class="r"><strong>Total des prix unitaires retenus</strong> <span class="muted small">(une unité par ligne)</span></td><td class="r out" id="totalPU"></td><td></td><td class="r out pu" id="totalPU2"></td></tr></tfoot>
 </table></div>
 <?php if (!$ro): ?><p><button class="btn" type="submit">Enregistrer le bordereau</button> <button class="mini" type="submit" form="renum">Renuméroter 1, 2, 3…</button> <span class="muted">« Tri » ordonne les lignes ; « N° » est le numéro affiché sur le bordereau (ex. 2.1.1), libre ; « PU imposé » remplace le prix calculé.</span></p><?php endif; ?>
 </form>
@@ -216,18 +217,19 @@ const num = v => parseFloat(String(v).replace(/[\s\u00a0\u202f]/g, '').replace('
 const fmt = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 const TVA = <?= json_encode($tva) ?>;
 function recalc() {
-  let total = 0;
+  let total = 0, totalPU = 0, nb = 0;
   document.querySelectorAll('tr[data-calc]').forEach(tr => {
     const puCell = tr.querySelector('.pu'); let pu;
     if (puCell.dataset.fige !== '') pu = num(puCell.dataset.fige);
     else { const mv = tr.querySelector('.manuel').value.trim(); pu = mv !== '' ? num(mv) : num(tr.dataset.calc); } // un PU imposé à 0 (gratuit) est respecté, comme à l'export
-    puCell.textContent = fmt(pu);
+    puCell.textContent = fmt(pu); totalPU += pu; nb++;
     const q = num(tr.querySelector('.qte').value);
     const qv = tr.querySelector('.qte').value.trim();
     tr.querySelector('.tot').textContent = qv !== '' ? fmt(pu * q) : '';
     if (qv !== '') total += pu * q;
   });
   document.getElementById('total').textContent = total !== 0 ? fmt(total) + ' HT · ' + fmt(total * (1 + TVA / 100)) + ' TTC' : '—';
+  document.getElementById('totalPU').textContent = nb ? nb + ' ligne(s) · ' + fmt(totalPU) + ' HT' : '—'; document.getElementById('totalPU2').textContent = nb ? fmt(totalPU) : '';
 }
 document.querySelectorAll('tr[data-calc]').forEach(tr => tr.addEventListener('input', recalc)); recalc();
 function ajuster(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }

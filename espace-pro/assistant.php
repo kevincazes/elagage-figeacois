@@ -63,7 +63,7 @@ $usage = q("SELECT * FROM assistant_usage WHERE mois = ?", [date('Y-m')])->fetch
 $LIBO = ['modifier_temps_catalogue' => 'Modifier un temps du catalogue', 'creer_ligne_catalogue' => 'Créer une prestation au catalogue', 'modifier_ligne_bordereau' => 'Modifier une ligne du bordereau', 'ajouter_ligne_bordereau' => 'Ajouter une ligne au bordereau', 'creer_action' => 'Créer une action dans l\'arbre', 'memoriser' => 'Mémoriser une règle d\'entreprise'];
 $panneau = isset($_GET['panneau']); $pageCour = preg_replace('/[^a-z.]/', '', (string)($_GET['page'] ?? ''));
 if ($panneau) {
-    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Assistant</title><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '"></head><body class="panneau">';
+    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Assistant</title><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '"></head><body class="panneau">' . pictos_sprite();
 } else page_start('Assistant', 'assistant.php', $bord ? ['bordereau.php?id=' . $bord['id'], $bord['nom']] : null);
 ?>
 <?php if ($panneau): ?>
@@ -92,8 +92,8 @@ if ($panneau) {
   </div>
   <form id="fchat" class="chat-saisie" onsubmit="envoyer(event)">
     <textarea id="texte" rows="2" placeholder="Ex. : combien de temps pour le démontage d'un platane de 22 m avec rétention, et quel prix avec l'équipe marché public ?"></textarea>
-    <button class="mini" type="button" id="micro" title="Parler au lieu d'écrire (maintenir ou appuyer pour commencer, appuyer pour arrêter)" hidden>🎤</button>
-    <button class="mini" type="button" id="lire" title="Lire les réponses à voix haute" hidden>🔈</button>
+    <button class="mini" type="button" id="micro" title="Parler au lieu d'écrire (maintenir ou appuyer pour commencer, appuyer pour arrêter)" hidden><svg class="pi"><use href="#pi-mic"/></svg> Dicter</button>
+    <button class="mini" type="button" id="lire" title="Lire les réponses à voix haute" hidden><svg class="pi"><use href="#pi-speaker"/></svg> Lire</button>
     <button class="btn" type="submit" id="btn">Envoyer</button>
   </form>
 </section>
@@ -141,11 +141,11 @@ if (SR) { const m = document.getElementById('micro'); m.hidden = false;
   m.onclick = () => { if (ecoute) { rec.stop(); return; }
     rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; const t = document.getElementById('texte'); const base = t.value ? t.value.replace(/\s+$/, '') + ' ' : '';
     rec.onresult = ev => { let fin = '', enCours = ''; for (const r of ev.results) (r.isFinal ? (fin += r[0].transcript) : (enCours += r[0].transcript)); t.value = base + fin + enCours; };
-    rec.onend = () => { ecoute = false; m.textContent = '🎤'; m.classList.remove('on'); t.focus(); if (t.value.trim() && m.dataset.auto === '1') document.getElementById('fchat').requestSubmit(); };
-    rec.onerror = ev => { ecoute = false; m.textContent = '🎤'; m.classList.remove('on'); if (ev.error === 'not-allowed') bulle('err', "Le micro est bloqué : autorise-le pour ce site dans le navigateur."); };
-    try { rec.start(); ecoute = true; m.textContent = '⏹'; m.classList.add('on'); m.dataset.auto = '1'; } catch (e) {} };
+    rec.onend = () => { ecoute = false; m.innerHTML = '<svg class="pi"><use href="#pi-mic"/></svg> Dicter'; m.classList.remove('on'); t.focus(); if (t.value.trim() && m.dataset.auto === '1') document.getElementById('fchat').requestSubmit(); };
+    rec.onerror = ev => { ecoute = false; m.innerHTML = '<svg class="pi"><use href="#pi-mic"/></svg> Dicter'; m.classList.remove('on'); if (ev.error === 'not-allowed') bulle('err', "Le micro est bloqué : autorise-le pour ce site dans le navigateur."); };
+    try { rec.start(); ecoute = true; m.innerHTML = '<svg class="pi"><use href="#pi-stop"/></svg> Stop'; m.classList.add('on'); m.dataset.auto = '1'; } catch (e) {} };
 }
-if ('speechSynthesis' in window) { const l = document.getElementById('lire'); l.hidden = false; const maj = () => { l.textContent = VOIX ? '🔊' : '🔈'; l.title = VOIX ? 'Lecture à voix haute activée (cliquer pour couper)' : 'Lire les réponses à voix haute'; }; maj();
+if ('speechSynthesis' in window) { const l = document.getElementById('lire'); l.hidden = false; const maj = () => { l.innerHTML = '<svg class="pi"><use href="#pi-speaker"/></svg> ' + (VOIX ? 'Lecture activée' : 'Lire'); l.title = VOIX ? 'Lecture à voix haute activée (cliquer pour couper)' : 'Lire les réponses à voix haute'; }; maj();
   l.onclick = () => { VOIX = !VOIX; try { localStorage.setItem('assistant_voix', VOIX ? '1' : '0'); } catch (e) {} if (!VOIX) speechSynthesis.cancel(); else { const u = new SpeechSynthesisUtterance('Lecture activée.'); u.lang = 'fr-FR'; speechSynthesis.speak(u); } maj(); }; }
 function lireVoix(txt) { if (!VOIX || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt.replace(/[*#_`]/g, '').slice(0, 1500)); u.lang = 'fr-FR'; u.rate = 1.05; speechSynthesis.speak(u); }
 document.getElementById('texte').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('fchat').requestSubmit(); } });

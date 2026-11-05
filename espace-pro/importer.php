@@ -7,7 +7,7 @@ require_once __DIR__ . '/appariement.php';
 require_chiffrage();
 $pdo = db();
 try { $pdo->exec("CREATE TABLE IF NOT EXISTS appariements (cle VARCHAR(255) PRIMARY KEY, ligne_id INT NULL, maj DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Throwable $t) {}
-$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre")->fetchAll();
+$catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, " . classes_ordre_sql() . ", ordre")->fetchAll();
 $catParId = []; foreach ($catalogue as $c) $catParId[$c['id']] = $c;
 $memoire = []; foreach (q("SELECT cle, ligne_id FROM appariements") as $m) $memoire[$m['cle']] = $m['ligne_id'] ? (int)$m['ligne_id'] : null;
 $etape = 'depot'; $lignes = []; $erreur = '';

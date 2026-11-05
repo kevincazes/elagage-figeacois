@@ -50,6 +50,8 @@ function detecter_houppier(string $texte): string {
     $t = norm($texte); if (!str_contains($t, 'houppier') && !str_contains($t, 'diametre')) return '';
     if (preg_match('/(inferieur\w* ou egal\w* a|inferieur\w* a|<=?|jusqu\'a) ?5 ?m/', $t)) return '<=5';
     if (preg_match('/(entre|de) ?5 ?(et|a|-|–) ?10 ?m/', $t)) return '5-10';
+    if (preg_match('/(entre|de) ?10 ?(et|a|-|–) ?20 ?m/', $t)) return '>10'; // classe « 10–20 m » (code historique >10)
+    if (preg_match('/(superieur\w* a|plus de|>|au-dela de) ?20 ?m/', $t) && isset(classes_d()['>20'])) return '>20';
     if (preg_match('/(superieur\w* a|plus de|>) ?10 ?m/', $t)) return '>10';
     return '';
 }

@@ -8,8 +8,8 @@ $eqPrincipale = ressource_equipe();
 $res = array_values(array_filter(ressources(), fn($r) => $r['role'] !== 'equipe' || ($eqPrincipale && (int)$r['id'] === (int)$eqPrincipale['id'])));
 $eqApercu = equipe_apercu(); $taux = taux_courants($eqApercu); $equipes = ressources_equipes();
 $coef = (float)setting('coef', '1'); $pas = (float)setting('arrondi', '1'); $tva = (float)setting('tva', '20');
-$HAUT = ['' => '—', '<10' => '< 10 m', '10-20' => '10–20 m', '>20' => '> 20 m'];
-$HOUP = ['' => '—', '<=5' => '≤ 5 m', '5-10' => '5–10 m', '>10' => '> 10 m'];
+$HAUT = ['' => '—'] + array_map(fn($c) => $c['court'], classes_h());
+$HOUP = ['' => '—'] + array_map(fn($c) => $c['court'], classes_d());
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -77,8 +77,8 @@ if ($fPack) { $where[] = 'id IN (SELECT ligne_id FROM pack_lignes WHERE pack_id 
 if ($fLigne) { $where[] = 'id = ?'; $p[] = $fLigne; }
 if ($fAction) { $where[] = 'id IN (SELECT ligne_id FROM ligne_actions WHERE action_id = ?)'; $p[] = $fAction; }
 $packsListe = q("SELECT id, nom FROM packs ORDER BY nom")->fetchAll();
-$lignes = q("SELECT * FROM bpu_lignes WHERE " . implode(' AND ', $where) . " ORDER BY famille, FIELD(hauteur,'','<10','10-20','>20'), FIELD(houppier,'','<=5','5-10','>10'), ordre, id", $p)->fetchAll();
-$HLIB = ['' => 'Sans classe de hauteur', '<10' => 'Arbres de moins de 10 m', '10-20' => 'Arbres de 10 à 20 m', '>20' => 'Arbres de plus de 20 m'];
+$lignes = q("SELECT * FROM bpu_lignes WHERE " . implode(' AND ', $where) . " ORDER BY famille, " . classes_ordre_sql() . ", ordre, id", $p)->fetchAll();
+$HLIB = ['' => 'Sans classe de hauteur'] + array_map(fn($c) => ucfirst(str_replace('arbre ', 'arbres ', $c['long'])), classes_h());
 // Résumé par famille (nombre, prix mini/maxi) pour les en-têtes de bloc
 $resume = [];
 foreach ($lignes as $l) { $f = $l['famille'] ?: 'Sans famille'; $pu = prix_catalogue($l, $eqApercu); $r = &$resume[$f]; $r['n'] = ($r['n'] ?? 0) + 1; $r['min'] = isset($r['min']) ? min($r['min'], $pu) : $pu; $r['max'] = isset($r['max']) ? max($r['max'], $pu) : $pu; unset($r); }

@@ -166,11 +166,26 @@ function simplifier_en_equipe(float $tauxEquipe, float $tauxRognage, float $taux
 }
 
 // ---- Variantes par taille d'arbre (progression en % du temps) ----
-const CLASSES_H = ['<10', '10-20', '>20']; const CLASSES_D = ['<=5', '5-10', '>10'];
+// Classes de hauteur et de houppier : réglables dans Paramètres (libellé court, libellé long, % de temps en plus par rapport à la première classe).
+// Les codes restent stables (ils sont enregistrés sur les lignes du catalogue et reconnus à l'import) ; on peut ajouter des classes.
+const CLASSES_H_DEFAUT = "<10|< 10 m|arbre de moins de 10 m|0\n10-20|10–20 m|arbre de 10 à 20 m|80\n>20|> 20 m|arbre de plus de 20 m|200";
+const CLASSES_D_DEFAUT = "<=5|≤ 5 m|houppier ≤ 5 m|0\n5-10|5–10 m|houppier de 5 à 10 m|50\n>10|10–20 m|houppier de 10 à 20 m|120\n>20|> 20 m|houppier de plus de 20 m|200";
+function classes_lire(string $cle, string $defaut): array {
+    static $cache = []; if (isset($cache[$cle])) return $cache[$cle];
+    $txt = setting($cle); if ($txt === '') { // reprise des anciens réglages (quatre pourcentages)
+        $txt = $defaut; if ($cle === 'classes_h' && setting('prog_h2') !== '') $txt = str_replace(['|80', '|200'], ['|' . setting('prog_h2'), '|' . setting('prog_h3', '200')], $txt);
+        if ($cle === 'classes_d' && setting('prog_d2') !== '') $txt = str_replace(['|50', '|120'], ['|' . setting('prog_d2'), '|' . setting('prog_d3', '120')], $txt); }
+    $l = [];
+    foreach (preg_split('/\R/', $txt) as $ln) { $c = array_map('trim', explode('|', $ln)); if (count($c) < 2 || $c[0] === '') continue; $l[$c[0]] = ['code' => $c[0], 'court' => $c[1], 'long' => $c[2] ?? $c[1], 'prog' => (float)($c[3] ?? 0)]; }
+    return $cache[$cle] = $l;
+}
+function classes_h(): array { return classes_lire('classes_h', CLASSES_H_DEFAUT); }
+function classes_d(): array { return classes_lire('classes_d', CLASSES_D_DEFAUT); }
+/** Ordre d'affichage SQL des classes (FIELD) */
+function classes_ordre_sql(): string { $f = fn(array $c) => implode(',', array_map(fn($k) => "'" . str_replace("'", "''", $k) . "'", array_keys($c))); return "FIELD(hauteur,''," . $f(classes_h()) . "), FIELD(houppier,''," . $f(classes_d()) . ")"; }
 function multiplicateur(string $h, string $d): float {
-    $mh = ['<10' => 0, '' => 0, '10-20' => (float)setting('prog_h2', '80'), '>20' => (float)setting('prog_h3', '200')];
-    $md = ['<=5' => 0, '' => 0, '5-10' => (float)setting('prog_d2', '50'), '>10' => (float)setting('prog_d3', '120')];
-    return (1 + ($mh[$h] ?? 0) / 100) * (1 + ($md[$d] ?? 0) / 100);
+    $mh = classes_h()[$h]['prog'] ?? 0; $md = classes_d()[$d]['prog'] ?? 0;
+    return (1 + $mh / 100) * (1 + $md / 100);
 }
 /** Recalcule les temps des variantes liées à une ligne de base */
 function appliquer_variantes(int $baseId): int {
@@ -189,17 +204,17 @@ function appliquer_variantes(int $baseId): int {
 function generer_variantes(int $baseId, bool $avecHouppier): int {
     $base = q("SELECT * FROM bpu_lignes WHERE id = ?", [$baseId])->fetch(); if (!$base) return 0;
     // La base prend la classe minimale si elle n'en a pas, pour ne pas la dupliquer
-    if ($base['hauteur'] === '') { q("UPDATE bpu_lignes SET hauteur = '<10' WHERE id = ?", [$baseId]); $base['hauteur'] = '<10'; }
-    if ($avecHouppier && $base['houppier'] === '') { q("UPDATE bpu_lignes SET houppier = '<=5' WHERE id = ?", [$baseId]); $base['houppier'] = '<=5'; }
-    $lib = ['<10' => 'arbre de moins de 10 m', '10-20' => 'arbre de 10 à 20 m', '>20' => 'arbre de plus de 20 m'];
-    $libd = ['<=5' => 'houppier ≤ 5 m', '5-10' => 'houppier de 5 à 10 m', '>10' => 'houppier > 10 m'];
+    $CH = array_keys(classes_h()); $CD = array_keys(classes_d());
+    if ($base['hauteur'] === '') { q("UPDATE bpu_lignes SET hauteur = ? WHERE id = ?", [$CH[0], $baseId]); $base['hauteur'] = $CH[0]; }
+    if ($avecHouppier && $base['houppier'] === '') { q("UPDATE bpu_lignes SET houppier = ? WHERE id = ?", [$CD[0], $baseId]); $base['houppier'] = $CD[0]; }
+    $lib = array_map(fn($c) => $c['long'], classes_h()); $libd = array_map(fn($c) => $c['long'], classes_d());
     $racine = preg_replace('/\s*[–-]\s*(arbre|houppier).*$/iu', '', $base['libelle']);
     $existe = []; foreach (q("SELECT hauteur, houppier FROM bpu_lignes WHERE (base_id = ? OR id = ?) AND actif = 1", [$baseId, $baseId]) as $x) $existe[$x['hauteur'] . '|' . $x['houppier']] = true;
     $ordre = (int)$base['ordre']; $n = 0; $pdo = db();
-    foreach (CLASSES_H as $h) foreach (($avecHouppier ? CLASSES_D : ['']) as $d) {
+    foreach ($CH as $h) foreach (($avecHouppier ? $CD : ['']) as $d) {
         if (isset($existe["$h|$d"])) continue;
         $l = $racine . ' – ' . $lib[$h] . ($d ? ', ' . $libd[$d] : '');
-        $code = preg_replace('/-H[123](-D[123])?$/', '', $base['code']) . '-H' . (array_search($h, CLASSES_H) + 1) . ($d ? '-D' . (array_search($d, CLASSES_D) + 1) : '');
+        $code = preg_replace('/-H\d+(-D\d+)?$/', '', $base['code']) . '-H' . (array_search($h, $CH) + 1) . ($d ? '-D' . (array_search($d, $CD) + 1) : '');
         q("INSERT INTO bpu_lignes (code, libelle, unite, forfait, ordre, famille, hauteur, houppier, circonference, source, base_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
           [$code, $l, $base['unite'], 0, ++$ordre, $base['famille'], $h, $d, '', 'Variante générée (+' . round((multiplicateur($h, $d) - 1) * 100) . ' %)', $baseId]);
         $n++;
