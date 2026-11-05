@@ -2,6 +2,9 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.3', '2026-11-05', [
+        'Bordereau avec quantités (DQE) : les lignes restées sans quantité (absentes du DQE) ressortent en rouge, avec leur nombre au-dessous du tableau et un bouton « Supprimer les lignes sans quantité » (le BPU d\'origine n\'est pas touché)',
+    ]],
     ['2.7.2', '2026-11-05', [
         'Importer les quantités d\'un DQE : rapprochement plus juste quand la collectivité écrit autrement (« inférieure ou égale à 1,50 m » = « ≤ 1,50 m ») : les mots de liaison sont ignorés et les dimensions (1,50 ; 2,85…) départagent les classes de taille',
         'Importer les quantités d\'un DQE : une ligne du DQE absente du bordereau peut être ajoutée (« + Ajouter au bordereau comme nouvelle ligne ») et rattachée à une prestation du catalogue (proposée automatiquement, avec son prix) ; elle arrive en fin de bordereau, dans une section à replacer',

@@ -83,6 +83,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $x = q("SELECT * FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid])->fetch();
         q("DELETE FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid]); q("DELETE FROM bordereau_moyens WHERE bl_id = ? AND bordereau_id = ?", [(int)$_POST['id'], $bid]);
         if ($x) journal('suppression', ($x['type'] === 'section' ? 'Section' : 'Ligne') . ' « ' . $x['libelle'] . ' »', $bid);
+    } elseif ($a === 'suppr_sans_qte') { // après un DQE : lignes restées sans quantité (absentes du DQE)
+        $sans = q("SELECT id, libelle FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne' AND quantite IS NULL", [$bid])->fetchAll();
+        $avec = (int)q("SELECT COUNT(*) n FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne' AND quantite IS NOT NULL", [$bid])->fetch()['n'];
+        if (!$avec) { flash('Aucune ligne n\'a de quantité : rien à supprimer.', 'err'); redirect($retour); }
+        foreach ($sans as $x) { q("DELETE FROM bordereau_moyens WHERE bl_id = ? AND bordereau_id = ?", [$x['id'], $bid]); q("DELETE FROM bordereau_lignes WHERE id = ? AND bordereau_id = ?", [$x['id'], $bid]); }
+        if ($sans) journal('suppression', count($sans) . " ligne(s) sans quantité supprimée(s) :\n" . implode("\n", array_map(fn($x) => '« ' . mb_substr($x['libelle'], 0, 80) . ' »', $sans)), $bid);
+        flash(count($sans) . ' ligne(s) sans quantité supprimée(s).');
     } elseif ($a === 'renum') {
         $o = 0; foreach (q("SELECT id FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$bid]) as $l) { ++$o; q("UPDATE bordereau_lignes SET ordre = ?, numero = ? WHERE id = ?", [$o, (string)$o, $l['id']]); }
         journal('modif', 'Renumérotation 1, 2, 3…', $bid); flash('Numérotation remise à plat.');
@@ -200,9 +207,11 @@ if ($COMP): ?>
 <tfoot><tr><td colspan="10" class="r"><strong>Total estimatif HT (lignes avec quantité)</strong></td><td class="r out" id="total"></td><td></td><td class="pu"></td></tr>
 <tr><td colspan="10" class="r"><strong>Total des prix unitaires retenus</strong> <span class="muted small">(une unité par ligne)</span></td><td class="r out" id="totalPU"></td><td></td><td class="r out pu" id="totalPU2"></td></tr></tfoot>
 </table></div>
+<div id="sansQte" class="flash err" hidden style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0"><span><b></b> (en rouge) : absente(s) du DQE ? Elles ne comptent pas dans le total ; supprime-les si elles ne doivent pas figurer dans l'offre.</span><?php if (!$ro): ?> <button class="mini danger" type="submit" form="supprSans" onclick="return confirm('Supprimer toutes les lignes sans quantité de ce bordereau ? (le BPU d\'origine n\'est pas touché)')">Supprimer les lignes sans quantité</button><?php endif; ?></div>
 <?php if (!$ro): ?><p><button class="btn" type="submit">Enregistrer le bordereau</button> <button class="mini" type="submit" form="renum">Renuméroter 1, 2, 3…</button> <span class="muted">« Tri » ordonne les lignes ; « N° » est le numéro affiché sur le bordereau (ex. 2.1.1), libre ; « PU imposé » remplace le prix calculé.</span></p><?php endif; ?>
 </form>
 <form id="renum" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="renum"></form>
+<form id="supprSans" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="suppr_sans_qte"></form>
 <?php foreach ($lignes as $l): ?><form id="x<?= $l['id'] ?>" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="del"><input type="hidden" name="id" value="<?= $l['id'] ?>"></form><?php endforeach; ?>
 
 <?php if (!$ro): ?>
@@ -322,6 +331,8 @@ if (curseur) curseur.addEventListener('input', () => { const a = +curseur.value;
   document.querySelectorAll('tr[data-calc]').forEach(tr => tr.dispatchEvent(new Event('input'))); document.getElementById('ajustVal').style.color = a ? 'var(--rouge)' : ''; comparer(); });
 function recalc() {
   let total = 0, totalPU = 0, nb = 0;
+  const qtes = [...document.querySelectorAll('tr[data-calc] .qte')].map(c => c.value.trim()), avecQte = qtes.some(v => v !== ''), nbSans = avecQte ? qtes.filter(v => v === '').length : 0;
+  const zs = document.getElementById('sansQte'); if (zs) { zs.hidden = !nbSans; zs.querySelector('b').textContent = nbSans + ' ligne' + (nbSans > 1 ? 's' : '') + ' sans quantité'; }
   document.querySelectorAll('tr[data-calc]').forEach(tr => {
     const puCell = tr.querySelector('.pu'); let pu;
     if (puCell.dataset.fige !== '') pu = num(puCell.dataset.fige);
@@ -329,6 +340,7 @@ function recalc() {
     puCell.textContent = fmt(pu); totalPU += pu; nb++;
     const q = num(tr.querySelector('.qte').value);
     const qv = tr.querySelector('.qte').value.trim();
+    tr.classList.toggle('sansqte', avecQte && qv === '');   // bordereau chiffré en quantités (DQE) : ligne sans quantité en rouge
     tr.querySelector('.tot').textContent = qv !== '' ? fmt(pu * q) : '';
     if (qv !== '') total += pu * q;
   });

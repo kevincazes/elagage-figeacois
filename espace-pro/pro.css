@@ -228,6 +228,8 @@ body.panneau .flash{margin:10px}
 /* Bordereau : barre de raccourcis, rattachement */
 .barre-ajout{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 10px}
 .tbl.bord input.catsel{font-size:.85rem}
+.tbl.bord tr.sansqte td{background:#fbe0dc}.tbl.bord tr.sansqte td input,.tbl.bord tr.sansqte td textarea{border-color:#e3a59c}
+#sansQte[hidden]{display:none!important}
 .tbl.bord td.calc a{text-decoration:none;color:inherit;border-bottom:1px dotted var(--doux)}
 @media print{
   .bulle-ia,.pan-ia,.barre-ajout,.defil,#ajout,.fil,.scroll-aide,.no-print{display:none!important}
