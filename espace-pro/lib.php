@@ -515,7 +515,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     // Sous-menu fixe (ordinateur) : les pages de la famille en cours, toujours visibles sous le bandeau
     if ($u && !empty($sousNav)) { echo '<nav class="sousnav" aria-label="' . e($sousNav[0]) . '"><span class="sn-titre">' . e($sousNav[0]) . '</span>'; foreach ($sousNav[1] as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="on"' : '') . '>' . $l . '</a>'; echo '</nav>'; }
     // un seul menu déroulant ouvert à la fois ; fermeture au clic ailleurs (grand écran)
-    echo '<script>document.addEventListener("click",e=>{const d=e.target.closest("details.menu");document.querySelectorAll("details.menu[open]").forEach(x=>{if(x!==d&&!matchMedia("(max-width:900px)").matches)x.open=false;});});if(matchMedia("(max-width:900px)").matches)document.querySelectorAll("details.menu.active").forEach(x=>x.open=true);</script>';
+    echo '<script>document.addEventListener("click",e=>{const d=e.target.closest("details.menu");document.querySelectorAll("details.menu[open]").forEach(x=>{if(x!==d&&!matchMedia("(max-width:900px)").matches)x.open=false;});});if(matchMedia("(max-width:900px)").matches)document.querySelectorAll("details.menu.active").forEach(x=>x.open=true);document.querySelectorAll(".top nav details.menu").forEach(d=>d.addEventListener("toggle",()=>{if(d.open&&matchMedia("(max-width:900px)").matches)document.querySelectorAll(".top nav details.menu[open]").forEach(x=>{if(x!==d)x.open=false;});}));</script>';
     // Fil d'Ariane
     if ($u) {
         $fil = [['index.php', 'Tableau de bord']];

@@ -84,6 +84,8 @@ tr.c2 td{background:#fff8e3}tr.c3 td{background:#fbeae8}
   .top nav details.menu summary{display:block;padding:12px 10px;font-size:1rem;border-bottom:1px solid #f0f2ec;border-radius:0}.top nav details.menu summary i{float:right;font-size:.9rem}
   .top nav details.menu>div{position:static;box-shadow:none;border:0;border-left:3px solid var(--clair);border-radius:0;padding:0 0 4px 12px;min-width:0}.top nav details.menu>div a{font-size:.95rem;padding:10px 8px}
   .nav-open .top nav{display:flex}
+  .top nav{max-height:calc(100vh - 60px);max-height:calc(100dvh - 60px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  body.nav-open{overflow:hidden;touch-action:none}body.nav-open .top nav{touch-action:pan-y}body.nav-open .bulle-ia{display:none}
   main{padding:14px 12px 40px}
   h1{font-size:1.35rem}
   .tiles{grid-template-columns:1fr}
