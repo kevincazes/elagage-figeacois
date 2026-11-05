@@ -12,7 +12,7 @@ if (!empty($_GET['nouveau_client']) && ($ncl = q("SELECT * FROM clients WHERE id
 }
 page_start('Planning', 'planning.php');
 ?>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="assets/leaflet/leaflet.css">
 <style>
 main.large{max-width:none}
 .pl-barre{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
@@ -21,6 +21,16 @@ main.large{max-width:none}
 .pl-barre .grp button.on{background:var(--sapin);color:#fff}
 .pl-barre .periode{font-weight:900;font-size:1.1rem;color:var(--sapin);min-width:210px;text-align:center}
 .pl-barre select{width:auto;margin:0;padding:6px 10px}
+.pl-barre .grp.principal button{background:var(--vert,#8caa31);color:#fff}
+.plus{display:contents}.plus summary{display:none;list-style:none;cursor:pointer}.plus summary::-webkit-details-marker{display:none}.plus-l{display:contents}
+.filtres{margin:-4px 0 12px}.filtres summary{display:none;list-style:none;cursor:pointer}.filtres summary::-webkit-details-marker{display:none}
+@media(max-width:700px){
+  .pl-barre{gap:6px}.pl-barre #vues{flex:1 0 100%;overflow-x:auto;scrollbar-width:none;border-radius:12px}.pl-barre #vues button{flex:1 0 auto;padding:9px 11px;font-size:.92rem}
+  .pl-barre .grp.principal{order:5;flex:1 0 62%}.pl-barre .grp.principal button{width:100%;padding:10px}.pl-barre #fPers{flex:1 1 0;min-width:0}.pl-barre .grp button{padding:8px 11px}
+  .plus{display:block;order:6;position:relative}.plus summary{display:inline-block;padding:9px 14px}.plus[open] summary{background:var(--sapin);color:#fff;border-color:var(--sapin)}
+  .plus-l{display:flex;flex-wrap:wrap;gap:6px;position:absolute;right:0;top:calc(100% + 6px);z-index:30;background:var(--blanc);border:1px solid #d5dccd;border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);min-width:260px}
+  .filtres summary{display:inline-block;font-size:.8rem;padding:4px 10px}.filtres{margin:0 0 10px}.filtres .pl-filtres{margin-top:6px}
+}
 .pl-filtres{display:flex;gap:6px;flex-wrap:wrap}
 .pl-filtres label{display:inline-flex;gap:5px;align-items:center;margin:0;font-weight:700;font-size:.82rem;padding:4px 10px;border-radius:999px;border:1px solid #d5dccd;background:var(--blanc);cursor:pointer}
 .pl-filtres input{width:auto;margin:0}
@@ -37,6 +47,8 @@ main.large{max-width:none}
 .sem .bande .cel{border-left:1px solid #e6eadf;min-height:34px}
 .sem .heures{position:relative}.sem .heures div{height:var(--h);font-size:.72rem;color:var(--doux);text-align:right;padding-right:6px;border-top:1px solid #edf0e8}
 .sem .col{position:relative;border-left:1px solid #e6eadf;background:repeating-linear-gradient(#fff 0 calc(var(--h) - 1px),#edf0e8 calc(var(--h) - 1px) var(--h))}
+.carte-vue #carteG{height:calc(100vh - var(--bandeau,70px) - 260px);min-height:420px;border-radius:12px;border:1px solid #e1e5da}
+.sem .trajet{position:absolute;z-index:1;font-size:.66rem;line-height:1;padding:2px 4px;border-radius:4px;background:repeating-linear-gradient(135deg,#e3e6de 0 4px,#eef0ea 4px 8px);color:#4a5a4f;overflow:hidden;white-space:nowrap;pointer-events:auto}.sem .trajet.court{background:repeating-linear-gradient(135deg,#f9d3cf 0 4px,#fde8e6 4px 8px);color:#a12e28;font-weight:700}
 .sem .col.we{background:repeating-linear-gradient(#fafbf8 0 calc(var(--h) - 1px),#edf0e8 calc(var(--h) - 1px) var(--h))}
 .sem .col .horsh{position:absolute;left:0;right:0;background:rgba(28,59,43,.035);pointer-events:none}
 .sem .maintenant{position:absolute;left:0;right:0;height:2px;background:#d64545;z-index:3;pointer-events:none}
@@ -50,6 +62,11 @@ main.large{max-width:none}
 .puce.propose{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 6px,transparent 6px 12px)}.puce.termine{opacity:.55}
 .alerte-ic{display:inline-block;background:#fff;color:#c0392b;border-radius:50%;width:15px;height:15px;font-size:.7rem;line-height:15px;text-align:center;font-weight:900;margin-right:3px}
 .meteo{font-size:.72rem;opacity:.95}.meteo.fort{color:#ffd43b;font-weight:900}
+.pictos{font-size:.85rem;letter-spacing:1px;margin-right:3px;line-height:1}.badge-t{display:inline-block;font-size:.68rem;font-weight:800;background:rgba(255,255,255,.9);color:#444;border-radius:9px;padding:0 5px;margin-left:3px;vertical-align:middle}.badge-t.retard{background:#e6332a;color:#fff}.badge-t.ok{color:#5a7a1e}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;align-items:center;gap:4px;border:1px solid #d9dfd2;border-radius:16px;padding:3px 9px 3px 6px;font-size:.82rem;cursor:pointer;background:#fff}.chips label:has(input:checked){background:#eef3e4;border-color:var(--vert,#8caa31);font-weight:700}.chips input{width:auto!important;margin:0!important}
+.lst{list-style:none;margin:0;padding:0}.lst li{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed #e4e8de;font-size:.88rem}.lst li.fait span.l{text-decoration:line-through;opacity:.6}.lst li .l{flex:1;min-width:0}.lst li .qui{font-size:.75rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:18px!important;height:18px;margin:0!important}.lst .x{background:none;border:0;color:#999;cursor:pointer;font-size:1rem;padding:0 4px}.lst .x:hover{color:#e6332a}
+.ajout{display:grid;grid-template-columns:1fr auto auto auto;gap:6px;margin-top:6px;align-items:center}.ajout input,.ajout select{margin:0;padding:6px 8px;font-size:.85rem}@media(max-width:700px){.ajout{grid-template-columns:1fr 1fr}}
+#mt .lst li{font-size:.82rem}
 /* Mois */
 .mois{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));min-width:780px}
 .mois .tete{background:#2f4f3a;color:#fff;padding:7px;font-weight:700;font-size:.85rem;text-align:center}
@@ -105,32 +122,35 @@ main.large{max-width:none}
 </style>
 
 <div class="pl-barre">
-  <div class="grp" id="vues"><button data-v="semaine">Semaine</button><button data-v="mois">Mois</button><button data-v="ressources">Ressources</button><button data-v="liste">Liste</button><button data-v="tournee">Tournée</button></div>
+  <div class="grp" id="vues"><button data-v="semaine">Semaine</button><button data-v="mois">Mois</button><button data-v="ressources">Ressources</button><button data-v="liste">Liste</button><button data-v="carte">Carte</button><button data-v="tournee">Tournée</button></div>
   <div class="grp"><button id="prec" title="Précédent">‹</button><button id="auj">Aujourd'hui</button><button id="suiv" title="Suivant">›</button></div>
   <span class="periode" id="periode"></span>
   <select id="fPers" title="N'afficher qu'une personne"><option value="">Tout le personnel</option></select>
-  <div class="grp"><button id="nouveau" title="Créer">+ Nouveau</button></div>
+  <div class="grp principal"><button id="nouveau" title="Créer">+ Nouveau</button></div>
+  <details class="plus"><summary class="mini">Plus ▾</summary><div class="plus-l">
   <a class="mini" href="planning-ressources.php" id="lienRes">Personnel, matériel, équipes</a>
   <a class="mini" href="mon-planning.php">Mon planning</a>
   <a class="mini" href="clients.php">Clients</a><a class="mini" href="conges.php">Congés</a>
   <a class="mini" href="materiel.php">Matériel</a>
   <?php if (planning_niveau() === 'tout'): ?><a class="mini" href="contrats.php">Contrats</a><a class="mini" href="charge.php">Tableau de charge</a><a class="mini" href="phyto.php">Platanes</a><?php endif; ?>
   <?php if (est_admin()): ?><a class="mini" href="reglages-planning.php" title="SMS, avis Google, notifications, Pennylane, Urgence Élagage">⚙ Réglages</a><?php endif; ?>
+  </div></details>
 </div>
 <p class="flash" id="astreinte" hidden style="margin:0 0 10px;background:#fdecea;border-color:#f3b4ae"></p>
-<div class="pl-filtres" id="fTypes" style="margin:-4px 0 12px"></div>
+<details class="filtres" open><summary class="mini">Types affichés</summary><div class="pl-filtres" id="fTypes"></div></details>
 <p class="flash" id="lecture" hidden style="margin:0 0 10px">Tu consultes les agendas de toute l'équipe. Pour modifier, demande à un administrateur de t'en donner le droit.</p>
 <div class="pl-cadre">
   <div class="pl-zone" id="zone"></div>
   <aside class="pl-cote">
     <section class="card gestion"><h3>À planifier <span class="muted" id="nbAp"></span></h3><p class="small muted" style="margin:0 0 8px">Glisse une fiche sur un jour (semaine, mois ou ressources), ou ouvre-la et clique « Trouver un créneau ».</p><div id="ap"></div></section>
+    <section class="card" id="mt" hidden><h3>Mes actions à faire</h3><ul class="lst" id="mtL"></ul></section>
     <section class="card gestion"><h3>Alertes</h3><div id="alertes"></div></section>
     <section class="card"><h3>Légende</h3><div class="legende" id="legende"></div><p class="small muted" style="margin:8px 0 0">Hachuré : date proposée, pas encore confirmée par le client. Pointillés : à planifier. <span class="alerte-ic">!</span> conflit à vérifier. 🌬 rafales fortes annoncées.</p></section>
   </aside>
 </div>
 <div id="ficheHote"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="assets/leaflet/leaflet.js"></script>
 <script>
 const CSRF = <?= json_encode(csrf()) ?>;
 const TYPES = <?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, STATUTS = <?= json_encode(STATUTS_EVT, JSON_UNESCAPED_UNICODE) ?>;
@@ -169,7 +189,7 @@ const equipeDe = id => (S.data?.equipes || []).find(x => +x.id === +id);
 // ---------- période affichée ----------
 function bornes() {
   if (S.vue === 'mois') { const d = new Date(S.ref.getFullYear(), S.ref.getMonth(), 1); const du = lundi(d); return [du, plus(du, 42)]; }
-  if (S.vue === 'ressources') { const du = lundi(S.ref); return [du, plus(du, 14)]; }
+  if (S.vue === 'ressources' || S.vue === 'carte') { const du = lundi(S.ref); return [du, plus(du, 14)]; }
   if (S.vue === 'liste') { const du = new Date(S.ref); du.setHours(0, 0, 0, 0); return [du, plus(du, 21)]; }
   if (S.vue === 'tournee') { const du = new Date(S.ref); du.setHours(0, 0, 0, 0); return [du, plus(du, 1)]; }
   const du = lundi(S.ref); return [du, plus(du, 7)];
@@ -177,6 +197,7 @@ function bornes() {
 function libellePeriode() {
   const [du, au] = bornes(), f = plus(au, -1);
   if (S.vue === 'mois') return MOIS[S.ref.getMonth()] + ' ' + S.ref.getFullYear();
+  if (S.vue === 'carte') { const f = plus(au, -1); return du.getDate() + ' ' + MOIS[du.getMonth()].slice(0, 3) + '. – ' + f.getDate() + ' ' + MOIS[f.getMonth()].slice(0, 3) + '. ' + f.getFullYear(); }
   if (S.vue === 'tournee') return JOURS[du.getDay()] + ' ' + du.getDate() + ' ' + MOIS[du.getMonth()];
   return du.getDate() + ' ' + MOIS[du.getMonth()].slice(0, 3) + '. – ' + f.getDate() + ' ' + MOIS[f.getMonth()].slice(0, 3) + '. ' + f.getFullYear();
 }
@@ -193,15 +214,16 @@ function rendre() {
   $('#periode').textContent = libellePeriode();
   const fp = $('#fPers'); if (fp.options.length <= 1) (S.data.personnel || []).forEach(p => fp.add(new Option(p.prenom + ' ' + p.nom, p.id)));
   fp.value = S.pers;
-  ({semaine: vueSemaine, mois: vueMois, ressources: vueRessources, liste: vueListe, tournee: vueTournee})[S.vue]();
+  ({semaine: vueSemaine, mois: vueMois, ressources: vueRessources, liste: vueListe, tournee: vueTournee, carte: vueCarte})[S.vue]();
   document.querySelectorAll('.pl-cote .card.gestion').forEach(c => c.style.display = toutDroit() ? '' : 'none');
   $('#nouveau').parentElement.style.display = S.data.droits.planifier ? '' : 'none';
   $('#lecture').hidden = S.data.droits.planifier;
   const ast = S.data.astreinte; $('#astreinte').hidden = !ast;
   if (ast) { const n = l => (l || []).map(p => p.nom).join(', ') || '—'; $('#astreinte').innerHTML = `🚨 <strong>D'astreinte Urgence Élagage</strong> (${esc(ast.creneau || '')}) : équipe ${esc(n(ast.equipe_1))} · régulation ${esc(n(ast.regulation_1))}`; }
   // à planifier
+  rendreMesTaches(S.data.mes_taches || []);
   const ap = S.data.a_planifier || []; $('#nbAp').textContent = ap.length ? '(' + ap.length + ')' : '';
-  $('#ap').innerHTML = ap.length ? ap.map(e => `<div class="ap" draggable="true" data-id="${e.id}" style="border-left-color:${couleur(e)}"><b>${esc(e.titre)}</b><small>${esc(TYPES[e.type][0])}${e.ville ? ' · ' + esc(e.ville) : ''}${e.nb_jours ? ' · ' + (+e.nb_jours) + ' j' : (e.duree_h ? ' · ' + (+e.duree_h) + ' h' : '')}${+e.devis_signe ? ' · devis signé' : ''}${e.devis_montant ? ' · ' + eur(e.devis_montant) : ''}${e.souhait_client ? '<br>Souhait : ' + esc(e.souhait_client) : ''}</small><br><button class="mini" data-cren="${e.id}">Trouver un créneau</button></div>`).join('') : '<p class="muted small" style="margin:0">Rien en attente.</p>';
+  $('#ap').innerHTML = ap.length ? ap.map(e => `<div class="ap" draggable="true" data-id="${e.id}" style="border-left-color:${couleur(e)}"><b>${pictosHtml(e)}${esc(e.titre)}${badgeTaches(e)}</b><small>${esc(TYPES[e.type][0])}${e.ville ? ' · ' + esc(e.ville) : ''}${e.nb_jours ? ' · ' + (+e.nb_jours) + ' j' : (e.duree_h ? ' · ' + (+e.duree_h) + ' h' : '')}${+e.devis_signe ? ' · devis signé' : ''}${e.devis_montant ? ' · ' + eur(e.devis_montant) : ''}${e.souhait_client ? '<br>Souhait : ' + esc(e.souhait_client) : ''}</small><br><button class="mini" data-cren="${e.id}">Trouver un créneau</button></div>`).join('') : '<p class="muted small" style="margin:0">Rien en attente.</p>';
   document.querySelectorAll('#ap .ap').forEach(c => { c.addEventListener('dragstart', ev => { ev.dataTransfer.setData('text/plain', 'ap:' + c.dataset.id); }); c.addEventListener('click', ev => { if (ev.target.dataset.cren) { ouvrirFiche(+c.dataset.id, {creneaux: true}); return; } ouvrirFiche(+c.dataset.id); }); });
   // alertes
   const al = S.data.alertes || [];
@@ -211,12 +233,18 @@ function rendre() {
 }
 function filtresTypes() {
   $('#fTypes').innerHTML = Object.entries(TYPES).map(([k, [l, c]]) => `<label style="border-color:${c}"><input type="checkbox" value="${k}" ${S.types.includes(k) ? 'checked' : ''}><i style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block"></i>${l}</label>`).join('');
+  if (matchMedia('(max-width:700px)').matches && S.types.length === Object.keys(TYPES).length) $('.filtres').open = false;
   $('#fTypes').querySelectorAll('input').forEach(i => i.addEventListener('change', () => { S.types = [...$('#fTypes').querySelectorAll('input:checked')].map(x => x.value); try { localStorage.setItem('pl_types', JSON.stringify(S.types)); } catch (e) {} rendre(); }));
 }
-const titreEvt = e => (e.alertes && e.alertes.length ? '<span class="alerte-ic" title="' + esc(e.alertes.join('\n')) + '">!</span>' : '') + esc(e.titre) + (e._meteo ? ' <span class="meteo ' + (e._meteo.fort ? 'fort' : '') + '">' + e._meteo.txt + '</span>' : '');
-const infoBulle = e => [TYPES[e.type][0] + ' – ' + STATUTS[e.statut], e.titre, e.client_nom, [e.adresse, e.cp, e.ville].filter(Boolean).join(' '), e.personnel.length ? 'Équipe : ' + e.personnel.map(persNom).join(', ') : '', e.materiel.length ? 'Matériel : ' + e.materiel.map(matNom).join(', ') : '', ...(e.alertes || []).map(a => '⚠ ' + a)].filter(Boolean).join('\n');
+const PICTO = c => (S.data?.pictos || []).find(p => p.code === c);
+const pictosHtml = e => { const l = (e.pictos_l || []).map(PICTO).filter(Boolean); if (+e.phyto && !l.some(p => p.code === 'platane') && PICTO('platane')) l.push(PICTO('platane')); return l.length ? '<span class="pictos" title="' + esc(l.map(p => p.libelle).join('\n')) + '">' + l.map(p => p.emoji).join('') + '</span>' : ''; };
+const badgeTaches = e => e.taches_restantes ? `<span class="badge-t ${e.taches_retard ? 'retard' : ''}" title="${e.taches_restantes} action(s) à faire avant le chantier${e.taches_retard ? ' – ' + e.taches_retard + ' en retard' : ''}">☐${e.taches_restantes}</span>` : (e.taches_nb ? '<span class="badge-t ok" title="Toutes les actions préparatoires sont faites">✓</span>' : '');
+const titreEvt = e => (e.alertes && e.alertes.length ? '<span class="alerte-ic" title="' + esc(e.alertes.join('\n')) + '">!</span>' : '') + pictosHtml(e) + esc(e.titre) + badgeTaches(e) + (e._meteo ? ' <span class="meteo ' + (e._meteo.fort ? 'fort' : '') + '">' + e._meteo.txt + '</span>' : '');
+const infoBulle = e => [(e.motif || TYPES[e.type][0]) + ' – ' + STATUTS[e.statut], e.titre, e.client_nom, [e.adresse, e.cp, e.ville].filter(Boolean).join(' '), e.personnel.length ? 'Équipe : ' + e.personnel.map(persNom).join(', ') : '', e.materiel.length ? 'Matériel : ' + e.materiel.map(matNom).join(', ') : '', ...(e.alertes || []).map(a => '⚠ ' + a)].filter(Boolean).join('\n');
 const ferie = d => (S.data?.reglages?.feries || {})[ymd(d)] || '', we = d => d.getDay() % 6 === 0 || !!ferie(d);
 const secteursJour = d => (S.data?.secteurs || []).filter(x => String(x.jours || '').split(',').includes(String(d.getDay()))).map(x => `<span style="display:inline-block;background:${x.couleur};color:#fff;border-radius:999px;padding:0 6px;font-size:.68rem;font-weight:700;margin:1px">${esc(x.nom)}</span>`).join('');
+const FACT = <?= (float)setting('planning_facteur', '1.3') ?>, VIT = <?= max(10, (float)setting('planning_vitesse', '55')) ?>;
+const kmVol = (a, b, c, d) => { const r = 6371, x = (c - a) * Math.PI / 180, y = (d - b) * Math.PI / 180, h = Math.sin(x / 2) ** 2 + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(y / 2) ** 2; return 2 * r * Math.asin(Math.min(1, Math.sqrt(h))) * FACT; };
 const estBande = e => +e.journee === 1 || !memeJour(parse(e.debut), new Date(parse(e.fin) - 1));
 
 // ---------- vue semaine ----------
@@ -252,6 +280,14 @@ function vueSemaine() {
       x.innerHTML = `<b>${titreEvt(e)}</b><span class="h">${hm(a)}–${hm(b)}${e.ville ? ' · ' + esc(e.ville) : ''}</span>${e.personnel.length ? '<span class="h"> · ' + e.personnel.map(persNom).join(', ') + '</span>' : ''}<div class="poignee"></div>`;
       x.title = infoBulle(e); col.appendChild(x); glisserHoraire(x, e, du);
     });
+    // temps de route entre deux rendez-vous consécutifs d'une même personne (bloc gris « 🚗 »), rouge si l'écart ne suffit pas
+    const geo = du2.filter(e => e.lat && e.lng); const vus = new Set();
+    geo.forEach(e => e.personnel.forEach(p => { const suiv = geo.filter(o => o !== e && o.personnel.includes(p) && parse(o.debut) >= parse(e.fin)).sort((a, b) => parse(a.debut) - parse(b.debut))[0]; if (!suiv) return;
+      const k = e.id + '-' + suiv.id; if (vus.has(k)) return; vus.add(k);
+      const km = kmVol(+e.lat, +e.lng, +suiv.lat, +suiv.lng), mn = Math.max(1, Math.round(km / VIT * 60)), ecart = (parse(suiv.debut) - parse(e.fin)) / 6e4; if (mn < 5) return;
+      const t = document.createElement('div'); t.className = 'trajet' + (ecart < mn ? ' court' : ''); const a = parse(e.fin);
+      t.style.cssText = `top:${(a.getHours() + a.getMinutes() / 60 - H0) * PXH}px;height:${Math.max(14, Math.min(ecart, mn) / 60 * PXH)}px;left:calc(${e._v} * 100% / ${Math.max(1, voies.length)} + 2px);width:calc(100% / ${Math.max(1, voies.length)} - 5px)`;
+      t.textContent = '🚗 ' + mn + ' min'; t.title = `${persNom(p)} : ${Math.round(km)} km ≈ ${mn} min de route jusqu'à « ${suiv.titre} »` + (ecart < mn ? ` — écart de ${Math.round(ecart)} min seulement` : ''); col.appendChild(t); }));
     if (ymd(d) === auj) { const n = new Date(); const m = document.createElement('div'); m.className = 'maintenant'; m.style.top = ((n.getHours() + n.getMinutes() / 60 - H0) * PXH) + 'px'; col.appendChild(m); }
     // clic sur un créneau vide : nouvelle visite à cette heure
     col.addEventListener('dblclick', ev2 => { if (ev2.target !== col && !ev2.target.classList.contains('horsh')) return; const mn = Math.round(((ev2.offsetY / PXH) + H0) * 4) / 4; const t = new Date(d); t.setHours(Math.floor(mn), (mn % 1) * 60, 0, 0); nouvelle('visite', {debut: dts(t), fin: dts(new Date(+t + 36e5))}); });
@@ -390,14 +426,45 @@ async function vueTournee() {
   const b = $('#appTournee'); if (b) b.onclick = async () => { try { const r = await api('appliquer_tournee', {}, {etapes: O.etapes}); toast(r.modifies + ' horaire(s) mis à jour.'); charger(); } catch (e) { toast(e.message, true); } };
   if (typeof L === 'undefined') { $('#carte').innerHTML = '<p class="muted" style="padding:14px">Carte indisponible (connexion).</p>'; return; }
   if (carte) { carte.remove(); carte = null; }
-  carte = L.map('carte'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '© OpenStreetMap'}).addTo(carte);
+  carte = fondsCarte(L.map('carte'));
   const dep = [t.depot.lat, t.depot.lng], pts = [dep, ...O.etapes.map(x => [x.lat, x.lng]), dep];
   L.marker(dep, {title: 'Dépôt'}).addTo(carte).bindPopup('Dépôt : ' + esc(t.depot.nom));
-  O.etapes.forEach((x, i) => L.marker([x.lat, x.lng], {icon: L.divIcon({className: '', html: `<div class="num" style="width:26px;height:26px;border-radius:50%;background:#1c3b2b;color:#fff;font-weight:900;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)">${i + 1}</div>`, iconSize: [26, 26], iconAnchor: [13, 13]})}).addTo(carte).bindPopup(`<strong>${esc(x.titre)}</strong><br>${esc(x.adresse)}<br>${x.arrivee.slice(11, 16)}`));
+  O.etapes.forEach((x, i) => L.marker([x.lat, x.lng], {icon: L.divIcon({className: '', html: `<div class="num" style="width:26px;height:26px;border-radius:50%;background:#1c3b2b;color:#fff;font-weight:900;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)">${i + 1}</div>`, iconSize: [26, 26], iconAnchor: [13, 13]})}).addTo(carte).bindPopup(`<strong>${esc(x.titre)}</strong><br>${esc(x.adresse)}<br>${x.arrivee.slice(11, 16)}<br>${liensCarte(x.lat, x.lng)}`));
   L.polyline(pts, {color: '#8caa31', weight: 4}).addTo(carte);
   carte.fitBounds(L.latLngBounds(pts).pad(0.15));
 }
 
+// Fonds de carte : plan OpenStreetMap, plan IGN, photo aérienne IGN, satellite Esri ; sélecteur de calques en haut à droite
+function fondsCarte(map) {
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'});
+  const ign = L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {maxZoom: 19, attribution: '© IGN'});
+  const ortho = L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {maxZoom: 20, attribution: '© IGN'});
+  const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: '© Esri, Maxar'});
+  const choix = {'Plan (OpenStreetMap)': osm, 'Plan IGN': ign, 'Photo aérienne IGN': ortho, 'Satellite (Esri)': esri};
+  let actif = 'Plan (OpenStreetMap)'; try { actif = localStorage.getItem('pl_fond') || actif; } catch (e) {} (choix[actif] || osm).addTo(map);
+  L.control.layers(choix, {}, {position: 'topright'}).addTo(map); map.on('baselayerchange', ev => { try { localStorage.setItem('pl_fond', ev.name); } catch (e) {} });
+  return map;
+}
+const liensCarte = (lat, lng) => `<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}" target="_blank" rel="noopener">Street View ↗</a> · <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener">Itinéraire ↗</a>`;
+// ---------- vue carte : tous les chantiers et rendez-vous de la période, par type ----------
+let carteG = null;
+function vueCarte() {
+  const [du, au] = bornes(); const ev = visibles().filter(e => e.lat && e.lng); const dep = S.data.reglages.depot;
+  $('#zone').innerHTML = `<div class="carte-vue"><p class="muted small" style="margin:0 0 8px">Chantiers et rendez-vous localisés du ${du.getDate()}/${p2(du.getMonth() + 1)} au ${plus(au, -1).getDate()}/${p2(plus(au, -1).getMonth() + 1)} (${ev.length}) : couleur = type, numéro = ordre dans la période. Clique un repère pour ouvrir la fiche. ${(S.data.a_planifier || []).filter(e => e.lat).length ? 'Les fiches <strong>à planifier</strong> localisées sont en pointillé gris.' : ''}</p><div id="carteG"></div></div>`;
+  if (carteG) { carteG.remove(); carteG = null; }
+  carteG = fondsCarte(L.map('carteG'));
+  const pts = [[dep.lat, dep.lng]];
+  L.marker([dep.lat, dep.lng], {title: 'Dépôt', icon: L.divIcon({className: '', html: '<div style="width:22px;height:22px;border-radius:4px;background:#683c11;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)" title="Dépôt"></div>', iconSize: [22, 22], iconAnchor: [11, 11]})}).addTo(carteG).bindPopup('Dépôt : ' + esc(dep.nom));
+  (S.data.secteurs || []).filter(s => s.lat).forEach(s => L.circle([+s.lat, +s.lng], {radius: (+s.rayon_km) * 1000, color: s.couleur, weight: 1, fillOpacity: .06}).addTo(carteG).bindTooltip(s.nom + (s.jours ? ' · jours ' + s.jours.split(',').map(j => JOURS[j]).join(', ') : '')));
+  const sorted = ev.slice().sort((a, b) => parse(a.debut) - parse(b.debut));
+  sorted.forEach((e, i) => { pts.push([+e.lat, +e.lng]);
+    L.marker([+e.lat, +e.lng], {icon: L.divIcon({className: '', html: `<div style="width:28px;height:28px;border-radius:50%;background:${couleur(e)};color:#fff;font-weight:900;font-size:.8rem;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);${e.statut === 'termine' ? 'opacity:.55' : ''}">${i + 1}</div>`, iconSize: [28, 28], iconAnchor: [14, 14]})}).addTo(carteG)
+      .bindPopup(`<strong>${esc(e.titre)}</strong><br>${esc(e.motif || TYPES[e.type][0])} · ${esc(STATUTS[e.statut])}<br>${esc(evtQuand(e))}${e.client_nom ? '<br>' + esc(e.client_nom) : ''}${e.personnel.length ? '<br>' + e.personnel.map(persNom).join(', ') : ''}${(e.alertes || []).length ? '<br><span style="color:#e6332a">⚠ ' + e.alertes.length + ' alerte(s)</span>' : ''}<br><a href="#" onclick="ouvrirFiche(${e.id});return false">Ouvrir la fiche</a> · ${liensCarte(e.lat, e.lng)}`); });
+  (S.data.a_planifier || []).filter(e => e.lat).forEach(e => { pts.push([+e.lat, +e.lng]);
+    L.circleMarker([+e.lat, +e.lng], {radius: 9, color: '#666', dashArray: '3 3', weight: 2, fillColor: '#fff', fillOpacity: .9}).addTo(carteG).bindPopup(`<strong>${esc(e.titre)}</strong><br>À planifier${e.devis_montant ? ' · ' + eur(e.devis_montant) : ''}<br><a href="#" onclick="ouvrirFiche(${e.id}, {creneaux: true});return false">Trouver un créneau</a>`); });
+  carteG.fitBounds(L.latLngBounds(pts).pad(0.2));
+}
+const evtQuand = e => { const a = parse(e.debut), b = new Date(parse(e.fin) - 1); return memeJour(a, b) ? jourCourt(a) + (estBande(e) ? '' : ' ' + hm(a) + '–' + hm(parse(e.fin))) : 'du ' + jourCourt(a) + ' au ' + jourCourt(b); };
 // ---------- météo (Open-Meteo) : rafales et pluie sur 7 jours ----------
 const cacheMeteo = {};
 async function prevision(lat, lng) {
@@ -419,8 +486,15 @@ async function meteo() {
 }
 
 // ---------- fiche (création / modification) ----------
-const VIDE = {id: 0, type: 'chantier', titre: '', statut: 'a_planifier', debut: '', fin: '', journee: 1, client_nom: '', client_tel: '', client_email: '', adresse: '', cp: '', ville: '', lat: null, lng: null, devis_ref: '', devis_montant: '', devis_signe: 0, devis_lien: '', bordereau_id: '', equipe_id: '', duree_h: '', nb_jours: '', besoin_personnes: 2, besoin_materiel: '', priorite: 2, souhait_client: '', notes: '', consignes: '', personnel: [], materiel: [], client_id: '', dict_requise: 0, dict_ref: '', dict_envoi: '', dict_retour: '', phyto: 0, phyto_fiche: null};
+const VIDE = {id: 0, type: 'chantier', titre: '', statut: 'a_planifier', debut: '', fin: '', journee: 1, client_nom: '', client_tel: '', client_email: '', adresse: '', cp: '', ville: '', lat: null, lng: null, devis_ref: '', devis_montant: '', devis_signe: 0, devis_lien: '', bordereau_id: '', equipe_id: '', duree_h: '', nb_jours: '', besoin_personnes: 2, besoin_materiel: '', priorite: 2, souhait_client: '', motif: '', notes: '', consignes: '', personnel: [], materiel: [], client_id: '', dict_requise: 0, dict_ref: '', dict_envoi: '', dict_retour: '', phyto: 0, phyto_fiche: null};
 function nouvelle(type, base = {}) { ouvrirFiche(0, {neuf: Object.assign({}, VIDE, {type, journee: type === 'chantier' || type === 'absence' ? 1 : 0, besoin_personnes: type === 'chantier' ? 2 : 0, statut: base.debut ? 'propose' : 'a_planifier'}, base)}); }
+function rendreMesTaches(l) {
+  $('#mt').hidden = !l.length; if (!l.length) return;
+  $('#mtL').innerHTML = l.map(t => `<li class="${t.echeance && t.echeance < aujourdhui() ? 'retard' : ''}"><input type="checkbox" data-id="${t.id}" title="Fait"><span class="l">${esc(t.libelle)}<br><a href="#" data-evt="${t.evenement_id}" class="small">${esc(t.titre)}</a></span><span class="qui">${t.echeance ? 'avant le ' + t.echeance.slice(8, 10) + '/' + t.echeance.slice(5, 7) : (t.debut ? 'chantier ' + t.debut.slice(8, 10) + '/' + t.debut.slice(5, 7) : '')}</span></li>`).join('');
+  $('#mtL').querySelectorAll('input').forEach(c => c.onchange = async () => { try { const r = await api('tache', {}, {op: 'fait', id: +c.dataset.id}); rendreMesTaches(r.mes_taches); toast('Action cochée ✓'); charger(); } catch (err) { toast(err.message, true); c.checked = false; } });
+  $('#mtL').querySelectorAll('a[data-evt]').forEach(a => a.onclick = ev => { ev.preventDefault(); ouvrirFiche(+a.dataset.evt); });
+}
+const aujourdhui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 async function ouvrirFiche(id, opts = {}) {
   if (!S.data) { setTimeout(() => ouvrirFiche(id, opts), 300); return; }
   if (!id && !S.data.droits.planifier) return;
@@ -436,7 +510,16 @@ async function ouvrirFiche(id, opts = {}) {
     ${e.client_reponse === 'autre' ? `<div class="reponse autre">Le client demande une autre date${e.client_message ? ' : « ' + esc(e.client_message) + ' »' : '.'} <button class="mini" type="button" id="fVu">Marquer comme traité</button></div>` : ''}
     <div class="alertes" id="fAl"></div>
     <div class="types">${Object.entries(TYPES).filter(([k]) => k !== 'urgence' || e.type === 'urgence').map(([k, [l, c]]) => `<label style="border-color:${c}"><input type="radio" name="type" value="${k}" ${k === e.type ? 'checked' : ''}>${l}</label>`).join('')}</div>
+    <label class="f-rdv">Type de rendez-vous <input name="motif" list="motifs" value="${esc(e.motif || '')}" placeholder="Ex. Réunion de chantier, visite de fin de travaux, rendez-vous prospect…"><datalist id="motifs">${(S.data.motifs || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist></label>
     <div class="g2"><label>Titre <input name="titre" value="${esc(e.titre)}" placeholder="Ex. Abattage 3 chênes – M. Dupont"></label><label>Statut <select name="statut">${opt(STATUTS, e.statut)}</select></label></div>
+    ${(S.data.pictos || []).length && e.type !== 'absence' ? `<fieldset><legend>Pictogrammes <span class="muted small" style="font-weight:400">– points d'attention visibles d'un coup d'œil sur le créneau${S.data.droits.niveau === 'tout' ? ' (liste modifiable dans ⚙ Réglages)' : ''}</span></legend>
+     <div class="chips">${S.data.pictos.map(p => `<label title="${esc(p.action ? 'Crée l\'action « ' + p.action + ' »' + (p.delai !== null ? ' (J-' + p.delai + ')' : '') : p.libelle)}"><input type="checkbox" name="pictos" value="${p.code}" ${(e.pictos_l || []).includes(p.code) ? 'checked' : ''}>${p.emoji} ${esc(p.libelle)}</label>`).join('')}</div></fieldset>` : ''}
+    ${id && e.type !== 'absence' ? `<fieldset><legend>Actions à faire avant le chantier <span class="muted small" style="font-weight:400">– attribuées, avec rappel sur le téléphone</span></legend><ul class="lst" id="fTaches"></ul>
+     <div class="ajout" id="fTAj"><input id="fTLib" placeholder="Ex. Réserver la nacelle, prévenir le voisin…"><select id="fTQui"><option value="">Qui ?</option>${eqs.filter(p => +p.actif).map(p => `<option value="${p.id}">${esc(p.prenom)}</option>`).join('')}</select><input type="date" id="fTEch" title="À faire avant le"><button type="button" class="mini" id="fTAdd">Ajouter</button></div></fieldset>
+    <fieldset class="f-chantier"><legend>Prestations du devis – relevé de chantier <span class="muted small" style="font-weight:400">– à cocher sur place, repris dans le bon de fin</span></legend><ul class="lst" id="fPrest"></ul>
+     <div class="ajout" id="fPAj"><input id="fPLib" placeholder="Prestation à réaliser…"><input id="fPQte" placeholder="Qté" style="width:64px"><input id="fPUni" placeholder="Unité" style="width:70px"><button type="button" class="mini" id="fPAdd">Ajouter</button></div>
+     <p class="small" style="margin:6px 0 0"><button type="button" class="mini" id="fPDevis" ${e.bordereau_id ? '' : 'disabled title="Lie d\'abord un bordereau (ci-dessous)"'}>Reprendre les lignes du bordereau</button> <button type="button" class="mini" id="fPColler">Coller les lignes d'un devis (Extrabat, PDF…)</button></p>
+     <textarea id="fPTexte" rows="4" hidden placeholder="Colle ici les lignes du devis, une par ligne. Les prix en fin de ligne et les totaux sont ignorés."></textarea></fieldset>` : (!id && e.type !== 'absence' ? '<p class="small muted">Enregistre la fiche pour ajouter les actions à faire et les prestations du devis.</p>' : '')}
     <fieldset class="f-client"><legend>Client et lieu</legend>
      <input type="hidden" name="client_id" value="${e.client_id || ''}">
      <div class="g3"><label class="ac">Nom <input name="client_nom" id="fCli" value="${esc(e.client_nom)}" placeholder="Tape pour chercher dans les clients"><ul id="fCliL" hidden></ul></label><label>Téléphone <input name="client_tel" type="tel" value="${esc(e.client_tel)}"></label><label>E-mail <input name="client_email" type="email" value="${esc(e.client_email)}"></label></div>
@@ -444,7 +527,8 @@ async function ouvrirFiche(id, opts = {}) {
      <div class="g3"><label>Code postal <input name="cp" value="${esc(e.cp)}"></label><label>Ville <input name="ville" value="${esc(e.ville)}"></label><label>Position <input id="fPos" value="${e.lat ? (+e.lat).toFixed(4) + ', ' + (+e.lng).toFixed(4) : ''}" placeholder="non localisée" readonly></label></div>
      <input type="hidden" name="lat" value="${e.lat ?? ''}"><input type="hidden" name="lng" value="${e.lng ?? ''}">
      <p class="small" id="fCliLien" style="margin:2px 0 0">${e.client_id ? `<a href="clients.php?id=${e.client_id}">Fiche client ↗</a>` : ''}</p>
-     <p class="small" id="fGps" style="margin:2px 0 0">${e.lat ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank">Itinéraire Google Maps ↗</a> · <a href="https://waze.com/ul?ll=${e.lat},${e.lng}&navigate=yes" target="_blank">Waze ↗</a>` : ''}</p>
+     <p class="small muted" id="fTrajet" style="margin:2px 0 0">${e.lat && S.data.reglages.depot ? (() => { const k = kmVol(S.data.reglages.depot.lat, S.data.reglages.depot.lng, e.lat, e.lng); return `Depuis le dépôt : ${k < 10 ? k.toFixed(1) : Math.round(k)} km, environ ${Math.max(1, Math.round(k / VIT * 60))} min de route`; })() : ''}</p>
+     <p class="small" id="fGps" style="margin:2px 0 0">${e.lat ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank">Itinéraire Google Maps ↗</a> · <a href="https://waze.com/ul?ll=${e.lat},${e.lng}&navigate=yes" target="_blank">Waze ↗</a> · <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${e.lat},${e.lng}" target="_blank">Street View ↗</a>` : ''}</p>
     </fieldset>
     <fieldset><legend>Date</legend>
      <div class="g2"><label>Début <input type="date" name="d_deb" value="${d0 ? ymd(d0) : ''}"></label><label class="hrs">Heure <input type="time" name="h_deb" step="900" value="${d0 ? hm(d0) : '09:00'}"></label>
@@ -491,7 +575,7 @@ async function ouvrirFiche(id, opts = {}) {
   const F = $('#ff'), fermer = () => { $('#ficheHote').innerHTML = ''; document.removeEventListener('keydown', echap); };
   const echap = ev => { if (ev.key === 'Escape') fermer(); }; document.addEventListener('keydown', echap);
   $('.fiche-fond').onclick = fermer; $('#fFerm').onclick = fermer;
-  const majType = () => { const t = F.type.value; F.querySelectorAll('.f-chantier').forEach(x => x.style.display = t === 'chantier' ? '' : 'none'); $('.f-devis').style.display = ['chantier', 'visite', 'rdv'].includes(t) ? '' : 'none'; $('.f-client').style.display = ['chantier', 'visite', 'rdv'].includes(t) ? '' : 'none'; };
+  const majType = () => { const t = F.type.value; F.querySelectorAll('.f-chantier').forEach(x => x.style.display = t === 'chantier' ? '' : 'none'); F.querySelectorAll('.f-rdv').forEach(x => x.style.display = ['visite', 'rdv'].includes(t) ? '' : 'none');  if (t === 'visite' && F.motif && !F.motif.value) F.motif.value = 'Visite de chiffrage'; $('.f-devis').style.display = ['chantier', 'visite', 'rdv'].includes(t) ? '' : 'none'; $('.f-client').style.display = ['chantier', 'visite', 'rdv'].includes(t) ? '' : 'none'; };
   const majHeures = () => F.querySelectorAll('.hrs').forEach(x => x.style.display = F.journee.checked ? 'none' : '');
   F.querySelectorAll('[name=type]').forEach(r => r.onchange = () => { majType(); if (!id && ['chantier', 'absence'].includes(F.type.value)) F.journee.checked = true; majHeures(); verifier(); }); majType(); majHeures();
   F.journee.onchange = () => { majHeures(); verifier(); };
@@ -504,8 +588,8 @@ async function ouvrirFiche(id, opts = {}) {
     if (g('d_deb')) { if (F.journee.checked) { debut = g('d_deb') + ' ' + S.data.reglages.debut + ':00'; fin = (g('d_fin') || g('d_deb')) + ' ' + S.data.reglages.fin + ':00'; } else { debut = g('d_deb') + ' ' + g('h_deb') + ':00'; fin = (g('d_fin') || g('d_deb')) + ' ' + g('h_fin') + ':00'; } }
     return {id, type: F.type.value, titre: g('titre'), statut: g('statut'), debut, fin, journee: F.journee.checked ? 1 : 0, client_nom: g('client_nom'), client_tel: g('client_tel'), client_email: g('client_email'),
       adresse: g('adresse'), cp: g('cp'), ville: g('ville'), lat: g('lat'), lng: g('lng'), devis_ref: g('devis_ref'), devis_montant: g('devis_montant'), devis_signe: F.devis_signe.checked ? 1 : 0, devis_lien: g('devis_lien'), bordereau_id: g('bordereau_id'),
-      duree_h: g('duree_h'), nb_jours: g('nb_jours'), besoin_personnes: g('besoin_personnes'), besoin_materiel: all('besoin_materiel'), priorite: g('priorite'), souhait_client: g('souhait_client'), notes: g('notes'), consignes: g('consignes'),
-      phyto: F.phyto && F.phyto.checked ? 1 : 0, phyto_fiche: F.phyto && F.phyto.checked ? {travaux: g('ph_travaux'), nb_arbres: g('ph_nb_arbres'), code_c: g('ph_code_c'), surv_avant: g('ph_surv_avant'), surv_pendant: g('ph_surv_pendant'), declaration_le: g('ph_declaration_le'), transport: F.ph_transport.checked ? 1 : 0, desinf_entree: F.ph_desinf_entree.checked ? 1 : 0, desinf_sortie: F.ph_desinf_sortie.checked ? 1 : 0, desinf_arbres: F.ph_desinf_arbres.checked ? 1 : 0, griffes: F.ph_griffes.checked ? 1 : 0, produit: g('ph_produit'), destination: g('ph_destination'), usage_bois: g('ph_usage_bois'), volume_m3: g('ph_volume_m3'), notes: g('ph_notes')} : null,
+      motif: ['visite', 'rdv'].includes(F.type.value) ? g('motif') : '', duree_h: g('duree_h'), nb_jours: g('nb_jours'), besoin_personnes: g('besoin_personnes'), besoin_materiel: all('besoin_materiel'), priorite: g('priorite'), souhait_client: g('souhait_client'), notes: g('notes'), consignes: g('consignes'),
+      pictos: all('pictos'), phyto: F.phyto && F.phyto.checked ? 1 : 0, phyto_fiche: F.phyto && F.phyto.checked ? {travaux: g('ph_travaux'), nb_arbres: g('ph_nb_arbres'), code_c: g('ph_code_c'), surv_avant: g('ph_surv_avant'), surv_pendant: g('ph_surv_pendant'), declaration_le: g('ph_declaration_le'), transport: F.ph_transport.checked ? 1 : 0, desinf_entree: F.ph_desinf_entree.checked ? 1 : 0, desinf_sortie: F.ph_desinf_sortie.checked ? 1 : 0, desinf_arbres: F.ph_desinf_arbres.checked ? 1 : 0, griffes: F.ph_griffes.checked ? 1 : 0, produit: g('ph_produit'), destination: g('ph_destination'), usage_bois: g('ph_usage_bois'), volume_m3: g('ph_volume_m3'), notes: g('ph_notes')} : null,
       equipe_id: g('equipe_id'), client_id: g('client_id'), dict_requise: F.dict_requise && F.dict_requise.checked ? 1 : 0, dict_ref: g('dict_ref'), dict_envoi: g('dict_envoi'), dict_retour: g('dict_retour'), personnel: all('personnel').map(Number), materiel: all('materiel').map(Number), _date_posee: debut !== '' && e.statut === 'a_planifier'};
   };
   // disponibilités et conflits en direct
@@ -534,7 +618,7 @@ async function ouvrirFiche(id, opts = {}) {
     cli.value = c.nom; F.client_id.value = c.id; F.client_tel.value = c.mobile || c.telephone || ''; F.client_email.value = c.email || '';
     if (a) { F.adresse.value = a.adresse; F.cp.value = a.cp; F.ville.value = a.ville; F.lat.value = a.lat ?? ''; F.lng.value = a.lng ?? ''; $('#fPos').value = a.lat ? (+a.lat).toFixed(4) + ', ' + (+a.lng).toFixed(4) : 'non localisée'; }
     $('#fCliLien').innerHTML = `<a href="clients.php?id=${c.id}">Fiche client ↗</a>`; cliU.hidden = true;
-    if (!F.titre.value.trim()) F.titre.value = (TYPES[F.type.value][0].split(' ')[0]) + ' ' + c.nom; verifier(); });
+    if (!F.titre.value.trim()) F.titre.value = ((F.motif && F.motif.value && ['visite', 'rdv'].includes(F.type.value)) ? F.motif.value : TYPES[F.type.value][0].split(' ')[0]) + ' – ' + c.nom; verifier(); });
   cli.addEventListener('blur', () => setTimeout(() => cliU.hidden = true, 150));
   // adresse : base adresse nationale (api-adresse.data.gouv.fr)
   let ta; const adr = $('#fAdr'), liste = $('#fAdrL'); let props = [];
@@ -569,6 +653,30 @@ async function ouvrirFiche(id, opts = {}) {
   if ($('#fEnr')) $('#fEnr').onclick = async () => { const r = await enregistrer(); if (!r) return; toast('Enregistré.' + (r.alertes.length ? ' ⚠ ' + r.alertes.length + ' point(s) à vérifier.' : ''), r.alertes.length > 0); fermer(); charger(); };
   if ($('#fEnv')) $('#fEnv').onclick = async () => { const x = lire(); if (!x.client_email) { toast('Renseigne l\'e-mail du client.', true); return; } if (!x.debut) { toast('Pose d\'abord une date.', true); return; }
     const r = await enregistrer(); if (!r) return; try { await api('proposer', {}, {id: r.id}); toast('Date envoyée au client (' + x.client_email + '). Tu seras alerté de sa réponse.'); fermer(); charger(); } catch (err) { toast(err.message, true); } };
+  if ($('#fTaches')) {
+    const peutGerer = S.data.droits.planifier && e.modifiable, moiP = +e.personnel_lie || 0;
+    const rT = l => { e.taches = l; $('#fTaches').innerHTML = l.length ? l.map(t => `<li class="${t.fait_le ? 'fait' : ''} ${t.retard ? 'retard' : ''}"><input type="checkbox" data-id="${t.id}" ${t.fait_le ? 'checked' : ''} ${peutGerer || +t.personnel_id === moiP || e.personnel.includes(moiP) ? '' : 'disabled'}><span class="l">${t.picto && PICTO(t.picto) ? PICTO(t.picto).emoji + ' ' : ''}${esc(t.libelle)}</span><span class="qui">${t.prenom ? esc(t.prenom) : '<em>non attribué</em>'}${t.echeance ? ' · avant le ' + t.echeance.slice(8, 10) + '/' + t.echeance.slice(5, 7) : ''}${t.fait_le ? ' · fait ✓' : ''}</span>${peutGerer ? `<button type="button" class="x" data-attr="${t.id}" title="Attribuer / échéance">✎</button><button type="button" class="x" data-sup="${t.id}" title="Supprimer">✕</button>` : ''}</li>`).join('') : '<li class="muted small" style="border:0">Aucune action. Cocher un pictogramme avec action (location, arrêté…) en crée une automatiquement.</li>';
+      $('#fTaches').querySelectorAll('input[data-id]').forEach(c => c.onchange = async () => { try { rT((await api('tache', {}, {op: c.checked ? 'fait' : 'defait', id: +c.dataset.id})).taches); } catch (err) { toast(err.message, true); c.checked = !c.checked; } });
+      $('#fTaches').querySelectorAll('[data-sup]').forEach(b => b.onclick = async () => { try { rT((await api('tache', {}, {op: 'supprimer', id: +b.dataset.sup})).taches); } catch (err) { toast(err.message, true); } });
+      $('#fTaches').querySelectorAll('[data-attr]').forEach(b => b.onclick = () => { const t = l.find(x => +x.id === +b.dataset.attr); $('#fTLib').value = t.libelle; $('#fTQui').value = t.personnel_id || ''; $('#fTEch').value = t.echeance || ''; $('#fTAdd').textContent = 'Modifier'; $('#fTAdd').dataset.id = t.id; $('#fTLib').focus(); }); };
+    rT(e.taches || []); $('#fTAj').hidden = !(peutGerer || e.personnel.includes(moiP));
+    $('#fTAdd').onclick = async () => { const lib = $('#fTLib').value.trim(); if (!lib) { $('#fTLib').focus(); return; } const idT = +($('#fTAdd').dataset.id || 0);
+      try { rT((await api('tache', {}, idT ? {op: 'attribuer', id: idT, libelle: lib, personnel_id: $('#fTQui').value, echeance: $('#fTEch').value} : {op: 'ajouter', evenement_id: id, libelle: lib, personnel_id: $('#fTQui').value, echeance: $('#fTEch').value})).taches); $('#fTLib').value = ''; $('#fTEch').value = ''; $('#fTAdd').textContent = 'Ajouter'; delete $('#fTAdd').dataset.id; } catch (err) { toast(err.message, true); } };
+    $('#fTLib').onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('#fTAdd').click(); } };
+  }
+  if ($('#fPrest')) {
+    const peutGerer = S.data.droits.planifier && e.modifiable, moiP = +e.personnel_lie || 0, peutCocher = peutGerer || e.personnel.includes(moiP);
+    const qte = p => p.quantite !== null && p.quantite !== undefined ? ' <span class="muted">(' + (+p.quantite).toLocaleString('fr-FR') + (p.unite ? ' ' + esc(p.unite) : '') + ')</span>' : '';
+    const rP = l => { e.prestations = l; $('#fPrest').innerHTML = l.length ? l.map(p => `<li class="${p.fait_le ? 'fait' : ''}"><input type="checkbox" data-id="${p.id}" ${p.fait_le ? 'checked' : ''} ${peutCocher ? '' : 'disabled'}><span class="l">${esc(p.libelle)}${qte(p)}${p.remarque ? '<br><small class="muted">' + esc(p.remarque) + '</small>' : ''}</span><span class="qui">${{bordereau: 'bordereau', devis: 'devis', manuel: ''}[p.source] || ''}</span>${peutGerer ? `<button type="button" class="x" data-sup="${p.id}" title="Retirer">✕</button>` : ''}</li>`).join('') : '<li class="muted small" style="border:0">Aucune prestation listée.</li>';
+      $('#fPrest').querySelectorAll('input[data-id]').forEach(c => c.onchange = async () => { try { rP((await api('prestation', {}, {op: c.checked ? 'fait' : 'defait', id: +c.dataset.id})).prestations); } catch (err) { toast(err.message, true); c.checked = !c.checked; } });
+      $('#fPrest').querySelectorAll('[data-sup]').forEach(b => b.onclick = async () => { try { rP((await api('prestation', {}, {op: 'supprimer', id: +b.dataset.sup})).prestations); } catch (err) { toast(err.message, true); } }); };
+    rP(e.prestations || []); $('#fPAj').hidden = !peutCocher; $('#fPDevis').parentElement.hidden = !peutCocher;
+    $('#fPAdd').onclick = async () => { const lib = $('#fPLib').value.trim(); if (!lib) return; try { rP((await api('prestation', {}, {op: 'ajouter', evenement_id: id, libelle: lib, quantite: $('#fPQte').value, unite: $('#fPUni').value})).prestations); $('#fPLib').value = $('#fPQte').value = $('#fPUni').value = ''; } catch (err) { toast(err.message, true); } };
+    $('#fPLib').onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); $('#fPAdd').click(); } };
+    $('#fPDevis').onclick = async () => { try { const r = await api('prestation', {}, {op: 'devis', evenement_id: id}); rP(r.prestations); toast('Lignes du bordereau reprises.'); } catch (err) { toast(err.message, true); } };
+    $('#fPColler').onclick = async () => { const t = $('#fPTexte'); if (t.hidden) { t.hidden = false; t.focus(); $('#fPColler').textContent = 'Ajouter ces lignes'; return; } if (!t.value.trim()) { t.hidden = true; $('#fPColler').textContent = 'Coller les lignes d\'un devis (Extrabat, PDF…)'; return; }
+      try { rP((await api('prestation', {}, {op: 'coller', evenement_id: id, texte: t.value})).prestations); t.value = ''; t.hidden = true; $('#fPColler').textContent = 'Coller les lignes d\'un devis (Extrabat, PDF…)'; } catch (err) { toast(err.message, true); } };
+  }
   if ($('#fDup')) $('#fDup').onclick = async () => { try { const r = await api('dupliquer', {}, {id}); toast('Copie créée dans « À planifier ».'); fermer(); await charger(); ouvrirFiche(r.id); } catch (err) { toast(err.message, true); } };
   if ($('#fSup')) $('#fSup').onclick = async (ev) => { const b = ev.currentTarget; if (b.dataset.ok !== '1') { b.dataset.ok = '1'; b.textContent = 'Confirmer la suppression'; return; } try { await api('supprimer', {}, {id}); toast('Supprimé.'); fermer(); charger(); } catch (err) { toast(err.message, true); } };
   if ($('#fPl')) $('#fPl').onclick = async () => { const r = await enregistrer(); if (!r) return; try { await api('facturer', {}, {id: r.id}); toast('Facture créée en brouillon dans Pennylane : relis-la et valide-la là-bas.'); fermer(); charger(); } catch (err) { toast(err.message, true); } };
@@ -577,7 +685,7 @@ async function ouvrirFiche(id, opts = {}) {
 
 // ---------- barre d'outils ----------
 document.querySelectorAll('#vues button').forEach(b => b.onclick = () => { S.vue = b.dataset.v; try { localStorage.setItem('pl_vue', S.vue); } catch (e) {} $('#zone').dataset.init = ''; charger(); });
-const pas = () => ({mois: 'm', ressources: 14, liste: 7, tournee: 1})[S.vue] || 7;
+const pas = () => ({mois: 'm', ressources: 14, liste: 7, tournee: 1, carte: 14})[S.vue] || 7;
 $('#prec').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref.getFullYear(), S.ref.getMonth() - 1, 15) : plus(S.ref, -p); charger(); };
 $('#suiv').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref.getFullYear(), S.ref.getMonth() + 1, 15) : plus(S.ref, p); charger(); };
 $('#auj').onclick = () => { S.ref = new Date(); charger(); };

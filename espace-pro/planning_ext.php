@@ -136,6 +136,7 @@ function rapport_charger(int $evtId): array {
     $e = evt_charger($evtId);
     if (!$r) $r = ['id' => 0, 'evenement_id' => $evtId, 'modele' => ($e && $e['type'] === 'chantier') ? 'fin' : 'visite', 'texte' => '', 'reserves' => '', 'dechets' => '', 'ressenti' => '', 'signataire' => $e['client_nom'] ?? '', 'signature' => null, 'signe_le' => null, 'ip' => '', 'empreinte' => '', 'envoye_le' => null, 'envoye_a' => ''];
     $r['photos'] = q("SELECT * FROM rapport_photos WHERE evenement_id = ? ORDER BY ordre, id", [$evtId])->fetchAll();
+    if (!$r['id'] && $r['modele'] === 'fin' && $r['texte'] === '') { try { $r['texte'] = implode("\n", array_map(fn($x) => $x['libelle'] . ($x['quantite'] !== null ? ' (' . rtrim(rtrim(number_format((float)$x['quantite'], 2, ',', ' '), '0'), ',') . ($x['unite'] ? ' ' . $x['unite'] : '') . ')' : ''), array_filter(prestations_liste($evtId), fn($x) => $x['fait_le']))); } catch (Throwable $t) {} }
     return $r;
 }
 function rapport_pdf(int $evtId): string {
@@ -146,6 +147,7 @@ function rapport_pdf(int $evtId): string {
     $p->Bloc($e['client_nom'] ?: 'Client', ['Téléphone' => $e['client_tel'], 'E-mail' => $e['client_email']], true);
     $noms = []; foreach (personnel_liste(true) as $x) if (in_array((int)$x['id'], $e['personnel'], true)) $noms[] = trim($x['prenom'] . ' ' . $x['nom']);
     $p->Bloc($e['titre'], ['Date' => $e['debut'] ? ucfirst(evt_quand($e)) : '', 'Type' => TYPES_EVT[$e['type']][0] ?? '', 'Adresse' => trim($e['adresse'] . "\n" . $e['cp'] . ' ' . $e['ville']), 'Intervenants' => implode(', ', $noms)], true);
+    if ($fin && ($pr = prestations_liste($evtId))) $p->Texte('Prestations du devis', implode("\n", array_map(fn($x) => ($x['fait_le'] ? '[x] ' : '[ ] ') . $x['libelle'] . ($x['quantite'] !== null ? ' (' . rtrim(rtrim(number_format((float)$x['quantite'], 2, ',', ' '), '0'), ',') . ($x['unite'] ? ' ' . $x['unite'] : '') . ')' : '') . ($x['remarque'] ? ' – ' . $x['remarque'] : ''), $pr)));
     $p->Texte($fin ? 'Travaux réalisés' : 'Compte rendu', (string)$r['texte']);
     if ($fin) {
         $p->Texte('Déchets verts', ['evacues' => 'Évacués par nos soins', 'sur_place' => 'Laissés sur place à la demande du client', 'broyes' => 'Broyés et laissés en paillage', '' => ''][$r['dechets']] ?? $r['dechets']);
@@ -587,10 +589,85 @@ function pl_synchro_mandats(): void {
 // ===================== Tâches automatiques complémentaires =====================
 function planning_taches_ext(): void {
     try { contrats_generer(); } catch (Throwable $t) {}
+    try { taches_rappels(); } catch (Throwable $t) {}
     try { contrats_echeances(); } catch (Throwable $t) {}
     if (pennylane_pret() && setting('pl_synchro_le') !== date('Y-m-d')) { set_setting('pl_synchro_le', date('Y-m-d')); try { pl_synchro_factures(); pl_synchro_mandats(); } catch (Throwable $t) {} }
     if (setting('avis_actif') === '1' && setting('avis_lien') !== '') {
         $d = max(0, (int)setting('avis_delai', '1'));
         foreach (q("SELECT * FROM evenements WHERE type = 'chantier' AND statut = 'termine' AND avis_le IS NULL AND termine_le IS NOT NULL AND termine_le <= ? AND termine_le > DATE_SUB(NOW(), INTERVAL 30 DAY) AND (client_email <> '' OR client_tel <> '') LIMIT 20", [date('Y-m-d H:i:s', strtotime("-$d days"))]) as $e) avis_envoyer($e);
     }
+}
+
+// ---------- Actions à faire avant le chantier (pense-bête attribué) et prestations du devis (relevé de chantier) ----------
+function mon_personnel_id(): int { static $c = null; if ($c === null) { $r = q("SELECT id FROM personnel WHERE utilisateur_id = ? AND actif = 1 ORDER BY id LIMIT 1", [user()['id'] ?? 0])->fetch(); $c = $r ? (int)$r['id'] : 0; } return $c; }
+function taches_liste(int $eid): array {
+    return array_map(fn($t) => $t + ['retard' => !$t['fait_le'] && $t['echeance'] && $t['echeance'] < date('Y-m-d')], q("SELECT t.*, p.prenom, p.nom AS pnom FROM evt_taches t LEFT JOIN personnel p ON p.id = t.personnel_id WHERE t.evenement_id = ? ORDER BY t.fait_le IS NOT NULL, COALESCE(t.echeance, '9999-12-31'), t.id", [$eid])->fetchAll());
+}
+function tache_echeance(array $e, ?int $delai): ?string { if ($delai === null || !$e['debut']) return null; return date('Y-m-d', strtotime(substr((string)$e['debut'], 0, 10) . " -$delai days")); }
+function tache_ajouter(int $eid, string $libelle, ?int $pers, ?string $echeance, ?int $delai = null, string $picto = ''): int {
+    $libelle = mb_substr(trim($libelle), 0, 150); if ($libelle === '') return 0;
+    q("INSERT INTO evt_taches (evenement_id, libelle, personnel_id, echeance, delai_j, picto, cree_par) VALUES (?,?,?,?,?,?,?)", [$eid, $libelle, $pers ?: null, $echeance, $delai, $picto, user()['id'] ?? null]);
+    $id = (int)db()->lastInsertId(); evt_journal($eid, "Action à faire : $libelle");
+    if ($pers) tache_notifier($id, 'À faire');
+    return $id;
+}
+function tache_notifier(int $id, string $prefixe): void {
+    $t = q("SELECT t.*, e.titre, e.debut, p.utilisateur_id FROM evt_taches t JOIN evenements e ON e.id = t.evenement_id LEFT JOIN personnel p ON p.id = t.personnel_id WHERE t.id = ?", [$id])->fetch(); if (!$t) return;
+    $uids = $t['utilisateur_id'] ? [(int)$t['utilisateur_id']] : gestionnaires();
+    $moi = (int)(user()['id'] ?? 0); if ($prefixe === 'À faire') $uids = array_filter($uids, fn($u) => $u !== $moi);
+    notifier($uids, "$prefixe : {$t['libelle']}", "Chantier « {$t['titre']} »" . ($t['echeance'] ? ' – avant le ' . date('d/m/Y', strtotime($t['echeance'])) : '') . ($t['debut'] ? ' (chantier le ' . date('d/m/Y', strtotime($t['debut'])) . ')' : ''), 'planning.php?evt=' . $t['evenement_id']);
+    q("UPDATE evt_taches SET rappel_le = NOW() WHERE id = ?", [$id]);
+}
+/** Les pictogrammes cochés qui ont une action par défaut créent cette action (une seule fois par picto) */
+function taches_depuis_pictos(array $e): int {
+    $n = 0; $deja = array_column(q("SELECT picto FROM evt_taches WHERE evenement_id = ? AND picto <> ''", [$e['id']])->fetchAll(), 'picto'); $L = pictos_liste();
+    foreach (pictos_evt($e) as $c) if (!in_array($c, $deja, true) && ($L[$c]['action'] ?? '') !== '') { tache_ajouter((int)$e['id'], $L[$c]['action'], null, tache_echeance($e, $L[$c]['delai']), $L[$c]['delai'], $c); $n++; }
+    return $n;
+}
+/** Date du chantier changée : les échéances calculées « J-N » suivent */
+function taches_recaler(array $e): void { foreach (q("SELECT id, delai_j FROM evt_taches WHERE evenement_id = ? AND delai_j IS NOT NULL AND fait_le IS NULL", [$e['id']]) as $t) q("UPDATE evt_taches SET echeance = ? WHERE id = ?", [tache_echeance($e, (int)$t['delai_j']), $t['id']]); }
+/** Rappels quotidiens : action non faite dont l'échéance est demain ou dépassée (au plus un rappel tous les 2 jours), ou chantier dans 2 jours */
+function taches_rappels(): void {
+    foreach (q("SELECT t.id FROM evt_taches t JOIN evenements e ON e.id = t.evenement_id WHERE t.fait_le IS NULL AND e.statut NOT IN ('annule','termine') AND (t.rappel_le IS NULL OR t.rappel_le < DATE_SUB(NOW(), INTERVAL 2 DAY)) AND ((t.echeance IS NOT NULL AND t.echeance <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)) OR (e.debut IS NOT NULL AND e.debut BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 2 DAY)))") as $t) tache_notifier((int)$t['id'], 'Rappel');
+}
+/** Peut cocher / modifier une action : gestion du planning, ou personne attribuée, ou membre du chantier */
+function peut_tache(array $t, array $e): bool { if (peut_planifier() && peut_modifier_evt($e['personnel'])) return true; $p = mon_personnel_id(); return $p && ((int)$t['personnel_id'] === $p || in_array($p, $e['personnel'], true)); }
+function mes_taches(): array {
+    $p = mon_personnel_id(); if (!$p) return [];
+    return q("SELECT t.*, e.titre, e.debut, e.ville FROM evt_taches t JOIN evenements e ON e.id = t.evenement_id WHERE t.personnel_id = ? AND t.fait_le IS NULL AND e.statut NOT IN ('annule','termine') ORDER BY COALESCE(t.echeance, DATE(e.debut), '9999-12-31'), t.id LIMIT 50", [$p])->fetchAll();
+}
+
+function prestations_liste(int $eid): array { return q("SELECT * FROM evt_prestations WHERE evenement_id = ? ORDER BY ordre, id", [$eid])->fetchAll(); }
+function prestation_ajouter(int $eid, string $libelle, $qte = null, string $unite = '', string $source = 'manuel'): int {
+    $libelle = mb_substr(trim(preg_replace('/\s+/', ' ', $libelle)), 0, 255); if ($libelle === '') return 0;
+    $o = (int)q("SELECT COALESCE(MAX(ordre), 0) + 1 o FROM evt_prestations WHERE evenement_id = ?", [$eid])->fetch()['o'];
+    q("INSERT INTO evt_prestations (evenement_id, ordre, libelle, quantite, unite, source) VALUES (?,?,?,?,?,?)", [$eid, $o, $libelle, $qte === null || $qte === '' ? null : (float)$qte, mb_substr(trim($unite), 0, 30), $source]);
+    return (int)db()->lastInsertId();
+}
+/** Reprend les lignes du bordereau (devis interne) comme prestations à réaliser ; ignore celles déjà présentes */
+function prestations_depuis_bordereau(int $eid, int $bid): int {
+    $deja = array_map('mb_strtolower', array_column(prestations_liste($eid), 'libelle')); $n = 0;
+    foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne' AND libelle <> '' ORDER BY ordre, id", [$bid]) as $l) {
+        if (in_array(mb_strtolower(trim($l['libelle'])), $deja, true)) continue;
+        if (prestation_ajouter($eid, $l['libelle'], $l['quantite'], (string)$l['unite'], 'bordereau')) $n++;
+    }
+    if ($n) evt_journal($eid, "$n prestation(s) reprise(s) du devis");
+    return $n;
+}
+/** Lignes collées depuis un devis Extrabat / PDF : une prestation par ligne, « 3 u Abattage… » ou « Abattage… x3 » acceptés */
+function prestations_depuis_texte(int $eid, string $texte): int {
+    $n = 0;
+    foreach (preg_split('/\R/', $texte) as $ln) { $ln = trim($ln); if ($ln === '' || preg_match('/^(total|tva|net|montant|remise|acompte|sous-total)\b/iu', $ln)) continue;
+        $q = null; $u = '';
+        if (preg_match('/^(\d+(?:[.,]\d+)?)\s*(u|ml|m2|m²|m3|m³|h|j|f|ens|forfait|arbres?|unités?)?\s+(.+)$/iu', $ln, $m)) { $q = (float)str_replace(',', '.', $m[1]); $u = $m[2]; $ln = $m[3]; }
+        elseif (preg_match('/^(.+?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(u|ml|m2|m²|m3|m³|h|j|arbres?)?\s*$/iu', $ln, $m)) { $ln = $m[1]; $q = (float)str_replace(',', '.', $m[2]); $u = $m[3] ?? ''; }
+        $ln = preg_replace('/\s+\d[\d\s.,]*\s*€.*$/u', '', $ln); // prix en fin de ligne retiré
+        if (prestation_ajouter($eid, $ln, $q, $u, 'devis')) $n++; }
+    if ($n) evt_journal($eid, "$n prestation(s) ajoutée(s) depuis le devis");
+    return $n;
+}
+/** Texte « Travaux réalisés » proposé pour le bon de fin d'intervention */
+function prestations_texte(int $eid): string {
+    $l = []; foreach (prestations_liste($eid) as $p) $l[] = ($p['fait_le'] ? '✓ ' : '○ ') . $p['libelle'] . ($p['quantite'] !== null ? ' (' . rtrim(rtrim(number_format((float)$p['quantite'], 2, ',', ' '), '0'), ',') . ($p['unite'] ? ' ' . $p['unite'] : '') . ')' : '');
+    return implode("\n", $l);
 }

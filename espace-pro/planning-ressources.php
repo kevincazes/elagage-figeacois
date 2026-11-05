@@ -52,6 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (['planning_debut', 'planning_fin'] as $k) if (preg_match('/^\d{1,2}:\d{2}$/', $_POST[$k] ?? '')) set_setting($k, $_POST[$k]);
         foreach (['planning_vitesse' => [15, 120], 'planning_facteur' => [1, 2], 'planning_vent' => [20, 150]] as $k => [$mi, $ma]) set_setting($k, (string)min($ma, max($mi, nb($_POST[$k] ?? $mi))));
         set_setting('planning_depot', trim($_POST['planning_depot'] ?? ''));
+        if (isset($_POST['planning_motifs'])) set_setting('planning_motifs', trim($_POST['planning_motifs']));
+        if (isset($_POST['planning_pictos'])) set_setting('planning_pictos', trim($_POST['planning_pictos']));
         if (is_numeric($_POST['planning_depot_lat'] ?? '') && is_numeric($_POST['planning_depot_lng'] ?? '')) { set_setting('planning_depot_lat', (string)(float)$_POST['planning_depot_lat']); set_setting('planning_depot_lng', (string)(float)$_POST['planning_depot_lng']); }
         if (empty(setting('planning_cle_cron'))) set_setting('planning_cle_cron', bin2hex(random_bytes(12)));
         flash('Réglages enregistrés.');
@@ -157,6 +159,9 @@ document.querySelectorAll('tr.sect').forEach(tr => { const a = tr.querySelector(
   <div class="cols"><label>Latitude <input name="planning_depot_lat" id="depLat" value="<?= e(setting('planning_depot_lat')) ?>"></label><label>Longitude <input name="planning_depot_lng" id="depLng" value="<?= e(setting('planning_depot_lng')) ?>"></label></div>
   <div class="cols"><label>Début de journée <input type="time" name="planning_debut" value="<?= e(setting('planning_debut')) ?>"></label><label>Fin de journée <input type="time" name="planning_fin" value="<?= e(setting('planning_fin')) ?>"></label></div>
   <div class="cols"><label>Vitesse moyenne sur route (km/h) <input name="planning_vitesse" value="<?= e(setting('planning_vitesse')) ?>"></label><label>Facteur route / vol d'oiseau <input name="planning_facteur" value="<?= e(setting('planning_facteur')) ?>"></label><label>Alerte vent : rafales à partir de (km/h) <input name="planning_vent" value="<?= e(setting('planning_vent')) ?>"></label></div>
+  <label>Types de rendez-vous proposés dans la fiche (un par ligne) <textarea name="planning_motifs" rows="4"><?= e(setting('planning_motifs')) ?></textarea></label>
+  <label>Pictogrammes de chantier (un par ligne : <code>code|emoji|libellé|action à créer automatiquement|délai en jours avant le chantier</code> ; les deux derniers sont facultatifs) <textarea name="planning_pictos" rows="8" style="font-family:monospace;font-size:.85rem"><?= e(setting('planning_pictos')) ?></textarea></label>
+  <p class="small muted">Cocher un pictogramme dans une fiche crée l'action indiquée dans « Actions à faire avant le chantier », avec une échéance calculée à partir de la date du chantier (ex. J-15 pour un arrêté de circulation). Le code ne doit pas changer une fois utilisé.</p>
   <p><button class="btn">Enregistrer les réglages</button></p>
   <p class="muted small">Rappels automatiques aux clients (la veille) : envoyés à l'ouverture du planning. Pour qu'ils partent même sans ouverture, ajoute dans OVH une tâche planifiée (Hébergement › Plus › Tâches planifiées – Cron) qui ouvre chaque heure : <code><?= e(lien_base() . '/planning-cron.php?cle=' . setting('planning_cle_cron')) ?></code></p>
 </form>

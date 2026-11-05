@@ -21,13 +21,20 @@ const TYPES_MAT = ['nacelle' => 'Nacelle', 'broyeur' => 'Broyeur', 'camion' => '
 function planning_alters(): array { return ["ALTER TABLE materiel ADD COLUMN porteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN equipe_id INT NULL", "ALTER TABLE utilisateurs ADD COLUMN planning_droit VARCHAR(10) NOT NULL DEFAULT 'lecture'",
               "ALTER TABLE evenements ADD COLUMN dict_requise TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN dict_ref VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN dict_envoi DATE NULL", "ALTER TABLE evenements ADD COLUMN dict_retour DATE NULL",
               "ALTER TABLE evenements ADD COLUMN contrat_id INT NULL", "ALTER TABLE evenements ADD COLUMN urgence_ref VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN termine_le DATETIME NULL", "ALTER TABLE evenements ADD COLUMN avis_le DATETIME NULL",
-              "ALTER TABLE evenements ADD COLUMN secteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN contrat_mois VARCHAR(7) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN phyto TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN client_id INT NULL", "ALTER TABLE contrats ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD INDEX (client_id)",
+              "ALTER TABLE evenements ADD COLUMN secteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN contrat_mois VARCHAR(7) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN phyto TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN motif VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD COLUMN pictos VARCHAR(200) NOT NULL DEFAULT ''",
+              "CREATE TABLE IF NOT EXISTS evt_prestations (id INT AUTO_INCREMENT PRIMARY KEY, evenement_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, libelle VARCHAR(255) NOT NULL, quantite DECIMAL(10,2) NULL, unite VARCHAR(30) NOT NULL DEFAULT '', source VARCHAR(20) NOT NULL DEFAULT 'manuel', fait_le DATETIME NULL, fait_par INT NULL, remarque VARCHAR(255) NOT NULL DEFAULT '', INDEX (evenement_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+              "CREATE TABLE IF NOT EXISTS evt_taches (id INT AUTO_INCREMENT PRIMARY KEY, evenement_id INT NOT NULL, libelle VARCHAR(150) NOT NULL, personnel_id INT NULL, echeance DATE NULL, delai_j INT NULL, picto VARCHAR(30) NOT NULL DEFAULT '', fait_le DATETIME NULL, fait_par INT NULL, rappel_le DATETIME NULL, cree_par INT NULL, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX (evenement_id), INDEX (personnel_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", "ALTER TABLE contrats ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD INDEX (client_id)",
               "ALTER TABLE evenements ADD COLUMN pl_facture_id VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN pl_facture_num VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN pl_statut VARCHAR(20) NOT NULL DEFAULT ''",
               "ALTER TABLE clients ADD COLUMN pl_client_id INT NULL", "ALTER TABLE clients ADD COLUMN sepa_statut VARCHAR(30) NOT NULL DEFAULT ''", "ALTER TABLE clients ADD COLUMN sepa_ref VARCHAR(60) NOT NULL DEFAULT ''"]; }
+function planning_defauts(): array { return ['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
+    'planning_pictos' => "plantation|🌱|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|🚧|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|📦|Location de matériel spécifique|Réserver la location|7\nnacelle|🏗️|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|🪵|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|⚡|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|🏠|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|🔑|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|🐦|Période de nidification à vérifier||\nsouche|🚜|Rognage de souche||\nmairie|📋|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|🌳|Platane (chancre coloré)||",
+    'planning_motifs' => "Visite de chiffrage\nRendez-vous prospect\nRéunion de chantier\nVisite de fin de travaux\nRéception de travaux\nVisite de suivi / contrôle\nRendez-vous collectivité\nRendez-vous fournisseur\nFormation / sécurité",
+    'planning_depot' => '133 rue Madeleine Brès, 46100 Cambes', 'planning_depot_lat' => '44.6001', 'planning_depot_lng' => '1.9475']; }
 function planning_migrate(): void {
     $pdo = db();
-    if (setting('schema_planning') === '4') { // colonnes ajoutées après coup : toujours tentées (sans effet si elles existent)
+    if (setting('schema_planning') === '4') { // colonnes et réglages ajoutés après coup : toujours tentés (sans effet s'ils existent)
         foreach (planning_alters() as $sql) { try { $pdo->exec($sql); } catch (Throwable $t) {} }
+        foreach (planning_defauts() as $k => $v) if (setting($k) === '') set_setting($k, $v);
         return;
     }
     foreach ([
@@ -82,7 +89,10 @@ function planning_migrate(): void {
         "CREATE TABLE IF NOT EXISTS sms_journal (id INT AUTO_INCREMENT PRIMARY KEY, evenement_id INT NULL, numero VARCHAR(30) NOT NULL, message VARCHAR(500) NOT NULL, motif VARCHAR(30) NOT NULL DEFAULT '', resultat VARCHAR(255) NOT NULL DEFAULT '', cree_le DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ] as $sql) $pdo->exec($sql);
     foreach (planning_alters() as $sql) { try { $pdo->exec($sql); } catch (Throwable $t) {} }
-    foreach (['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
+    foreach (planning_defauts() as $k => $v) if (setting($k) === '') set_setting($k, $v);
+    foreach ([] + ['planning_debut' => '08:00', 'planning_fin' => '17:00', 'planning_vitesse' => '55', 'planning_facteur' => '1.3', 'planning_vent' => '50',
+              'planning_pictos' => "plantation|🌱|Plantation d'arbres|Commander les plants, tuteurs et paillage|10\ncirculation|🚧|Arrêté de circulation / signalisation|Demander l'arrêté de circulation en mairie|15\nlocation|📦|Location de matériel spécifique|Réserver la location|7\nnacelle|🏗️|Grue ou nacelle de location|Réserver la grue / nacelle|7\nbenne|🪵|Évacuation du bois / benne|Prévoir la benne ou la remorque|3\nreseaux|⚡|Proximité réseaux (lignes électriques)|Vérifier la DT-DICT et la mise hors tension|9\ntoiture|🏠|Proximité habitation / toiture|Prévenir le client (protections, accès)|2\nacces|🔑|Accès à prévoir (clé, badge, portail)|Récupérer les clés / l'accès|1\nnidification|🐦|Période de nidification à vérifier||\nsouche|🚜|Rognage de souche||\nmairie|📋|Autorisation mairie / voirie|Déposer la demande d'autorisation|20\nplatane|🌳|Platane (chancre coloré)||",
+    'planning_motifs' => "Visite de chiffrage\nRendez-vous prospect\nRéunion de chantier\nVisite de fin de travaux\nRéception de travaux\nVisite de suivi / contrôle\nRendez-vous collectivité\nRendez-vous fournisseur\nFormation / sécurité",
               'planning_depot' => '133 rue Madeleine Brès, 46100 Cambes', 'planning_depot_lat' => '44.6001', 'planning_depot_lng' => '1.9475'] as $k => $v)
         if (setting($k) === '') set_setting($k, $v);
     foreach (['ent_nom' => 'Elagage Figeacois', 'ent_tel' => '05 54 54 16 99', 'ent_email' => 'elagage.figeacois@gmail.com', 'ent_adresse' => "133 Rue Madeleine Brès\n46100 CAMBES",
@@ -196,6 +206,17 @@ function evt_conflits(array $e): array {
         if ($b > $n) $al[] = "Il manque " . ($b - $n) . " personne(s) (besoin : $b).";
         $typesAff = []; foreach ($e['materiel'] ?? [] as $mid) if (isset($mats[$mid])) $typesAff[$mats[$mid]['type']] = true;
         foreach (array_filter(explode(',', (string)($e['besoin_materiel'] ?? ''))) as $t) if (empty($typesAff[$t])) $al[] = "Matériel prévu manquant : " . (TYPES_MAT[$t] ?? $t) . ".";
+    }
+    // Temps de trajet : un rendez-vous à l'heure doit laisser le temps de route depuis le précédent (et vers le suivant) de la même personne
+    if (!empty($e['lat']) && !empty($e['lng']) && !($e['journee'] ?? 0) && !in_array($e['type'] ?? '', ['absence', 'entretien'], true)) {
+        foreach ($e['personnel'] ?? [] as $pid) {
+            $j = substr($deb, 0, 10);
+            foreach (q("SELECT ev.id, ev.titre, ev.debut, ev.fin, ev.lat, ev.lng FROM evenements ev JOIN evenement_personnel ep ON ep.evenement_id = ev.id WHERE ep.personnel_id = ? AND ev.id <> ? AND ev.statut <> 'annule' AND ev.lat IS NOT NULL AND ev.journee = 0 AND ev.type IN ('visite','rdv','chantier','urgence') AND DATE(ev.debut) = ?", [$pid, $id, $j]) as $o) {
+                $km = distance_km((float)$o['lat'], (float)$o['lng'], (float)$e['lat'], (float)$e['lng']); $min = trajet_min($km); if ($min < 5) continue;
+                if (strtotime($o['fin']) <= strtotime($deb)) { $ecart = (strtotime($deb) - strtotime($o['fin'])) / 60; if ($ecart < $min) $al[] = ($pers[$pid]['prenom'] ?? 'Personne') . " : temps de trajet insuffisant après « {$o['titre']} » (" . round($km) . " km ≈ $min min, écart " . (int)$ecart . " min)."; }
+                elseif (strtotime($o['debut']) >= strtotime($fin)) { $ecart = (strtotime($o['debut']) - strtotime($fin)) / 60; if ($ecart < $min) $al[] = ($pers[$pid]['prenom'] ?? 'Personne') . " : temps de trajet insuffisant avant « {$o['titre']} » (" . round($km) . " km ≈ $min min, écart " . (int)$ecart . " min)."; }
+            }
+        }
     }
     $al = array_merge($al, dict_alertes($e), phyto_alertes($e));
     foreach ($e['materiel'] ?? [] as $mid) if (isset($mats[$mid]) && ($mats[$mid]['etat'] ?? 'ok') === 'immobilise') $al[] = "{$mats[$mid]['nom']} est immobilisé(e) (panne ou contrôle non conforme).";
@@ -394,7 +415,21 @@ function envoyer_mail(string $a, string $sujet, string $texte, ?string $ics = nu
     return @mail($a, $sujetEnc, $corps, $h);
 }
 function evt_token(array &$e): string { if ($e['token'] === '') { $e['token'] = bin2hex(random_bytes(16)); q("UPDATE evenements SET token = ? WHERE id = ?", [$e['token'], $e['id']]); } return $e['token']; }
-function evt_libelle_client(array $e): string { return ['chantier' => 'notre intervention', 'visite' => 'notre visite pour établir le devis', 'rdv' => 'notre rendez-vous'][$e['type']] ?? 'notre rendez-vous'; }
+function evt_libelle_client(array $e): string {
+    $m = mb_strtolower((string)($e['motif'] ?? ''));
+    if ($m !== '' && $e['type'] !== 'chantier') return ['visite de chiffrage' => 'notre visite pour établir le devis', 'réunion de chantier' => 'notre réunion de chantier', 'visite de fin de travaux' => 'notre visite de fin de travaux', 'réception de travaux' => 'la réception des travaux', 'rendez-vous prospect' => 'notre rendez-vous'][$m] ?? "notre rendez-vous ($m)";
+    return ['chantier' => 'notre intervention', 'visite' => 'notre visite pour établir le devis', 'rdv' => 'notre rendez-vous'][$e['type']] ?? 'notre rendez-vous';
+}
+/** Motifs de rendez-vous (réglage, un par ligne) */
+/** Pictogrammes de chantier : code|emoji|libellé|action à prévoir (optionnel)|délai en jours avant le chantier (optionnel) */
+function pictos_liste(): array {
+    $l = [];
+    foreach (preg_split('/\R/', setting('planning_pictos')) as $ln) { $c = array_map('trim', explode('|', $ln)); if (count($c) < 3 || $c[0] === '' || !preg_match('/^[a-z0-9_-]{1,30}$/', $c[0])) continue;
+        $l[$c[0]] = ['code' => $c[0], 'emoji' => $c[1], 'libelle' => $c[2], 'action' => $c[3] ?? '', 'delai' => ($c[4] ?? '') !== '' ? (int)$c[4] : null]; }
+    return $l;
+}
+function pictos_evt(array $e): array { return array_values(array_intersect(array_filter(explode(',', (string)($e['pictos'] ?? ''))), array_keys(pictos_liste()))); }
+function motifs_rdv(): array { return array_values(array_filter(array_map('trim', preg_split('/\R/', setting('planning_motifs'))))); }
 /** Propose la date au client : e-mail avec lien de confirmation */
 function envoyer_proposition(int $id): string {
     $e = evt_charger($id); if (!$e) return 'Fiche introuvable.';
@@ -443,6 +478,7 @@ function planning_alertes(): array {
     foreach (q("SELECT id, titre, client_message FROM evenements WHERE client_reponse = 'autre' AND statut <> 'annule' ORDER BY client_repondu_le DESC LIMIT 20") as $x) $a[] = ['niv' => 'haut', 'id' => (int)$x['id'], 'txt' => "Le client demande une autre date : « {$x['titre']} »" . ($x['client_message'] ? " — « " . mb_substr($x['client_message'], 0, 120) . " »" : '')];
     foreach (q("SELECT id, titre, proposition_le FROM evenements WHERE statut = 'propose' AND client_reponse = '' AND proposition_le < DATE_SUB(NOW(), INTERVAL 3 DAY) AND debut > NOW() LIMIT 20") as $x) $a[] = ['niv' => 'moyen', 'id' => (int)$x['id'], 'txt' => "Sans réponse du client depuis le " . date('d/m', strtotime($x['proposition_le'])) . " : « {$x['titre']} »"];
     foreach (evt_periode(date('Y-m-d'), date('Y-m-d', strtotime('+21 days'))) as $e) foreach (evt_conflits($e) as $c) if (!str_starts_with($c, 'Tombe un week-end')) $a[] = ['niv' => 'haut', 'id' => (int)$e['id'], 'txt' => date('d/m', strtotime($e['debut'])) . " « {$e['titre']} » : $c"];
+    foreach (q("SELECT t.*, e.titre, e.debut FROM evt_taches t JOIN evenements e ON e.id = t.evenement_id WHERE t.fait_le IS NULL AND e.statut NOT IN ('annule','termine') AND ((t.echeance IS NOT NULL AND t.echeance <= CURDATE()) OR (e.debut IS NOT NULL AND e.debut < DATE_ADD(NOW(), INTERVAL 3 DAY))) ORDER BY COALESCE(t.echeance, e.debut) LIMIT 30") as $t) $a[] = ['niv' => $t['echeance'] && $t['echeance'] < date('Y-m-d') ? 'haut' : 'moyen', 'id' => (int)$t['evenement_id'], 'txt' => "Action à faire « {$t['libelle']} » pour « {$t['titre']} »" . ($t['echeance'] ? ' (avant le ' . date('d/m', strtotime($t['echeance'])) . ')' : '')];
     try { $a = array_merge($a, materiel_alertes()); } catch (Throwable $t) {}
     $n = (int)q("SELECT COUNT(*) c FROM evenements WHERE statut = 'a_planifier'")->fetch()['c'];
     if ($n) $a[] = ['niv' => 'info', 'id' => 0, 'txt' => "$n chantier(s) ou visite(s) à planifier."];
