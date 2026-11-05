@@ -115,6 +115,7 @@ main.large{max-width:none}
 /* Tournée */
 .tournee{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px;padding:12px}
 #carte{height:520px;border-radius:10px}
+#carte,#carteG{position:relative;z-index:1;isolation:isolate} /* la carte reste sous l'en-tête et ses menus déroulants */
 .etape{display:flex;gap:10px;align-items:center;padding:7px 9px;border:1px solid #e6eadf;border-radius:8px;margin:0 0 6px;background:#fff}
 .etape .num{width:26px;height:26px;border-radius:50%;background:var(--sapin);color:#fff;font-weight:900;display:grid;place-items:center;flex:none}
 .cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px}.cmp div{background:var(--clair);border-radius:8px;padding:9px 11px}.cmp strong{font-size:1.2rem;color:var(--sapin)}
