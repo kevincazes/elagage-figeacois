@@ -136,6 +136,7 @@ if (count($equipes) > 1 && !$fige) foreach ($equipes as $x) { $man = 0.0; $ls = 
         if ($l['pu_manuel'] !== null) { $man += (float)$l['pu_manuel'] * ($qt ?? 0); $ls[] = [-(float)$l['pu_manuel'], 0]; }
         elseif (isset($cat[$l['ligne_id']])) $ls[] = [round(prix_catalogue_brut($cat[$l['ligne_id']], (int)$x['id']), 4), $qt ?? 0]; }
     $COMP[] = ['id' => (int)$x['id'], 'nom' => $x['nom'], 'taux' => (float)$x['taux'], 'man' => $man, 'l' => $ls]; }
+usort($COMP, fn($a, $b) => $b['taux'] <=> $a['taux']); // du taux horaire le plus élevé au plus bas
 if ($COMP): ?>
 <section class="card comp-eq no-print" id="compEq">
   <h3>Comparer les équipes <span class="muted small">(ce bordereau recalculé avec chaque équipe, ajustement du curseur compris ; les prix imposés à la main ne changent pas)</span></h3>
