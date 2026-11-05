@@ -3,6 +3,8 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.7', '2026-11-05', [
+        'Liens des outils du tableau de bord (Drive, Extrabat, Urgence Élagage, Arbogestion, Grality, Kleyk) : page dédiée Compte › Liens des outils, bouton « Régler les liens » sur le tableau de bord ; panneau de l\'assistant : la conversation défile dans le panneau même quand elle est longue',
+        'Tableaux du chiffrage (bordereau, catalogue, import) : grande poignée en bas à droite pour agrandir ou réduire le tableau, largeur de chaque colonne réglable en tirant le bord de son titre (double-clic pour revenir), réglages mémorisés',
         'Bordereau : curseur d\'ajustement des prix (−30 % à +30 %) recalculé en direct et repris dans l\'export ; tableaux à taille réglable et plein écran',
         'Tableau de bord regroupé par familles comme le menu (Planning, Clients, Matériel, Personnel, Chiffrage, Outils), widgets agrandissables pour plus de détails',
         'Kleyk : pictogramme « Fiche d\'intervention Kleyk » posé d\'office sur chaque chantier d\'élagage et urgence, avec son action à cocher ; bouton dans Mon planning qui ouvre Kleyk et copie les infos du chantier (client, adresse, date, intervenants, travaux) pour n\'avoir qu\'à les coller ; liens Grality et Kleyk dans le tableau de bord',

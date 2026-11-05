@@ -146,7 +146,7 @@ function kleykTache(e) { return (e.taches || []).find(t => t.picto === 'kleyk');
 function kleykBloc(e) {
   const t = kleykTache(e), aPicto = e.pictos.some(p => p.code === 'kleyk');
   if (!['chantier', 'urgence'].includes(e.type) && !t && !aPicto) return '';
-  if (!KLEYK) return ADMIN ? `<div class="ft-bloc muted small">${ico('kleyk')} Bouton Kleyk : renseigne l'adresse de Kleyk dans Paramètres › Liens du tableau de bord.</div>` : '';
+  if (!KLEYK) return ADMIN ? `<div class="ft-bloc muted small">${ico('kleyk')} Bouton Kleyk : renseigne l'adresse de Kleyk dans Compte › Liens des outils.</div>` : '';
   const fait = t && t.fait_le;
   return `<a class="gros kleyk${fait ? ' ok' : ''}" id="btKleyk" href="${esc(KLEYK)}" target="_blank" rel="noopener">${ico('kleyk')} Fiche d'intervention Kleyk${fait ? ' (faite)' : ''} ›</a>
     <div id="kleykSuite" class="ft-bloc kleyk-suite" hidden><small>Infos du chantier copiées : dans Kleyk, appuie longuement dans un champ puis « Coller ».</small>${t && !fait ? `<button type="button" class="mini" id="kleykFait" data-t="${t.id}">${ico('kleyk')} Fiche Kleyk remplie : cocher l'action</button>` : ''}</div>`;

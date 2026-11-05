@@ -456,7 +456,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     $clients = ['clients.php' => 'Clients'] + ($gestion ? ['contrats.php' => "Contrats d'entretien"] : []);
     $personnel = ($gestion ? ['livret.php' => 'Livrets du personnel'] : ['livret.php' => 'Mon livret']) + ['conges.php' => 'Congés'];
     $chiffrage = $gestion ? ['bordereaux.php' => 'Bordereaux', 'bpu.php' => 'Catalogue', 'packs.php' => 'Packs', 'actions.php' => 'Actions', 'historique.php' => 'Historique'] + ($admin ? ['parametres.php' => 'Paramètres de prix'] : []) : [];
-    $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
+    $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)', 'liens.php' => 'Liens des outils'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
     $nav = [['index.php' => 'Tableau de bord'], ['Planning', $planning], ['Clients', $clients], ['materiel.php' => 'Matériel'], ['Personnel', $personnel], ['Chiffrage', $chiffrage], ['Compte', $compte]];
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '">'
@@ -566,16 +566,38 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
   window.addEventListener('beforeunload',memoPos);
   document.querySelectorAll('.scroll').forEach(function(sc){ if(sc.querySelector('.tbl.bpu,.tbl.bord,.tbl.imp')) sc.classList.add('fenetre'); });
   document.querySelectorAll('.scroll.fenetre').forEach(function(sc){
+    // Cadre + grande poignée d'agrandissement (coin en bas à droite), plus facile à attraper que celle du navigateur
+    (function(){ var cadre=document.createElement('div'); cadre.className='fen-cadre'; sc.parentNode.insertBefore(cadre, sc); cadre.appendChild(sc);
+      var g=document.createElement('span'); g.className='fen-poig'; g.title='Tirer pour agrandir ou réduire le tableau'; cadre.appendChild(g);
+      function place(){ g.style.top=(sc.offsetTop+sc.offsetHeight-22)+'px'; g.style.left=(sc.offsetLeft+sc.offsetWidth-22)+'px'; g.hidden=!!sc.dataset.plein; }
+      place(); new ResizeObserver(place).observe(sc); window.addEventListener('resize',place);
+      g.addEventListener('mousedown',function(e){ e.preventDefault(); var x0=e.clientX, y0=e.clientY, w0=sc.offsetWidth, h0=sc.offsetHeight; document.body.classList.add('fen-tire');
+        function mv(ev){ sc.style.maxWidth='none'; sc.style.maxHeight='none'; sc.style.width=Math.max(320,w0+ev.clientX-x0)+'px'; sc.style.height=Math.max(200,h0+ev.clientY-y0)+'px'; place(); }
+        function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.classList.remove('fen-tire'); }
+        document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up); });
+    })();
     // Taille réglable : poignée en bas à droite (largeur et hauteur, mémorisées par page) et bouton plein écran
     (function(){ var cle='tbl_'+location.pathname.split('/').pop()+'_'+(sc.querySelector('table')||{}).className; try{ var m=JSON.parse(localStorage.getItem(cle)||'null'); if(m&&m.w){ sc.style.width=m.w+'px'; sc.style.maxWidth='none'; } if(m&&m.h){ sc.style.height=m.h+'px'; sc.style.maxHeight='none'; } }catch(e){}
       var ro=new ResizeObserver(function(){ if(sc.dataset.plein) return; if(sc.style.width||sc.style.height){ try{ localStorage.setItem(cle, JSON.stringify({w:sc.style.width?sc.offsetWidth:0, h:sc.style.height?sc.offsetHeight:0})); }catch(e){} } }); ro.observe(sc);
       sc.addEventListener('mouseup',function(){ if(sc.dataset.plein) return; var w=sc.offsetWidth, h=sc.offsetHeight; setTimeout(function(){ if(sc.offsetWidth!==w||sc.offsetHeight!==h||sc.style.width||sc.style.height){ sc.style.maxWidth='none'; sc.style.maxHeight='none'; } },0); });
-      var outils=document.createElement('div'); outils.className='tbl-outils'; outils.innerHTML='<button type="button" class="mini" data-act="plein" title="Afficher le tableau sur tout l\'écran (Échap pour revenir)">⤢ Plein écran</button><button type="button" class="mini" data-act="reset" title="Revenir à la taille d\'origine">Taille d\'origine</button><span class="small muted">Tire le coin en bas à droite du tableau pour l\'agrandir.</span>';
+      var outils=document.createElement('div'); outils.className='tbl-outils'; outils.innerHTML='<button type="button" class="mini" data-act="plein" title="Afficher le tableau sur tout l\'écran (Échap pour revenir)">⤢ Plein écran</button><button type="button" class="mini" data-act="reset" title="Revenir à la taille d\'origine">Taille d\'origine</button><span class="small muted">Tire le coin en bas à droite pour agrandir le tableau, et le bord d\'un titre de colonne pour élargir la colonne.</span>';
       sc.parentNode.insertBefore(outils, sc);
       function plein(on){ sc.dataset.plein=on?'1':''; sc.classList.toggle('plein',on); document.body.classList.toggle('tbl-plein',on); outils.querySelector('[data-act=plein]').textContent=on?'⤡ Réduire':'⤢ Plein écran'; if(on){ outils.classList.add('plein'); sc.parentNode.insertBefore(outils, sc); } else outils.classList.remove('plein'); }
       outils.querySelector('[data-act=plein]').onclick=function(){ plein(!sc.dataset.plein); };
       outils.querySelector('[data-act=reset]').onclick=function(){ sc.style.width=''; sc.style.height=''; sc.style.maxWidth=''; sc.style.maxHeight=''; try{ localStorage.removeItem(cle); }catch(e){} };
       document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&sc.dataset.plein) plein(false); });
+    })();
+    // Largeur des colonnes réglable : tirer le bord droit d'un en-tête (mémorisé par page ; double-clic pour revenir)
+    (function(){ var t=sc.querySelector('table'); if(!t||!t.tHead) return; var ths=[].slice.call(t.tHead.rows[0].cells); var cle='col_'+location.pathname.split('/').pop()+'_'+t.className;
+      var mem={}; try{ mem=JSON.parse(localStorage.getItem(cle)||'{}')||{}; }catch(e){}
+      function fixe(th,w){ th.style.width=w+'px'; th.style.minWidth=w+'px'; th.style.maxWidth=w+'px'; }
+      ths.forEach(function(th,i){ if(mem[i]) fixe(th,mem[i]); var g=document.createElement('span'); g.className='col-poig'; g.title='Tirer pour élargir ou réduire la colonne (double-clic : largeur d\'origine)'; th.appendChild(g);
+        g.addEventListener('mousedown',function(e){ e.preventDefault(); e.stopPropagation(); var x0=e.pageX, w0=th.offsetWidth; document.body.classList.add('col-tire');
+          function mv(ev){ var w=Math.max(40,w0+ev.pageX-x0); fixe(th,w); mem[i]=w; }
+          function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); document.body.classList.remove('col-tire'); try{ localStorage.setItem(cle,JSON.stringify(mem)); }catch(e){} }
+          document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up); });
+        g.addEventListener('dblclick',function(){ th.style.width=th.style.minWidth=th.style.maxWidth=''; delete mem[i]; try{ localStorage.setItem(cle,JSON.stringify(mem)); }catch(e){} }); });
+      var rb=sc.parentNode.querySelector('.tbl-outils [data-act=reset]'); if(rb) rb.addEventListener('click',function(){ ths.forEach(function(th){ th.style.width=th.style.minWidth=th.style.maxWidth=''; }); mem={}; try{ localStorage.removeItem(cle); }catch(e){} });
     })();
     // Quand la molette arrive dans le tableau, la page se cale d'abord pour que la fenêtre occupe l'écran
     sc.addEventListener('wheel',function(e){
@@ -585,7 +607,9 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
     // Glisser le tableau à la souris en dehors des champs
     var dep=null;
     sc.addEventListener('mousedown',function(e){
-      if(e.button!==0 || e.target.closest('input,select,textarea,button,a,label')) return;
+      if(e.button!==0 || e.target.closest('input,select,textarea,button,a,label,.col-poig')) return;
+      // pas sur les barres de défilement ni sur la poignée d'agrandissement (coin en bas à droite) : on laisse faire le navigateur
+      var r=sc.getBoundingClientRect(); if(e.clientX-r.left>=sc.clientLeft+sc.clientWidth || e.clientY-r.top>=sc.clientTop+sc.clientHeight || (r.right-e.clientX<22 && r.bottom-e.clientY<22)) return;
       dep={x:e.pageX,y:e.pageY,sl:sc.scrollLeft,st:sc.scrollTop}; sc.classList.add('grab'); e.preventDefault();
     });
     document.addEventListener('mousemove',function(e){ if(!dep) return; sc.scrollLeft=dep.sl-(e.pageX-dep.x); sc.scrollTop=dep.st-(e.pageY-dep.y); });

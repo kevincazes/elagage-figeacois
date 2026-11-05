@@ -59,7 +59,7 @@ if (acces_chiffrage()) {
     $w('bordereaux', 'Chiffrage', 'bordereaux.php', (string)$nbBord, 'bordereaux', $dernier ? 'Dernier : ' . $dernier['nom'] : "Aucun pour l'instant", false, '', $xBord);
     if (est_admin()) $w('coef', 'Chiffrage', 'parametres.php', (string)setting('coef'), 'coefficient actuel', 'Taux des équipes, marge, arrondi');
 }
-foreach ($liens as [$n, $url, $d, $icn]) $w('lien_' . strtolower(preg_replace('/[^a-z]/i', '', iconv('UTF-8', 'ASCII//TRANSLIT', $n))), 'Outils', $url ?: '', '', $n, $url ? $d : (est_admin() ? 'Lien à renseigner dans Paramètres' : 'Lien pas encore renseigné'), true, $icn);
+foreach ($liens as [$n, $url, $d, $icn]) $w('lien_' . strtolower(preg_replace('/[^a-z]/i', '', iconv('UTF-8', 'ASCII//TRANSLIT', $n))), 'Outils', $url ?: (est_admin() ? 'liens.php' : ''), '', $n, $url ? $d : (est_admin() ? 'Lien à renseigner : Compte › Liens des outils' : 'Lien pas encore renseigné'), (bool)$url, $icn);
 // préférences du compte : {"ordre":[...], "masques":[...]}
 try { db()->exec("ALTER TABLE utilisateurs ADD COLUMN tdb TEXT NULL"); } catch (Throwable $t) {}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tdb') {
@@ -90,7 +90,7 @@ page_start('Tableau de bord', 'index.php');
 <div class="tdb-barre"><p class="lead" style="margin:0">Bonjour <?= e(user()['prenom']) ?>. Que veux-tu faire ?</p><button type="button" class="btn secondary" id="tdbPerso" title="Déplacer les widgets, changer leur taille, en masquer, en remettre">Personnaliser le tableau de bord</button></div>
 <div id="tdb">
 <?php foreach ($gOrdre as $g): $lst = array_filter($ordre, fn($k) => $W[$k]['groupe'] === $g); if (!$lst) continue; ?>
-<section class="tdb-grp" data-g="<?= $g ?>"><h2><?= e($GROUPES[$g]) ?> <span class="gmv"><button type="button" class="gh" title="Monter cette famille">▲</button><button type="button" class="gb" title="Descendre cette famille">▼</button></span></h2>
+<section class="tdb-grp" data-g="<?= $g ?>"><h2><?= e($GROUPES[$g]) ?><?= $g === 'Outils' && est_admin() ? ' <a class="mini reg-liens" href="liens.php" title="Modifier les adresses des outils">Régler les liens</a>' : '' ?> <span class="gmv"><button type="button" class="gh" title="Monter cette famille">▲</button><button type="button" class="gb" title="Descendre cette famille">▼</button></span></h2>
 <div class="tiles">
 <?php foreach ($lst as $k): $t = $W[$k]; $cache = in_array($k, $masques, true); $taille = $tailles[$k] ?? ''; $img = $t['img'] ? '<img class="tile-ico" src="' . e($t['img']) . '" alt="" loading="lazy">' : '';
   $outils = '<div class="outils"><span class="poignee" title="Glisser pour déplacer">⠿</span><span><button type="button" class="taille" title="Taille : normale → large → grande">' . ['' => 'Normal', 'l' => 'Large', 'xl' => 'Grand'][$taille] . '</button> <button type="button" class="masq" title="Masquer">✕</button></span></div>'; ?>

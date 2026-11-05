@@ -219,9 +219,10 @@ tr.sousgrp td{background:var(--clair);font-weight:700;color:var(--sapin);font-si
 .pan-fermer{position:absolute;top:8px;right:10px;z-index:2;background:transparent;border:0;font-size:1.6rem;line-height:1;cursor:pointer;color:var(--doux);padding:4px 8px}
 body.panneau{background:var(--blanc);margin:0;padding:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
 body.panneau .pan-tete{padding:12px 48px 10px 16px;border-bottom:1px solid #edf0e8;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-body.panneau .chat-layout.seul{display:flex;flex:1;min-height:0;padding:0}
+body.panneau .chat-layout.seul{display:flex;flex:1;min-height:0;padding:0;align-items:stretch}
 body.panneau .chat-main{box-shadow:none;border-radius:0;min-height:0;height:auto;flex:1}
-body.panneau .chat-fil{max-height:none}
+body.panneau .chat-fil{max-height:none;min-height:0;overscroll-behavior:contain}
+body.panneau .chat-main{display:flex;flex-direction:column;overflow:hidden;width:100%}body.panneau .chat-saisie{flex:none}
 body.panneau .flash{margin:10px}
 @media(max-width:900px){.bulle-ia span{display:none}.bulle-ia{padding:12px 14px;bottom:70px}}
 /* Bordereau : barre de raccourcis, rattachement */
@@ -284,7 +285,7 @@ body.panneau main{padding:14px 18px 30px}body.panneau h1{font-size:1.2rem;margin
 @media(max-width:700px){.fen{padding:0}.fen-box{border-radius:0;height:100%}}
 
 /* Tableaux à taille réglable et plein écran */
-.scroll.fenetre{resize:both;min-width:320px;min-height:200px;max-width:calc(100vw - 2 * clamp(20px,2.5vw,56px) - 2px)}
+.scroll.fenetre{resize:none;min-width:320px;min-height:200px;max-width:calc(100vw - 2 * clamp(20px,2.5vw,56px) - 2px)}
 .scroll.fenetre::-webkit-resizer{background:linear-gradient(135deg,transparent 0 40%,var(--sapin) 40% 50%,transparent 50% 65%,var(--sapin) 65% 75%,transparent 75%);border-radius:0 0 var(--rayon) 0}
 .tbl-outils{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px}
 .scroll.fenetre.plein{position:fixed;inset:44px 0 0 0;z-index:900;width:auto!important;height:auto!important;max-height:none!important;max-width:none!important;border-radius:0;resize:none;background:var(--blanc)}
@@ -294,3 +295,6 @@ body.tbl-plein{overflow:hidden}
 /* Curseur d'ajustement des prix d'un bordereau */
 .ajust{grid-column:1/-1}.curseur{display:flex;align-items:center;gap:10px}.curseur input[type=range]{flex:1;margin:0;accent-color:var(--sapin);height:30px;background:linear-gradient(to right,transparent calc(50% - 1px),var(--rouge) calc(50% - 1px),var(--rouge) calc(50% + 1px),transparent calc(50% + 1px)) no-repeat center/100% 14px}
 .curseur span{font-size:.8rem;color:var(--doux);white-space:nowrap}.curseur output{font-weight:900;min-width:64px;text-align:right;color:var(--sapin)}
+
+.col-poig{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:3}.col-poig:hover,.col-tire .col-poig:active{background:linear-gradient(90deg,transparent 3px,var(--vert,#8aa33c) 3px 6px,transparent 6px)}body.col-tire{cursor:col-resize;user-select:none}
+.fen-cadre{position:relative;width:fit-content;max-width:none}.fen-poig{position:absolute;width:22px;height:22px;z-index:5;cursor:nwse-resize;border-radius:0 0 8px 0;background:linear-gradient(135deg,transparent 0 45%,var(--sapin) 45% 52%,transparent 52% 64%,var(--sapin) 64% 71%,transparent 71% 83%,var(--sapin) 83% 90%,transparent 90%);background-color:rgba(255,255,255,.85)}.fen-poig:hover{background-color:var(--clair)}body.fen-tire{cursor:nwse-resize;user-select:none}body.fen-tire .scroll{pointer-events:none}
