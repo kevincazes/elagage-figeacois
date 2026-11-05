@@ -10,7 +10,7 @@ try { $pdo->exec("CREATE TABLE IF NOT EXISTS appariements (cle VARCHAR(255) PRIM
 $catalogue = q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY famille, " . classes_ordre_sql() . ", ordre")->fetchAll();
 $catParId = []; foreach ($catalogue as $c) $catParId[$c['id']] = $c;
 $memoire = []; foreach (q("SELECT cle, ligne_id FROM appariements") as $m) $memoire[$m['cle']] = $m['ligne_id'] ? (int)$m['ligne_id'] : null;
-$etape = 'depot'; $lignes = []; $erreur = '';
+$etape = 'depot'; $lignes = []; $erreur = ''; $nomFichier = '';
 
 // ---- Étape 2 : validation → création ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creer') {
@@ -38,11 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creer
 }
 
 // ---- Étape 1 : dépôt → lecture + appariement ----
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'lire' && !empty($_FILES['fichier']['tmp_name'])) {
+$onglets = []; $onglet = ''; $jeton = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'lire' && (!empty($_FILES['fichier']['tmp_name']) || !empty($_POST['jeton']))) {
     check_csrf();
-    $nomFichier = $_FILES['fichier']['name'];
     try {
-        $brutes = lire_fichier($_FILES['fichier']['tmp_name'], $nomFichier);
+        if (!empty($_FILES['fichier']['tmp_name'])) { $nomFichier = $_FILES['fichier']['name']; $chemin = $_FILES['fichier']['tmp_name']; $jeton = fichier_garder($chemin, $nomFichier); }
+        else { $rep = fichier_repris((string)$_POST['jeton']); if (!$rep) throw new RuntimeException('Le fichier n\'est plus disponible : dépose-le à nouveau.'); [$chemin, $nomFichier] = $rep; $jeton = (string)$_POST['jeton']; }
+        // Classeur à plusieurs onglets (BPU + DQE) : on lit l'onglet du bordereau de prix, sauf autre choix
+        if (preg_match('/\.xls[xm]$/i', $nomFichier)) $onglets = array_keys(xlsx_onglets($chemin));
+        $onglet = isset($_POST['onglet']) ? (string)$_POST['onglet'] : (onglet_auto($onglets, 'bpu') ?? '');
+        $brutes = lire_fichier($chemin, $nomFichier, $onglet !== '' ? $onglet : null);
         // Fichier BPU + DQE : le DQE répète les lignes (sans code) avec la quantité ; on raccroche par ordre d'apparition des lignes de prestation
         $aCodes = (bool)array_filter($brutes, fn($x) => $x['code'] !== '');
         if ($aCodes) {
@@ -91,6 +96,13 @@ page_start('Importer un bordereau reçu', 'bordereaux.php', ['bordereaux.php', '
   <p class="muted">Les corrections que tu fais à l'étape suivante sont mémorisées : la même formulation sera reconnue au bordereau suivant.</p>
 </section>
 <?php else: $nbOk = count(array_filter($lignes, fn($l) => !$l['section'] && $l['score'] >= 60)); $nbL = count(array_filter($lignes, fn($l) => !$l['section'])); ?>
+<?php if (count($onglets) > 1 && $jeton !== ''): ?>
+<form method="post" class="card onglets"><?= csrf_field() ?><input type="hidden" name="action" value="lire"><input type="hidden" name="jeton" value="<?= e($jeton) ?>">
+  <label>Ce classeur contient <?= count($onglets) ?> onglets. Onglet lu
+    <select name="onglet" onchange="this.form.submit()"><?php foreach ($onglets as $n): ?><option value="<?= e($n) ?>"<?= $n === $onglet ? ' selected' : '' ?>><?= e($n) ?></option><?php endforeach; ?><option value=""<?= $onglet === '' ? ' selected' : '' ?>>Tous les onglets (BPU + quantités du DQE)</option></select></label>
+  <p class="muted small">Le bordereau de prix se crée à partir de son onglet ; les quantités du DQE s'importent ensuite depuis le bordereau, bouton « Importer les quantités d'un DQE ».</p>
+</form>
+<?php endif; ?>
 <form method="post" id="fv" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="creer"><input type="hidden" name="fichier" value="<?= e($nomFichier) ?>">
 <section class="card">
   <div class="cols">

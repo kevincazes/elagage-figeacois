@@ -86,11 +86,19 @@ function dqe_rapprocher(array $dqe, array $bl): array {
     return $res;
 }
 
-$etape = 'depot'; $dqe = []; $rap = []; $erreur = ''; $nomFichier = '';
+$etape = 'depot'; $dqe = []; $rap = []; $erreur = ''; $nomFichier = ''; $onglets = []; $onglet = ''; $jeton = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'lire') {
     check_csrf();
     try {
-        if (!empty($_FILES['fichier']['tmp_name'])) { $nomFichier = (string)$_FILES['fichier']['name']; $brutes = lire_fichier($_FILES['fichier']['tmp_name'], $nomFichier); }
+        $chemin = '';
+        if (!empty($_FILES['fichier']['tmp_name'])) { $nomFichier = (string)$_FILES['fichier']['name']; $chemin = $_FILES['fichier']['tmp_name']; $jeton = fichier_garder($chemin, $nomFichier); }
+        elseif (!empty($_POST['jeton'])) { $rep = fichier_repris((string)$_POST['jeton']); if (!$rep) throw new RuntimeException('Le fichier n\'est plus disponible : dépose-le à nouveau.'); [$chemin, $nomFichier] = $rep; $jeton = (string)$_POST['jeton']; }
+        if ($chemin !== '') {
+            // Classeur BPU + DQE : on lit l'onglet du DQE, sauf autre choix
+            if (preg_match('/\.xls[xm]$/i', $nomFichier)) $onglets = array_keys(xlsx_onglets($chemin));
+            $onglet = isset($_POST['onglet']) ? (string)$_POST['onglet'] : (onglet_auto($onglets, 'dqe') ?? '');
+            $brutes = lire_fichier($chemin, $nomFichier, $onglet !== '' ? $onglet : null);
+        }
         elseif (trim((string)($_POST['colle'] ?? '')) !== '') { // copier-coller depuis Excel : colonnes séparées par des tabulations
             $nomFichier = 'copier-coller';
             $rows = array_values(array_filter(array_map(fn($ln) => array_map('trim', explode("\t", $ln)), preg_split('/\R/', (string)$_POST['colle'])), fn($r) => array_filter($r, fn($c) => $c !== '')));
@@ -114,6 +122,12 @@ page_start('Importer les quantités d\'un DQE', 'bordereaux.php', ['bordereau.ph
 <p class="lead">Reprend les quantités du DQE de la collectivité et les met dans la colonne « Qté » du bordereau <strong><?= e($b['nom']) ?></strong>. Les lignes sont rapprochées par code, puis par désignation, puis par N° ; tu vérifies avant d'enregistrer. Les prix ne changent pas.</p>
 <?php if ($erreur): ?><div class="flash err"><?= e($erreur) ?></div><?php endif; ?>
 
+<?php if (count($onglets) > 1 && $jeton !== ''): ?>
+<form method="post" class="card onglets"><?= csrf_field() ?><input type="hidden" name="action" value="lire"><input type="hidden" name="id" value="<?= $bid ?>"><input type="hidden" name="jeton" value="<?= e($jeton) ?>">
+  <label>Ce classeur contient <?= count($onglets) ?> onglets. Onglet lu
+    <select name="onglet" onchange="this.form.submit()"><?php foreach ($onglets as $n): ?><option value="<?= e($n) ?>"<?= $n === $onglet ? ' selected' : '' ?>><?= e($n) ?></option><?php endforeach; ?><option value=""<?= $onglet === '' ? ' selected' : '' ?>>Tous les onglets</option></select></label>
+</form>
+<?php endif; ?>
 <?php if ($etape === 'depot'): ?>
 <h2>Le fichier du DQE</h2>
 <form method="post" enctype="multipart/form-data"><?= csrf_field() ?><input type="hidden" name="action" value="lire"><input type="hidden" name="id" value="<?= $bid ?>">

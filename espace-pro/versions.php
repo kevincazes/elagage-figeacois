@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.8', '2026-11-05', [
+        'Import d\'un classeur Excel à plusieurs onglets (BPU et DQE) : l\'import du bordereau lit l\'onglet du BPU, l\'import des quantités lit l\'onglet du DQE ; un menu « Onglet lu » permet de changer sans redéposer le fichier',
+        'Import : les titres de rubrique numérotés (« II.3.1 Dessouchage par carottage… », « I.5.Prestations urgentes ») gardent leur numéro, même collé au texte',
+    ]],
     ['2.7.7', '2026-11-05', [
         'Bordereau, colonne « Prix initial » : les prix estimés (déduits des prix remis sur d\'autres marchés, pas réellement remis) sont en italique gris avec la mention « estim. » ; les vrais prix remis restent en noir ; la bulle indique l\'origine',
         'Catalogue : prix de référence estimés des interventions urgentes (forfaits jour, nuit, week-end et jours fériés) retirés, car pas représentatifs du coût réel',

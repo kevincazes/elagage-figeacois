@@ -3,10 +3,10 @@
 // Chaque ligne : ['numero' => '', 'libelle' => '', 'unite' => '', 'quantite' => null, 'prix' => null, 'section' => bool]
 declare(strict_types=1);
 
-function lire_fichier(string $chemin, string $nomOriginal): array {
+function lire_fichier(string $chemin, string $nomOriginal, ?string $onglet = null): array {
     $ext = strtolower(pathinfo($nomOriginal, PATHINFO_EXTENSION));
     $tableaux = match ($ext) {
-        'xlsx', 'xlsm' => lire_xlsx($chemin),
+        'xlsx', 'xlsm' => lire_xlsx($chemin, $onglet),
         'docx' => lire_docx($chemin),
         'csv', 'txt' => lire_csv($chemin),
         'pdf' => lire_pdf($chemin),
@@ -15,8 +15,48 @@ function lire_fichier(string $chemin, string $nomOriginal): array {
     return interpreter_lignes($tableaux, $ext);
 }
 
-// ---- XLSX : toutes les feuilles, cellules en texte ----
-function lire_xlsx(string $f): array {
+// ---- XLSX : onglets (nom → fichier interne), dans l'ordre du classeur ----
+function xlsx_onglets(string $f): array {
+    $z = new ZipArchive(); if ($z->open($f) !== true) return [];
+    $wb = $z->getFromName('xl/workbook.xml'); $rels = $z->getFromName('xl/_rels/workbook.xml.rels'); $z->close();
+    if (!$wb || !$rels) return [];
+    $cible = []; if (preg_match_all('/<Relationship\b[^>]*>/', $rels, $m)) foreach ($m[0] as $r) {
+        if (preg_match('/\bId="([^"]+)"/', $r, $a) && preg_match('/\bTarget="([^"]+)"/', $r, $b)) $cible[$a[1]] = 'xl/' . ltrim(preg_replace('#^/?xl/#', '', $b[1]), '/');
+    }
+    $out = []; if (preg_match_all('/<(?:\w+:)?sheet\b[^>]*>/', $wb, $m)) foreach ($m[0] as $sh) {
+        if (!preg_match('/\bname="([^"]*)"/', $sh, $a) || !preg_match('/\b(?:r:)?id="([^"]+)"/', $sh, $b)) continue;
+        if (preg_match('/\bstate="(hidden|veryHidden)"/', $sh)) continue;
+        if (isset($cible[$b[1]])) $out[html_entity_decode($a[1], ENT_QUOTES | ENT_XML1, 'UTF-8')] = $cible[$b[1]];
+    }
+    return $out;
+}
+/** Onglet à lire par défaut : $but = 'bpu' (bordereau de prix) ou 'dqe' (quantités) ; null = tous */
+function onglet_auto(array $noms, string $but): ?string {
+    if (count($noms) < 2) return null;
+    $dqe = fn($n) => (bool)preg_match('/(dqe|d[ée]tail|quantitatif|estimatif|quantit)/iu', $n);
+    $bpu = fn($n) => (bool)preg_match('/(bpu|bordereau|prix unitaire|prix)/iu', $n);
+    foreach ($noms as $n) if ($but === 'dqe' ? $dqe($n) : ($bpu($n) && !$dqe($n))) return $n;
+    return null;
+}
+/** Garde le fichier déposé quelques heures pour pouvoir le relire avec un autre onglet sans le redéposer */
+function fichier_garder(string $tmp, string $nom): string {
+    $dir = sys_get_temp_dir() . '/ep_imports'; if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    foreach (glob($dir . '/*') ?: [] as $v) if (filemtime($v) < time() - 6 * 3600) @unlink($v);
+    $jeton = bin2hex(random_bytes(12)); $ext = strtolower(pathinfo($nom, PATHINFO_EXTENSION));
+    if (!@copy($tmp, "$dir/$jeton.$ext")) return '';
+    $_SESSION['imports'][$jeton] = $nom; return $jeton;
+}
+/** [chemin, nom] d'un fichier gardé par fichier_garder() pour cette session, ou null */
+function fichier_repris(string $jeton): ?array {
+    if (!preg_match('/^[0-9a-f]{24}$/', $jeton) || empty($_SESSION['imports'][$jeton])) return null;
+    $nom = $_SESSION['imports'][$jeton]; $c = sys_get_temp_dir() . '/ep_imports/' . $jeton . '.' . strtolower(pathinfo($nom, PATHINFO_EXTENSION));
+    return is_file($c) ? [$c, $nom] : null;
+}
+
+// ---- XLSX : toutes les feuilles (ou un seul onglet), cellules en texte ----
+function lire_xlsx(string $f, ?string $onglet = null): array {
+    $seul = null;
+    if ($onglet !== null && $onglet !== '') { $o = xlsx_onglets($f); if (!isset($o[$onglet])) throw new RuntimeException("Onglet « $onglet » introuvable dans ce fichier."); $seul = $o[$onglet]; }
     $z = new ZipArchive(); if ($z->open($f) !== true) throw new RuntimeException('Fichier Excel illisible.');
     $shared = [];
     if (($xml = $z->getFromName('xl/sharedStrings.xml')) !== false) {
@@ -25,6 +65,7 @@ function lire_xlsx(string $f): array {
     $rows = [];
     for ($i = 0; $i < $z->numFiles; $i++) {
         $n = $z->getNameIndex($i); if (!preg_match('#^xl/worksheets/sheet\d+\.xml$#', $n)) continue;
+        if ($seul !== null && $n !== $seul) continue;
         $sx = simplexml_load_string($z->getFromIndex($i)); if (!$sx) continue;
         foreach ($sx->sheetData->row as $row) {
             $cells = [];
@@ -163,6 +204,9 @@ function interpreter_heuristique(array $rows): array {
         if (preg_match('/^(\d+(\.\d+)*|[IVX]+\.\d+(\.\d+)*|[A-Z]{2,4}\d{3,5})\.?$/u', $cells[0] ?? '')) { $numero = rtrim(array_shift($cells), '.'); }
         elseif (isset($cells[0]) && mb_strlen($cells[0]) <= 2 && !preg_match('/\w/u', $cells[0])) { array_shift($cells); $numero = '?'; }
         elseif (preg_match('/^([IVX]+\.\d+(\.\d+)*\.?|\d+(\.\d+)+)\s+(.+)$/u', $cells[0] ?? '', $m)) { $numero = rtrim($m[1], '.'); $cells[0] = $m[4]; }
+        // Titre collé à son numéro (« I.5.PRESTATIONS URGENTES ») ou « II.1 -ABATTAGE »
+        elseif (preg_match('/^([IVX]+\.\d+(\.\d+)*)\.\s*(\p{Lu}.+)$/u', $cells[0] ?? '', $m)) { $numero = $m[1]; $cells[0] = $m[3]; }
+        if (isset($cells[0]) && $numero !== '') $cells[0] = preg_replace('/^[\s\-–—:]+/u', '', $cells[0]);
         // code type ARB0001 en 2e position (Lot Habitat)
         $code = '';
         if (isset($cells[0]) && preg_match('/^[A-Z]{2,4}\d{3,5}$/', $cells[0])) { $code = array_shift($cells); }
