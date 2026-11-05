@@ -93,6 +93,9 @@ function migrate(): void {
                   "ALTER TABLE bordereau_lignes MODIFY unite VARCHAR(60) NOT NULL DEFAULT ''"] as $sql) { try { db()->exec($sql); } catch (Throwable $t) {} }
         set_setting('schema', '2.4');
     }
+    // 2.7.7 : prix de référence estimés des interventions urgentes (forfaits jour, nuit, week-end) retirés : pas représentatifs du coût réel.
+    // Seulement s'ils n'ont pas été modifiés depuis le catalogue de démarrage.
+    if (setting('ref_urg_retires') !== '1') { try { q("UPDATE bpu_lignes SET prix_ref = NULL WHERE source LIKE '%estimation%' AND ((code = 'URG-F-JOUR' AND prix_ref = 450) OR (code = 'URG-F-NUIT' AND prix_ref = 650) OR (code = 'URG-F-WE' AND prix_ref = 850))"); set_setting('ref_urg_retires', '1'); } catch (Throwable $t) {} }
 }
 
 // ---- Historique et verrous ----
@@ -275,7 +278,7 @@ function importer_catalogue(): array {
         [$code, $fam, $lib, $unite, $h, $d, $c, $prix, $src, $profil] = $l + [9 => 'grimpe'];
         if (isset($existants[$code])) continue;
         q("INSERT INTO bpu_lignes (code, libelle, unite, forfait, ordre, famille, hauteur, houppier, circonference, prix_ref, source) VALUES (?,?,?,0,?,?,?,?,?,?,?)",
-          [$code, $lib, $unite, ++$ordre, $fam, $h, $d, $c, $prix, $src]);
+          [$code, $lib, $unite, ++$ordre, $fam, $h, $d, $c, str_starts_with($code, 'URG-') ? null : $prix, $src]);   // urgences : prix servant au calibrage des temps, pas de référence
         $id = (int)$pdo->lastInsertId(); $ids[$code] = $id; $nb++;
         // Temps calibrés pour retomber sur le prix de référence avec les taux et le coefficient actuels
         $cout = $prix / $coef;

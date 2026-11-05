@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.7.7', '2026-11-05', [
+        'Bordereau, colonne « Prix initial » : les prix estimés (déduits des prix remis sur d\'autres marchés, pas réellement remis) sont en italique gris avec la mention « estim. » ; les vrais prix remis restent en noir ; la bulle indique l\'origine',
+        'Catalogue : prix de référence estimés des interventions urgentes (forfaits jour, nuit, week-end et jours fériés) retirés, car pas représentatifs du coût réel',
+    ]],
     ['2.7.6', '2026-11-05', [
         'Bordereaux : bouton « Archiver » pour ranger un bordereau traité ; il disparaît de la liste principale et se retrouve en cochant « Voir les archivés » (grisé, avec la mention « Archivé »), toujours consultable, exportable et copiable ; « Désarchiver » le remet dans la liste',
         'Import des quantités d\'un DQE : longueurs des lignes ajoutées ajustées à la base (N°, code, désignation, unité)',

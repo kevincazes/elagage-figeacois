@@ -30,9 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'appli
         if ($m['bl'] === 'nouvelle') { // ligne du DQE absente du bordereau : ajoutée à la fin, rattachée à la prestation choisie
             if (!$nouv) q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, ++$ordre, 'Lignes ajoutées depuis le DQE (à replacer et vérifier)']);
             $lid = ($m['cat'] ?? '') !== '' && isset($catParId[(int)$m['cat']]) ? (int)$m['cat'] : null;
-            $lib = mb_substr(trim((string)($m['lib'] ?? '')), 0, 255);   // longueurs des colonnes de bordereau_lignes
+            $lib = mb_substr(trim((string)($m['lib'] ?? '')), 0, 1000);   // longueurs des colonnes de bordereau_lignes (élargies en 2.4)
             q("INSERT INTO bordereau_lignes (bordereau_id, ordre, numero, type, code, libelle, unite, ligne_id, quantite) VALUES (?,?,?,'ligne',?,?,?,?,?)",
-              [$bid, ++$ordre, mb_substr((string)($m['num'] ?? ''), 0, 12), mb_substr((string)($m['code'] ?? ''), 0, 30), $lib, mb_substr((string)($m['unite'] ?? ''), 0, 30), $lid, ($m['qte'] ?? '') === '' ? null : nb($m['qte'])]);
+              [$bid, ++$ordre, mb_substr((string)($m['num'] ?? ''), 0, 40), mb_substr((string)($m['code'] ?? ''), 0, 60), $lib, mb_substr((string)($m['unite'] ?? ''), 0, 60), $lid, ($m['qte'] ?? '') === '' ? null : nb($m['qte'])]);
             if (($cle = cle_memoire($lib, '')) !== '') try { q("INSERT INTO appariements (cle, ligne_id) VALUES (?,?) ON DUPLICATE KEY UPDATE ligne_id = VALUES(ligne_id)", [$cle, $lid]); } catch (Throwable $t) {}
             $modifs[] = '[ajoutée] ' . mb_substr($lib, 0, 60) . ($lid ? ' → ' . $catParId[$lid]['code'] : ' (sans prestation : prix à saisir)'); $nouv++;
             continue;
