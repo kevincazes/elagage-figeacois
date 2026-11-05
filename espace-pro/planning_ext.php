@@ -788,7 +788,7 @@ function agendas_bloc(array $personnes, bool $choixPersonne): string {
 
 // ---------- Extrabat : appel brut d'exploration (adresse, clé et mode d'authentification réglés dans Réglages) ----------
 function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null): array { // [code HTTP, corps (texte), message]
-    $base = rtrim(setting('xb_api'), '/'); $cle = setting('xb_cle'); if ($base === '' || $cle === '') return [0, '', "Renseigne l'adresse de l'API et la clé."];
+    $base = rtrim(setting('xb_api', 'https://api.extrabat.com/v1'), '/'); $cle = setting('xb_cle'); if ($base === '' || $cle === '') return [0, '', "Renseigne l'adresse de l'API et la clé."];
     if (!preg_match('#^https://#i', $base)) return [0, '', "L'adresse doit commencer par https://"];
     $chemin = '/' . ltrim(trim($chemin), '/'); if (preg_match('/[\s<>"]/', $chemin)) return [0, '', 'Chemin invalide.'];
     $url = $base . $chemin; $h = ['Accept: application/json', 'User-Agent: ElagageFigeacois-EspacePro/1.0']; $auth = setting('xb_auth', 'bearer'); $nom = trim(setting('xb_entete', 'X-API-KEY')) ?: 'X-API-KEY';
