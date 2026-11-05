@@ -6,7 +6,7 @@ require_chiffrage();
 $pdo = db();
 $b = q("SELECT * FROM bordereaux WHERE id = ?", [(int)($_GET['id'] ?? 0)])->fetch();
 if (!$b) { flash('Bordereau introuvable.', 'err'); redirect('bordereaux.php'); }
-$bid = (int)$b['id']; $fige = $b['statut'] === 'fige';
+$bid = (int)$b['id']; $fige = $b['statut'] === 'fige'; $ajust = (float)($b['ajust'] ?? 0);
 $retour = "bordereau.php?id=$bid";
 $equipes = ressources_equipes(); $eqChoisie = equipe_choisie($b['equipe_id'] !== null ? (int)$b['equipe_id'] : null); $eqId = $eqChoisie ? (int)$eqChoisie['id'] : null;
 $noms = []; foreach (q("SELECT id, prenom, nom FROM utilisateurs") as $u) $noms[$u['id']] = trim($u['prenom'] . ' ' . $u['nom']);
@@ -25,7 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($fige && !in_array($a, ['defiger'])) { flash('Bordereau figé : défige-le pour le modifier.', 'err'); redirect($retour); }
     if ($a === 'entete') {
         $neq = isset($_POST['equipe_id']) && $_POST['equipe_id'] !== '' ? (int)$_POST['equipe_id'] : null;
-        q("UPDATE bordereaux SET nom = ?, client = ?, notes = ?, equipe_id = ? WHERE id = ?", [trim($_POST['nom']), trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), $neq, $bid]);
+        $nAj = max(-50, min(50, nb($_POST['ajust'] ?? '0')));
+        q("UPDATE bordereaux SET nom = ?, client = ?, notes = ?, equipe_id = ?, ajust = ? WHERE id = ?", [trim($_POST['nom']), trim($_POST['client'] ?? ''), trim($_POST['notes'] ?? ''), $neq, $nAj, $bid]);
+        if (abs($nAj - $ajust) > 0.001) journal('entete', 'Ajustement des prix : ' . ($nAj > 0 ? '+' : '') . $nAj . ' %', $bid);
         $neqNom = equipe_choisie($neq)['nom'] ?? ''; journal('entete', 'En-tête modifié' . ($neq !== ($b['equipe_id'] !== null ? (int)$b['equipe_id'] : null) ? " ; équipe : $neqNom" : ''), $bid); flash('En-tête enregistré.');
     } elseif ($a === 'section') {
         q("INSERT INTO bordereau_lignes (bordereau_id, ordre, type, libelle) VALUES (?,?,'section',?)", [$bid, $next(), trim($_POST['libelle'] ?? 'Section')]); journal('ajout', 'Section « ' . trim($_POST['libelle'] ?? '') . ' »', $bid);
@@ -76,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $taux = []; foreach (ressources() as $r) $taux[$r['id']] = ['nom' => $r['nom'], 'taux' => (float)$r['taux']];
         if ($eqChoisie) $taux['equipe'] = ['nom' => 'Équipe appliquée : ' . $eqChoisie['nom'], 'taux' => (float)$eqChoisie['taux']];
         foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? AND type = 'ligne'", [$bid]) as $l) {
-            $pu = $l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : ($l['ligne_id'] ? prix_catalogue(q("SELECT * FROM bpu_lignes WHERE id = ?", [$l['ligne_id']])->fetch() ?: ['id' => 0, 'forfait' => 0], $eqId) : 0);
+            $pu = $l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : ($l['ligne_id'] ? prix_catalogue(q("SELECT * FROM bpu_lignes WHERE id = ?", [$l['ligne_id']])->fetch() ?: ['id' => 0, 'forfait' => 0], $eqId, $ajust) : 0);
             q("UPDATE bordereau_lignes SET pu_fige = ? WHERE id = ?", [$pu, $l['id']]);
         }
         q("UPDATE bordereaux SET statut = 'fige', fige_le = NOW(), coef = ?, tva = ?, taux_json = ? WHERE id = ?", [(float)setting('coef'), (float)setting('tva'), json_encode($taux, JSON_UNESCAPED_UNICODE), $bid]);
@@ -91,10 +93,10 @@ $lignes = q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordr
 $ro = $fige || $lecture; // champs non modifiables
 $cat = []; foreach (q("SELECT * FROM bpu_lignes") as $c) $cat[$c['id']] = $c; // toutes, y compris supprimées : le prix d'une ligne déjà utilisée reste calculable
 $tva = $fige ? (float)$b['tva'] : (float)setting('tva', '20');
-$puDe = function (array $l) use ($fige, $cat, $eqId): float {
+$puDe = function (array $l) use ($fige, $cat, $eqId, $ajust): float {
     if ($fige) return (float)$l['pu_fige'];
     if ($l['pu_manuel'] !== null) return (float)$l['pu_manuel'];
-    return isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId) : 0.0;
+    return isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId, $ajust) : 0.0;
 };
 $total = 0; $nbQte = 0;
 foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $total += $puDe($l) * (float)$l['quantite']; $nbQte++; }
@@ -116,6 +118,9 @@ if ($lecture): ?>
     <label>Collectivité / client <input name="client" value="<?= e($b['client']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
     <label>Notes <input name="notes" value="<?= e($b['notes']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
     <?php if ($equipes): ?><label>Équipe appliquée aux prix <?php if ($ro): ?><input value="<?= e($eqChoisie['nom'] ?? '') ?> – <?= money((float)($eqChoisie['taux'] ?? 0)) ?>/h" readonly><?php else: ?><select name="equipe_id" onchange="this.form.submit()"><?php foreach ($equipes as $x): ?><option value="<?= $x['id'] ?>" <?= $eqId === (int)$x['id'] ? 'selected' : '' ?>><?= e($x['nom']) ?> – <?= money((float)$x['taux']) ?>/h</option><?php endforeach; ?></select><?php endif; ?></label><?php endif; ?>
+    <label class="ajust">Ajustement de tous les prix calculés <span class="muted small">(curseur : à gauche moins cher, à droite plus cher ; le repère du milieu = prix de l'équipe)</span>
+      <div class="curseur"><span>−30 %</span><input type="range" name="ajust" id="ajust" min="-30" max="30" step="1" value="<?= (int)round($ajust) ?>" <?= $ro ? 'disabled' : '' ?>><span>+30 %</span><output id="ajustVal" for="ajust"><?= ($ajust > 0 ? '+' : '') . rtrim(rtrim(number_format($ajust, 2, ',', ''), '0'), ',') ?> %</output></div>
+      <?php if (!$ro): ?><span class="small muted">Les prix du tableau bougent en direct ; « Enregistrer l'en-tête » conserve l'ajustement.</span><?php endif; ?></label>
   </div>
   <?php if ($fige): ?><p class="ok">Figé le <?= date('d/m/Y à H:i', strtotime($b['fige_le'])) ?> · coefficient <?= e($b['coef']) ?> · TVA <?= e($b['tva']) ?> %</p>
   <?php elseif (!$lecture): ?><button class="btn secondary" type="submit">Enregistrer l'en-tête</button><?php endif; ?>
@@ -135,8 +140,8 @@ if ($lecture): ?>
 <?php if ($l['type'] === 'section'): ?>
 <tr class="section"><td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td><td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" <?= $ro ? 'readonly' : '' ?>></td><td colspan="8"><input name="r[<?= $id ?>][libelle]" value="<?= e($l['libelle']) ?>" style="font-weight:900;text-transform:uppercase" <?= $ro ? 'readonly' : '' ?>></td>
 <td><?php if (!$ro): ?><button class="mini danger" type="submit" form="x<?= $id ?>">×</button><?php endif; ?></td><td class="pu"></td></tr>
-<?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId) : null; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
-<tr data-calc="<?= $calc ?? '' ?>" title="<?= e($src) ?>">
+<?php else: $n++; $calc = isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId, $ajust) : null; $brut = isset($cat[$l['ligne_id']]) ? prix_catalogue_brut($cat[$l['ligne_id']], $eqId) : 0; $pu = $puDe($l); $src = $cat[$l['ligne_id']]['source'] ?? ''; ?>
+<tr data-calc="<?= $calc ?? '' ?>" data-brut="<?= $brut ?>" title="<?= e($src) ?>">
   <td><input class="tiny" name="r[<?= $id ?>][ordre]" value="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td><input class="tiny" name="r[<?= $id ?>][numero]" value="<?= e($l['numero']) ?>" placeholder="<?= $l['ordre'] ?>" <?= $ro ? 'readonly' : '' ?>></td>
   <td><input class="tiny" style="width:100px" name="r[<?= $id ?>][code]" value="<?= e($l['code']) ?>" <?= $ro ? 'readonly' : '' ?>></td>
@@ -215,7 +220,13 @@ window.addEventListener('pagehide', () => navigator.sendBeacon('bordereau.php?id
 <?php endif; ?>
 const num = v => parseFloat(String(v).replace(/[\s\u00a0\u202f]/g, '').replace(',', '.')) || 0;
 const fmt = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
-const TVA = <?= json_encode($tva) ?>;
+const TVA = <?= json_encode($tva) ?>, PAS = <?= json_encode((float)setting('arrondi', '1')) ?>, AJUST0 = <?= json_encode($ajust) ?>;
+const arrondir = v => PAS > 0 ? Math.round(v / PAS) * PAS : Math.round(v * 100) / 100;
+// Curseur d'ajustement : les PU calculés sont recalculés depuis le prix brut (avant arrondi), comme le fera le serveur à l'enregistrement
+const curseur = document.getElementById('ajust');
+if (curseur) curseur.addEventListener('input', () => { const a = +curseur.value; document.getElementById('ajustVal').textContent = (a > 0 ? '+' : '') + a + ' %';
+  document.querySelectorAll('tr[data-calc]').forEach(tr => { const brut = parseFloat(tr.dataset.brut || '0'); if (!brut) return; const pu = arrondir(brut * (1 + a / 100)); tr.dataset.calc = pu; const c = tr.querySelector('.calc a'); if (c) c.textContent = fmt(pu); });
+  document.querySelectorAll('tr[data-calc]').forEach(tr => tr.dispatchEvent(new Event('input'))); document.getElementById('ajustVal').style.color = a ? 'var(--rouge)' : ''; });
 function recalc() {
   let total = 0, totalPU = 0, nb = 0;
   document.querySelectorAll('tr[data-calc]').forEach(tr => {
@@ -235,7 +246,7 @@ document.querySelectorAll('tr[data-calc]').forEach(tr => tr.addEventListener('in
 function ajuster(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 document.querySelectorAll('textarea.lib').forEach(t => { ajuster(t); t.addEventListener('input', () => ajuster(t)); });
 // Rattachement à une prestation : prix mis à jour tout de suite (enregistrer pour conserver)
-const CATPU = <?php $m = []; foreach (q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY id") as $c) { $k = $c['code'] !== '' ? $c['code'] : '#' . $c['id']; if (!isset($m[$k])) $m[$k] = prix_catalogue($c, $eqId); } echo json_encode($m, JSON_UNESCAPED_UNICODE); ?>;
+const CATPU = <?php $m = []; foreach (q("SELECT * FROM bpu_lignes WHERE actif = 1 ORDER BY id") as $c) { $k = $c['code'] !== '' ? $c['code'] : '#' . $c['id']; if (!isset($m[$k])) $m[$k] = prix_catalogue($c, $eqId, $ajust); } echo json_encode($m, JSON_UNESCAPED_UNICODE); ?>;
 document.querySelectorAll('input.catsel').forEach(i => i.addEventListener('change', () => {
   const tr = i.closest('tr'), code = i.value.split(' — ')[0].trim(), cell = tr.querySelector('.calc');
   if (code === '') { tr.dataset.calc = ''; cell.innerHTML = '<span class="muted">—</span>'; }

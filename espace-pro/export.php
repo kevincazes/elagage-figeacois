@@ -24,7 +24,7 @@ $total = 0;
 foreach ($lignes as $l) {
     $num = $l['numero'] !== '' ? $l['numero'] : (string)$l['ordre'];
     if ($l['type'] === 'section') { fputcsv($out, [$num, '', mb_strtoupper($l['libelle'])], ';'); continue; }
-    $pu = $fige ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId) : 0));
+    $pu = $fige ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (isset($cat[$l['ligne_id']]) ? prix_catalogue($cat[$l['ligne_id']], $eqId, (float)($b['ajust'] ?? 0)) : 0));
     $q = $l['quantite']; $tot = $q !== null ? $pu * (float)$q : null; if ($tot !== null) $total += $tot;
     fputcsv($out, [$num, $l['code'], $l['libelle'], $l['unite'], $fr($pu), $fr($pu * (1 + $tva / 100)), $q !== null ? $fr($q) : '', $tot !== null ? $fr($tot) : ''], ';');
 }

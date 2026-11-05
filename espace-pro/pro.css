@@ -290,3 +290,7 @@ body.panneau main{padding:14px 18px 30px}body.panneau h1{font-size:1.2rem;margin
 .scroll.fenetre.plein{position:fixed;inset:44px 0 0 0;z-index:900;width:auto!important;height:auto!important;max-height:none!important;max-width:none!important;border-radius:0;resize:none;background:var(--blanc)}
 .tbl-outils.plein{position:fixed;top:0;left:0;right:0;height:44px;z-index:901;background:var(--blanc);border-bottom:1px solid #e0e5da;margin:0;padding:6px 14px}
 body.tbl-plein{overflow:hidden}
+
+/* Curseur d'ajustement des prix d'un bordereau */
+.ajust{grid-column:1/-1}.curseur{display:flex;align-items:center;gap:10px}.curseur input[type=range]{flex:1;margin:0;accent-color:var(--sapin);height:30px;background:linear-gradient(to right,transparent calc(50% - 1px),var(--rouge) calc(50% - 1px),var(--rouge) calc(50% + 1px),transparent calc(50% + 1px)) no-repeat center/100% 14px}
+.curseur span{font-size:.8rem;color:var(--doux);white-space:nowrap}.curseur output{font-weight:900;min-width:64px;text-align:right;color:var(--sapin)}

@@ -46,7 +46,7 @@ function assistant_contexte(?int $bordereauId): string {
             $bl = []; $catParId = []; foreach (q("SELECT * FROM bpu_lignes") as $c) $catParId[$c['id']] = $c;
             foreach (q("SELECT * FROM bordereau_lignes WHERE bordereau_id = ? ORDER BY ordre, id", [$bordereauId]) as $l) {
                 if ($l['type'] === 'section') { $bl[] = "## " . ($l['numero'] ?: $l['ordre']) . " {$l['libelle']}"; continue; }
-                $pu = $b['statut'] === 'fige' ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (isset($catParId[$l['ligne_id']]) ? prix_catalogue($catParId[$l['ligne_id']], $eq ? (int)$eq['id'] : null) : 0));
+                $pu = $b['statut'] === 'fige' ? (float)$l['pu_fige'] : ($l['pu_manuel'] !== null ? (float)$l['pu_manuel'] : (isset($catParId[$l['ligne_id']]) ? prix_catalogue($catParId[$l['ligne_id']], $eq ? (int)$eq['id'] : null, (float)($b['ajust'] ?? 0)) : 0));
                 $bl[] = "(id {$l['id']}) " . ($l['numero'] ?: $l['ordre']) . " {$l['code']} | {$l['libelle']} | {$l['unite']} | qté " . ($l['quantite'] ?? '—') . " | PU $pu" . ($l['pu_manuel'] !== null ? ' (imposé)' : '') . ($l['ligne_id'] ? " | catalogue #{$l['ligne_id']}" : ' | sans prestation');
             }
             $lignes[] = "Bordereau ouvert #{$b['id']} « {$b['nom']} » (" . ($b['client'] ?: 'client non renseigné') . ", statut {$b['statut']}, équipe : " . ($eq['nom'] ?? '—') . ") :\n" . implode("\n", $bl);

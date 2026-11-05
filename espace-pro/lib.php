@@ -74,6 +74,7 @@ function migrate(): void {
         ['utilisateurs', 'version_vue', "ALTER TABLE utilisateurs ADD COLUMN version_vue VARCHAR(10) NOT NULL DEFAULT ''"],
         ['ressources', 'role', "ALTER TABLE ressources ADD COLUMN role VARCHAR(10) NOT NULL DEFAULT ''"],
         ['bordereaux', 'equipe_id', "ALTER TABLE bordereaux ADD COLUMN equipe_id INT NULL"],
+        ['bordereaux', 'ajust', "ALTER TABLE bordereaux ADD COLUMN ajust DECIMAL(6,2) NOT NULL DEFAULT 0"],
         ['bpu_lignes', 'base_id', "ALTER TABLE bpu_lignes ADD COLUMN base_id INT NULL"],
         ['bordereau_lignes', 'numero', "ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre"],
     ];
@@ -234,10 +235,12 @@ function taux_courants(?int $equipeId = null): array {
     return $t;
 }
 function temps_par_ligne(): array { static $t = null; if ($t === null) { $t = []; foreach (q("SELECT * FROM bpu_temps") as $x) $t[$x['ligne_id']][$x['ressource_id']] = (float)$x['heures']; } return $t; }
-function prix_catalogue(array $ligne, ?int $equipeId = null): float {
-    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'], (float)setting('coef', '1'), (float)setting('arrondi', '1'));
+function prix_catalogue(array $ligne, ?int $equipeId = null, float $ajust = 0): float { // $ajust : % appliqué à tout un bordereau (curseur), en plus du coefficient général
+    $p = prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'], (float)setting('coef', '1') * (1 + $ajust / 100), (float)setting('arrondi', '1'));
     return $p['pu'];
 }
+/** Prix brut (avant arrondi) d'une ligne du catalogue, pour l'ajustement en direct dans le bordereau */
+function prix_catalogue_brut(array $ligne, ?int $equipeId = null): float { return prix_ligne(temps_par_ligne()[$ligne['id']] ?? [], taux_courants($equipeId), (float)$ligne['forfait'], (float)setting('coef', '1'), (float)setting('arrondi', '1'))['brut']; }
 /** Importe le catalogue de démarrage (lignes + packs), sans doublon sur le code. Retourne [lignes ajoutées, packs ajoutés]. */
 function importer_catalogue(): array {
     $data = require __DIR__ . '/catalogue_data.php';

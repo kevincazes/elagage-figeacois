@@ -38,16 +38,18 @@ $xCong = $tout ? $li(q("SELECT c.*, p.prenom FROM conges c JOIN personnel p ON p
 $xBord = $li(q("SELECT * FROM bordereaux ORDER BY cree_le DESC LIMIT 6")->fetchAll(), fn($b) => e($b['nom']) . ($b['client'] ? ' <span class="muted">' . e($b['client']) . '</span>' : ''), 'Aucun bordereau');
 $xContrats = $tout ? $li(q("SELECT c.* FROM contrats c WHERE c.statut = 'signe' ORDER BY c.id DESC LIMIT 6")->fetchAll(), fn($c) => e($c['client_nom']) . ($c['objet'] ? ' <span class="muted">' . e($c['objet']) . '</span>' : ''), 'Aucun contrat signé') : '';
 $ic = fn(string $n) => '<svg class="pi"><use href="#pi-' . $n . '"/></svg>';
-$w('planning', 'Chantiers', 'planning.php', (string)$nbAuj, "intervention(s) aujourd'hui", 'Planning des chantiers et rendez-vous', false, '', $xPlanning);
-$w('mon_planning', 'Chantiers', 'mon-planning.php', $moiPl ? (string)$nbMoi : $ic('route'), $moiPl ? 'dans mon planning (7 jours)' : 'Mon planning', 'Mes chantiers, adresses et itinéraires', false, '', $xMoi);
-if ($tout) $w('a_planifier', 'Chantiers', 'planning.php?vue=liste', (string)$nbAPl, 'à planifier', 'Devis signés et visites en attente de date', false, '', $xAPl);
-if ($tout) $w('charge', 'Chantiers', 'charge.php', $ic('clipboard'), 'Tableau de charge', "Statuts, chiffre d'affaires planifié, occupation");
-if ($tout) $w('contrats', 'Chantiers', 'contrats.php', (string)(int)q("SELECT COUNT(*) c FROM contrats WHERE statut = 'signe'")->fetch()['c'], "contrats d'entretien", 'Signature en ligne, passages automatiques', false, '', $xContrats);
-$w('materiel', 'Chantiers', 'materiel.php', (string)count(array_filter(materiel_echeances(), fn($x) => $x['retard'])), 'matériel : retard(s)', 'Contrôles, entretiens, pannes', false, '', $xMat);
-if ($tout) $w('livrets', 'Chantiers', 'livret.php', (string)count(livret_echeances(90)), 'habilitation(s) à renouveler (90 j)', 'Livrets du personnel : SST, CACES, formations', false, '', $xLiv); else $w('mon_livret', 'Chantiers', 'livret.php', $ic('doc'), 'Mon livret', 'Mes titres, habilitations et formations');
-$w('clients', 'Chantiers', 'clients.php', (string)(int)q("SELECT COUNT(*) c FROM clients WHERE actif = 1")->fetch()['c'], 'clients', 'Contacts, adresses, porte-doc', false, '', $xCli);
-$w('conges', 'Chantiers', 'conges.php', $tout ? (string)(int)q("SELECT COUNT(*) c FROM conges WHERE statut = 'demande'")->fetch()['c'] : $ic('calendar'), $tout ? 'demande(s) de congés' : 'Mes congés', $tout ? 'Demander, valider, poser au planning' : 'Demander un congé, voir mes absences', false, '', $xCong);
-if ($tout) $w('platanes', 'Chantiers', 'phyto.php', $ic('tree'), 'Chantiers platanes', 'Registre DRAAF, passeports');
+$w('planning', 'Planning', 'planning.php', (string)$nbAuj, "intervention(s) aujourd'hui", 'Planning des chantiers et rendez-vous', false, '', $xPlanning);
+$w('mon_planning', 'Planning', 'mon-planning.php', $moiPl ? (string)$nbMoi : $ic('route'), $moiPl ? 'dans mon planning (7 jours)' : 'Mon planning', 'Mes chantiers, adresses et itinéraires', false, '', $xMoi);
+if ($tout) $w('a_planifier', 'Planning', 'planning.php?vue=liste', (string)$nbAPl, 'à planifier', 'Devis signés et visites en attente de date', false, '', $xAPl);
+if ($tout) $w('charge', 'Planning', 'charge.php', $ic('clipboard'), 'Tableau de charge', "Statuts, chiffre d'affaires planifié, occupation");
+if ($tout) $w('contrats', 'Clients', 'contrats.php', (string)(int)q("SELECT COUNT(*) c FROM contrats WHERE statut = 'signe'")->fetch()['c'], "contrats d'entretien", 'Signature en ligne, passages automatiques', false, '', $xContrats);
+$w('materiel', 'Materiel', 'materiel.php', (string)count(array_filter(materiel_echeances(), fn($x) => $x['retard'])), 'matériel : retard(s)', 'Contrôles, entretiens, pannes', false, '', $xMat);
+if ($tout) $w('livrets', 'Personnel', 'livret.php', (string)count(livret_echeances(90)), 'habilitation(s) à renouveler (90 j)', 'Livrets du personnel : SST, CACES, formations', false, '', $xLiv); else $w('mon_livret', 'Personnel', 'livret.php', $ic('doc'), 'Mon livret', 'Mes titres, habilitations et formations');
+$w('clients', 'Clients', 'clients.php', (string)(int)q("SELECT COUNT(*) c FROM clients WHERE actif = 1")->fetch()['c'], 'clients', 'Contacts, adresses, porte-doc', false, '', $xCli);
+$w('conges', 'Personnel', 'conges.php', $tout ? (string)(int)q("SELECT COUNT(*) c FROM conges WHERE statut = 'demande'")->fetch()['c'] : $ic('calendar'), $tout ? 'demande(s) de congés' : 'Mes congés', $tout ? 'Demander, valider, poser au planning' : 'Demander un congé, voir mes absences', false, '', $xCong);
+if ($tout) $w('platanes', 'Planning', 'phyto.php', $ic('tree'), 'Chantiers platanes', 'Registre DRAAF, passeports');
+$w('materiel_parc', 'Materiel', 'materiel.php', (string)(int)q("SELECT COUNT(*) c FROM materiel WHERE actif = 1")->fetch()['c'], 'machines au parc', 'Fiches, contrôles, entretiens, carnet');
+if ($tout) $w('planning_ressources', 'Planning', 'planning-ressources.php', $ic('users'), 'Personnel, matériel, équipes', 'Compétences, équipes, secteurs, réglages des tournées');
 if (acces_chiffrage()) {
     $w('catalogue', 'Chiffrage', 'bpu.php', (string)$nbLignes, 'prestations au catalogue', 'Temps, taux, prix de référence');
     $w('importer', 'Chiffrage', 'importer.php', $ic('upload'), 'Importer un bordereau reçu', 'Le BPU / DQE de la collectivité, chiffré automatiquement');
@@ -60,14 +62,14 @@ foreach ($liens as [$n, $url, $d, $icn]) $w('lien_' . strtolower(preg_replace('/
 try { db()->exec("ALTER TABLE utilisateurs ADD COLUMN tdb TEXT NULL"); } catch (Throwable $t) {}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tdb') {
     $in = json_decode((string)($_POST['prefs'] ?? ''), true) ?: []; $ordre = array_values(array_filter((array)($in['ordre'] ?? []), fn($k) => isset($W[$k]))); $masques = array_values(array_filter((array)($in['masques'] ?? []), fn($k) => isset($W[$k])));
-    $tailles = []; foreach ((array)($in['tailles'] ?? []) as $k => $v) if (isset($W[$k]) && in_array($v, ['l', 'xl'], true)) $tailles[$k] = $v; $groupes = array_values(array_filter((array)($in['groupes'] ?? []), fn($g) => in_array($g, ['Chantiers', 'Chiffrage', 'Outils'], true)));
+    $tailles = []; foreach ((array)($in['tailles'] ?? []) as $k => $v) if (isset($W[$k]) && in_array($v, ['l', 'xl'], true)) $tailles[$k] = $v; $groupes = array_values(array_filter((array)($in['groupes'] ?? []), fn($g) => in_array($g, ['Planning', 'Clients', 'Materiel', 'Personnel', 'Chiffrage', 'Outils'], true)));
     q("UPDATE utilisateurs SET tdb = ? WHERE id = ?", [json_encode(['ordre' => $ordre, 'masques' => $masques, 'tailles' => $tailles, 'groupes' => $groupes]), user()['id']]); header('Content-Type: application/json'); echo '{"ok":1}'; exit;
 }
 $prefs = json_decode((string)(q("SELECT tdb FROM utilisateurs WHERE id = ?", [user()['id']])->fetch()['tdb'] ?? ''), true) ?: [];
 $ordre = array_values(array_filter((array)($prefs['ordre'] ?? []), fn($k) => isset($W[$k]))); foreach (array_keys($W) as $k) if (!in_array($k, $ordre, true)) $ordre[] = $k;
 $masques = array_values(array_filter((array)($prefs['masques'] ?? []), fn($k) => isset($W[$k])));
 $tailles = array_filter((array)($prefs['tailles'] ?? []), fn($v, $k) => isset($W[$k]) && in_array($v, ['l', 'xl'], true), ARRAY_FILTER_USE_BOTH);
-$GROUPES = ['Chantiers' => 'Chantiers et agenda', 'Chiffrage' => 'Chiffrage', 'Outils' => "Outils de l'entreprise"];
+$GROUPES = ['Planning' => 'Planning', 'Clients' => 'Clients', 'Materiel' => 'Matériel', 'Personnel' => 'Personnel', 'Chiffrage' => 'Chiffrage', 'Outils' => "Outils de l'entreprise"];
 $gOrdre = array_values(array_filter((array)($prefs['groupes'] ?? []), fn($g) => isset($GROUPES[$g]))); foreach (array_keys($GROUPES) as $g) if (!in_array($g, $gOrdre, true)) $gOrdre[] = $g;
 page_start('Tableau de bord', 'index.php');
 ?>
