@@ -4,14 +4,14 @@ declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
 require_admin();
 planning_migrate();
-const SECRETS = ['ovh_app_secret', 'ovh_consumer_key', 'pl_token', 'urgence_cle'];
+const SECRETS = ['ovh_app_secret', 'ovh_consumer_key', 'pl_token', 'urgence_cle', 'xb_cle'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';
     $champs = ['entreprise' => ['ent_nom', 'ent_tel', 'ent_email', 'ent_adresse', 'ent_mentions'],
                'sms' => ['ovh_app_key', 'ovh_app_secret', 'ovh_consumer_key', 'ovh_sms_service', 'sms_expediteur'],
                'avis' => ['avis_lien', 'avis_delai', 'avis_canal'],
                'pennylane' => ['pl_token', 'pl_echeance', 'pl_tva'],
-               'urgence' => ['urgence_api', 'urgence_cle']][$a] ?? [];
+               'urgence' => ['urgence_api', 'urgence_cle'], 'extrabat' => ['xb_api', 'xb_cle', 'xb_auth', 'xb_entete']][$a] ?? [];
     foreach ($champs as $k) { if (!isset($_POST[$k])) continue; $v = trim((string)$_POST[$k]); if (in_array($k, SECRETS, true) && $v === '') continue; set_setting($k, $v); }
     $cases = ['sms' => ['sms_actif', 'sms_proposition', 'sms_rappel', 'sms_avis', 'sms_contrat'], 'avis' => ['avis_actif'], 'notifications' => ['push_actif'], 'pennylane' => ['pl_mandat_auto']][$a] ?? [];
     foreach ($cases as $k) set_setting($k, !empty($_POST[$k]) ? '1' : '0');
@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($a === 'sms_test') { $m = sms_envoyer((string)($_POST['tel'] ?? ''), setting('ent_nom') . ' : SMS de test de l\'espace pro.', null, 'test'); flash($m === '' ? 'SMS de test envoyé.' : "Échec : $m", $m === '' ? 'ok' : 'err'); }
     if ($a === 'pl_test') { [$c, $j, $t] = pl_api('GET', '/customers', null, ['limit' => 1]); flash($c === 200 ? 'Pennylane répond : connexion OK.' : "Pennylane refuse (HTTP $c) : " . pl_erreur($j, $t), $c === 200 ? 'ok' : 'err'); }
     if ($a === 'urgence_test') { $n = urgence_sync(true); flash(setting('urgence_cle') === '' ? 'Renseigne la clé.' : "Urgence Élagage : " . setting('urgence_etat') . " – $n intervention(s) reprise(s).", str_starts_with(setting('urgence_etat'), 'OK') ? 'ok' : 'err'); }
+    if ($a === 'xb_test') { [$c, $corps, $m] = xb_appel((string)($_POST['chemin'] ?? '/')); set_setting('xb_dernier_test', mb_substr(date('d/m/Y H:i') . " – " . ($_POST['chemin'] ?? '/') . " → " . ($c ?: 'échec') . ($m ? " ($m)" : '') . "\n\n" . $corps, 0, 6000)); flash($c >= 200 && $c < 300 ? "Extrabat répond (HTTP $c) : voir la réponse ci-dessous." : "Extrabat : " . ($c ?: 'pas de réponse') . ($m ? " – $m" : ''), $c >= 200 && $c < 300 ? 'ok' : 'err'); }
     if ($a === 'push_test') { notifier([(int)user()['id']], 'Notification de test', 'Si tu lis ceci sur ton téléphone, tout fonctionne.', 'notifications.php'); flash('Notification de test envoyée à tes appareils (' . (int)q("SELECT COUNT(*) c FROM push_abonnements WHERE utilisateur_id = ?", [user()['id']])->fetch()['c'] . ').'); }
     if ($champs || $cases) flash('Réglages enregistrés.');
     redirect('reglages-planning.php#' . $a);
@@ -29,7 +30,7 @@ $chk = fn(string $k) => '<input type="checkbox" name="' . $k . '" value="1" styl
 page_start('Réglages du planning', 'reglages-planning.php', ['planning.php', 'Planning']);
 ?>
 <p class="lead">Tout ce qui part vers l'extérieur (SMS, avis, factures) est désactivé tant que tu ne l'actives pas ici.</p>
-<p><a class="mini" href="#entreprise">Entreprise</a> <a class="mini" href="#sms">SMS</a> <a class="mini" href="#avis">Avis Google</a> <a class="mini" href="#notifications">Notifications</a> <a class="mini" href="#pennylane">Pennylane / GoCardless</a> <a class="mini" href="#urgence">Urgence Élagage</a></p>
+<p><a class="mini" href="#entreprise">Entreprise</a> <a class="mini" href="#sms">SMS</a> <a class="mini" href="#avis">Avis Google</a> <a class="mini" href="#notifications">Notifications</a> <a class="mini" href="#pennylane">Pennylane / GoCardless</a> <a class="mini" href="#urgence">Urgence Élagage</a> <a class="mini" href="#extrabat">Extrabat</a></p>
 
 <form method="post" class="card" id="entreprise"><?= csrf_field() ?><input type="hidden" name="action" value="entreprise"><h2 style="margin-top:0">Entreprise (en-tête et pied des PDF, e-mails)</h2>
   <div class="cols"><label>Nom <input name="ent_nom" value="<?= $s('ent_nom') ?>"></label><label>Téléphone <input name="ent_tel" value="<?= $s('ent_tel') ?>"></label><label>E-mail (copie des rapports et contrats) <input name="ent_email" value="<?= $s('ent_email') ?>"></label></div>
@@ -70,4 +71,12 @@ page_start('Réglages du planning', 'reglages-planning.php', ['planning.php', 'P
   <p class="muted small">Clé à créer dans Urgence Élagage › Administration › Entreprise › Intégrations (droit « lecture »). Les interventions d'urgence prises en charge ou programmées apparaissent au planning et bloquent l'équipe concernée ; le planning affiche qui est d'astreinte. Dans l'autre sens, colle le « lien agenda » de chaque salarié (Planning › Personnel) dans son compte Urgence Élagage (agenda externe) : ses chantiers comptent alors dans sa disponibilité d'astreinte.<br>État : <?= $s('urgence_etat', 'jamais synchronisé') ?></p>
   <button class="btn">Enregistrer</button></form>
 <form method="post" style="margin:-6px 0 18px"><?= csrf_field() ?><input type="hidden" name="action" value="urgence_test"><button class="mini">Synchroniser maintenant</button></form>
+
+<form method="post" class="card" id="extrabat"><?= csrf_field() ?><input type="hidden" name="action" value="extrabat"><h2 style="margin-top:0">Extrabat (exploration de l'API)</h2>
+  <div class="cols"><label>Adresse de l'API <input name="xb_api" value="<?= $s('xb_api') ?>" placeholder="https://… (donnée par Extrabat)"></label><label>Clé d'API (User API Key) <?= $secret('xb_cle') ?><input name="xb_cle" type="password" autocomplete="new-password"></label></div>
+  <div class="cols"><label>Envoi de la clé <select name="xb_auth"><?php foreach (['bearer' => 'En-tête Authorization: Bearer <clé>', 'entete' => 'En-tête personnalisé (nom ci-contre)', 'basic' => 'Authentification Basic (clé comme mot de passe)', 'param' => 'Paramètre d\'adresse (?nom=clé)'] as $k => $l): ?><option value="<?= $k ?>" <?= setting('xb_auth', 'bearer') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></label><label>Nom de l'en-tête ou du paramètre <input name="xb_entete" value="<?= $s('xb_entete', 'X-API-KEY') ?>"></label></div>
+  <p class="muted small">Sert à tester ce que l'API Extrabat accepte (devis, clients, agenda) avant d'automatiser la reprise des devis. Rien n'est envoyé à Extrabat en dehors du bouton « Tester ». La clé reste sur le serveur.</p>
+  <button class="btn">Enregistrer</button></form>
+<form method="post" class="inline" style="margin:-6px 0 8px"><?= csrf_field() ?><input type="hidden" name="action" value="xb_test"><input name="chemin" value="<?= e($_GET['chemin'] ?? '/') ?>" placeholder="/chemin à appeler (ex. /devis, /clients, /me)" style="min-width:260px"><button class="mini">Tester l'appel</button></form>
+<?php if (setting('xb_dernier_test') !== ''): ?><pre class="card" style="white-space:pre-wrap;word-break:break-all;font-size:.78rem;max-height:420px;overflow:auto;margin-bottom:18px"><?= e(setting('xb_dernier_test')) ?></pre><?php endif; ?>
 <?php page_end(); ?>

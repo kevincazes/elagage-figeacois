@@ -785,3 +785,21 @@ function agendas_bloc(array $personnes, bool $choixPersonne): string {
     $h .= '<input name="nom" placeholder="Nom (ex. Perso, Google)" style="max-width:170px"><input name="url" placeholder="https://… ou webcal://… (adresse iCal / .ics)" required style="min-width:280px;flex:1"><input type="color" name="couleur" value="#9aa5b1" title="Couleur" style="width:44px;padding:2px"><label class="small" style="display:inline-flex;gap:4px;align-items:center;margin:0"><input type="checkbox" name="prive" value="1" style="width:auto;margin:0"> masquer les titres (afficher « Occupé »)</label><button class="btn">Ajouter</button></form>';
     return $h;
 }
+
+// ---------- Extrabat : appel brut d'exploration (adresse, clé et mode d'authentification réglés dans Réglages) ----------
+function xb_appel(string $chemin, string $methode = 'GET', ?array $corps = null): array { // [code HTTP, corps (texte), message]
+    $base = rtrim(setting('xb_api'), '/'); $cle = setting('xb_cle'); if ($base === '' || $cle === '') return [0, '', "Renseigne l'adresse de l'API et la clé."];
+    if (!preg_match('#^https://#i', $base)) return [0, '', "L'adresse doit commencer par https://"];
+    $chemin = '/' . ltrim(trim($chemin), '/'); if (preg_match('/[\s<>"]/', $chemin)) return [0, '', 'Chemin invalide.'];
+    $url = $base . $chemin; $h = ['Accept: application/json', 'User-Agent: ElagageFigeacois-EspacePro/1.0']; $auth = setting('xb_auth', 'bearer'); $nom = trim(setting('xb_entete', 'X-API-KEY')) ?: 'X-API-KEY';
+    if ($auth === 'bearer') $h[] = 'Authorization: Bearer ' . $cle; elseif ($auth === 'entete') $h[] = "$nom: $cle"; elseif ($auth === 'param') $url .= (str_contains($url, '?') ? '&' : '?') . rawurlencode($nom) . '=' . rawurlencode($cle);
+    if (!function_exists('curl_init')) return [0, '', 'curl indisponible sur le serveur'];
+    $ch = curl_init($url); $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_HTTPHEADER => $h, CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_HEADER => true];
+    if ($auth === 'basic') { $o[CURLOPT_USERPWD] = 'api:' . $cle; }
+    if ($corps !== null) { $o[CURLOPT_POSTFIELDS] = json_encode($corps); $h[] = 'Content-Type: application/json'; $o[CURLOPT_HTTPHEADER] = $h; }
+    curl_setopt_array($ch, $o); $r = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); $ht = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);
+    if ($r === false) return [0, '', $err ?: 'pas de réponse'];
+    $entetes = substr($r, 0, $ht); $txt = substr($r, $ht); $ct = preg_match('/^content-type:\s*(.+)$/mi', $entetes, $m) ? trim($m[1]) : '';
+    if (str_contains($ct, 'json') && ($j = json_decode($txt, true)) !== null) $txt = json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return [$code, "[$ct]\n" . mb_substr($txt, 0, 5000), $code >= 400 ? 'refusé' : ''];
+}
