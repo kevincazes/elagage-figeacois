@@ -67,7 +67,7 @@ switch ($a) {
         try { urgence_sync(); } catch (Throwable $t) {}
         $sortie([
             'secteurs' => secteurs_liste(), 'astreinte' => (function () { try { return urgence_astreinte(); } catch (Throwable $t) { return null; } })(),
-            'evenements' => array_map($masquer, $avecConflits($avecTaches(evt_periode($du, $au)))),
+            'evenements' => array_merge(array_map($masquer, $avecConflits($avecTaches(evt_periode($du, $au)))), (function () use ($du, $au) { try { return externes_periode($du, $au); } catch (Throwable $t) { return []; } })()),
             'pictos' => array_values(pictos_liste()), 'mes_taches' => mes_taches(),
             'a_planifier' => planning_niveau() === 'tout' ? $avecTaches(q("SELECT * FROM evenements WHERE statut = 'a_planifier' ORDER BY priorite DESC, cree_le")->fetchAll()) : [],
             'personnel' => personnel_liste(), 'materiel' => materiel_liste(), 'equipes' => equipes_liste(), 'alertes' => planning_niveau() === 'tout' ? planning_alertes() : [],

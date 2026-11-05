@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else q("UPDATE secteurs SET nom = ?, couleur = ?, lat = ?, lng = ?, rayon_km = ?, jours = ?, actif = ? WHERE id = ?", array_merge($v, [(int)$sid]));
         }
         flash('Secteurs enregistrés.'); redirect('planning-ressources.php#secteurs');
+    } elseif ($a === 'agenda') { $m = agendas_post(null); if ($m !== null) flash($m, str_contains($m, 'impossible') || str_contains($m, 'invalide') ? 'err' : 'ok'); redirect('planning-ressources.php#agendas');
     } elseif ($a === 'reglages') {
         foreach (['planning_debut', 'planning_fin'] as $k) if (preg_match('/^\d{1,2}:\d{2}$/', $_POST[$k] ?? '')) set_setting($k, $_POST[$k]);
         foreach (['planning_vitesse' => [15, 120], 'planning_facteur' => [1, 2], 'planning_vent' => [20, 150]] as $k => [$mi, $ma]) set_setting($k, (string)min($ma, max($mi, nb($_POST[$k] ?? $mi))));
@@ -132,6 +133,8 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
 <?php if ($q['id'] !== 'nouveau'): ?><form id="eqs<?= $q['id'] ?>" method="post" onsubmit="return confirm('Retirer cette équipe ?')"><?= csrf_field() ?><input type="hidden" name="action" value="equipe_suppr"><input type="hidden" name="id" value="<?= $q['id'] ?>"></form><?php endif; ?>
 <?php endforeach; ?>
 </div>
+
+<section class="card" id="agendas"><?= agendas_bloc(array_values(array_filter($pers, fn($p) => (int)$p['actif'])), true) ?></section>
 
 <h2 id="secteurs">Journées secteur</h2>
 <p class="muted">Regroupe les visites par zone : un secteur = un point central (une commune) et un rayon. Si tu lui donnes des jours (ex. Lot nord le mardi), « Trouver un créneau » propose en priorité ces jours-là pour les visites de la zone, et évite d'y mettre des visites d'ailleurs.</p>

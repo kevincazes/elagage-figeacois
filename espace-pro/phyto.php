@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
 require_planning();
 $gere = planning_niveau() === 'tout';
+$bureau = in_array(user()['role'] ?? '', ['admin', 'secretaire'], true); // réglages : administration et secrétariat seulement
 // ---- Passeport d'un chantier (écran plein ou PDF) : accessible aux participants
 if (!empty($_GET['passeport'])) {
     $e = evt_charger((int)$_GET['passeport']); if (!$e || !(int)$e['phyto']) { http_response_code(404); page_start('Passeport', 'planning.php'); echo '<p class="lead">Ce chantier n\'est pas un chantier platane : coche « Chantier sur platane » dans sa fiche.</p>'; page_end(); exit; }
@@ -37,7 +38,7 @@ if (isset($_GET['export'])) {
     header("Content-Type: $type"); header("Content-Disposition: attachment; filename=\"$nomF\""); echo $data; exit;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (($_POST['action'] ?? '') === 'reglages' && est_admin()) { set_setting('phyto_inupp', trim($_POST['phyto_inupp'] ?? '')); set_setting('phyto_produit', trim($_POST['phyto_produit'] ?? '')); set_setting('phyto_zones', trim($_POST['phyto_zones'] ?? '')); set_setting('phyto_responsables', trim($_POST['phyto_responsables'] ?? '')); flash('Réglages enregistrés.'); }
+    if (($_POST['action'] ?? '') === 'reglages' && $bureau) { set_setting('phyto_inupp', trim($_POST['phyto_inupp'] ?? '')); set_setting('phyto_produit', trim($_POST['phyto_produit'] ?? '')); set_setting('phyto_zones', trim($_POST['phyto_zones'] ?? '')); set_setting('phyto_responsables', trim($_POST['phyto_responsables'] ?? '')); flash('Réglages enregistrés.'); }
     redirect("phyto.php?an=$an");
 }
 $l = phyto_registre($du, $au, $client);
@@ -66,7 +67,7 @@ page_start('Chantiers platanes', 'planning.php', ['planning.php', 'Planning']);
 <li>Élagueur professionnel : enregistrement au registre des opérateurs (n° <?= e(setting('phyto_inupp')) ?>) et passeport phytosanitaire pour le bois et les écorces de platane mis en circulation, y compris vers une déchèterie (art. 21).</li>
 <li>En zone délimitée : déclaration préalable à la DRAAF au moins 15 jours ouvrés avant les travaux et désinfection entre chaque platane (art. 19) ; produits d'abattage incinérés sur place sauf dérogation (art. 14).</li>
 <li>Suspicion de chancre coloré : stopper le chantier et signaler à la DRAAF — <a href="https://draaf.occitanie.agriculture.gouv.fr/signaler-un-organisme-nuisible-aux-vegetaux-a9380.html" target="_blank" rel="noopener">formulaire de signalement ↗</a> · <a href="https://draaf.occitanie.agriculture.gouv.fr/chancre-colore-du-platane" target="_blank" rel="noopener">carte des zones délimitées ↗</a>.</li></ul>
-<?php if (est_admin()): ?>
+<?php if ($bureau): ?>
 <form method="post" class="card"><?= csrf_field() ?><input type="hidden" name="action" value="reglages"><h2 style="margin-top:0">Réglages</h2>
   <div class="cols"><label>Numéro d'enregistrement professionnel (code B) <input name="phyto_inupp" value="<?= e(setting('phyto_inupp')) ?>"></label><label>Produit de désinfection habituel <input name="phyto_produit" value="<?= e(setting('phyto_produit')) ?>"></label><label>Responsable(s) phytosanitaire(s) <input name="phyto_responsables" value="<?= e(setting('phyto_responsables')) ?>" placeholder="Taurand / Cazes Bouchet"></label></div>
   <label>Communes en zone délimitée (une par ligne, nom ou code postal) — annexe de l'arrêté préfectoral <textarea name="phyto_zones" rows="5" placeholder="Carcassonne&#10;Nîmes&#10;… (le Lot, l'Aveyron, le Cantal et la Corrèze ne sont pas concernés par l'arrêté du 24/07/2025)"><?= e(setting('phyto_zones')) ?></textarea></label>

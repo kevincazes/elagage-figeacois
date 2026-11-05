@@ -63,6 +63,7 @@ main.large{max-width:none}
 .alerte-ic{display:inline-block;background:#fff;color:#c0392b;border-radius:50%;width:15px;height:15px;font-size:.7rem;line-height:15px;text-align:center;font-weight:900;margin-right:3px}
 .meteo{font-size:.72rem;opacity:.95}.meteo.fort{color:#ffd43b;font-weight:900}
 .leaflet-control-locate{width:34px;height:34px;line-height:34px;text-align:center;font-size:1.15rem;background:#fff;text-decoration:none;display:block}.leaflet-control-locate.attente{opacity:.5;animation:clig 1s infinite}@keyframes clig{50%{opacity:1}}
+.evt.externe,.puce.externe{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 5px,transparent 5px 10px);cursor:default}
 .pictos{font-size:.85rem;letter-spacing:1px;margin-right:3px;line-height:1}.badge-t{display:inline-block;font-size:.68rem;font-weight:800;background:rgba(255,255,255,.9);color:#444;border-radius:9px;padding:0 5px;margin-left:3px;vertical-align:middle}.badge-t.retard{background:#e6332a;color:#fff}.badge-t.ok{color:#5a7a1e}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;align-items:center;gap:4px;border:1px solid #d9dfd2;border-radius:16px;padding:3px 9px 3px 6px;font-size:.82rem;cursor:pointer;background:#fff}.chips label:has(input:checked){background:#eef3e4;border-color:var(--vert,#8caa31);font-weight:700}.chips input{width:auto!important;margin:0!important}
 .lst{list-style:none;margin:0;padding:0}.lst li{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed #e4e8de;font-size:.88rem}.lst li.fait span.l{text-decoration:line-through;opacity:.6}.lst li .l{flex:1;min-width:0}.lst li .qui{font-size:.75rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:18px!important;height:18px;margin:0!important}.lst .x{background:none;border:0;color:#999;cursor:pointer;font-size:1rem;padding:0 4px}.lst .x:hover{color:#e6332a}
@@ -154,12 +155,13 @@ main.large{max-width:none}
 <script src="assets/leaflet/leaflet.js"></script>
 <script>
 const CSRF = <?= json_encode(csrf()) ?>;
-const TYPES = <?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, STATUTS = <?= json_encode(STATUTS_EVT, JSON_UNESCAPED_UNICODE) ?>;
+const TYPES = Object.assign(<?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, {externe: ['Autre agenda', '#9aa5b1']}), STATUTS = <?= json_encode(STATUTS_EVT, JSON_UNESCAPED_UNICODE) ?>;
 const COMPS = <?= json_encode(COMPETENCES, JSON_UNESCAPED_UNICODE) ?>, TMAT = <?= json_encode(TYPES_MAT, JSON_UNESCAPED_UNICODE) ?>;
 const BORDS = <?= json_encode($bords, JSON_UNESCAPED_UNICODE) ?>, PL = <?= pennylane_pret() && planning_niveau() === 'tout' ? 'true' : 'false' ?>, NOUV_CLIENT = <?= json_encode($nouvClient, JSON_UNESCAPED_UNICODE) ?>;
 const JOURS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'], MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const H0 = 7, H1 = 20, PXH = 44; // grille horaire : 7 h à 20 h, 44 px par heure
 let S = {vue: localStorage.getItem('pl_vue') || (innerWidth < 760 ? 'liste' : 'semaine'), ref: new Date(), data: null, types: JSON.parse(localStorage.getItem('pl_types') || 'null') || Object.keys(TYPES), pers: ''};
+try { if (!localStorage.getItem('pl_types_x')) { if (!S.types.includes('externe')) S.types.push('externe'); localStorage.setItem('pl_types_x', '1'); } } catch (e) {}
 try { const u = new URLSearchParams(location.search); if (u.get('jour')) S.ref = new Date(u.get('jour') + 'T12:00'); if (u.get('vue')) S.vue = u.get('vue'); } catch (e) {}
 
 // ---------- outils ----------
@@ -177,11 +179,11 @@ async function api(a, params = {}, corps = null) {
   if (j.erreur) throw new Error(j.erreur); return j;
 }
 function toast(m, err) { const t = document.createElement('div'); t.className = 'flash ' + (err ? 'err' : 'ok'); t.textContent = m; Object.assign(t.style, {position: 'fixed', left: '50%', bottom: '24px', transform: 'translateX(-50%)', zIndex: 90, maxWidth: '90vw', boxShadow: '0 6px 20px rgba(0,0,0,.2)'}); document.body.appendChild(t); setTimeout(() => t.remove(), 4200); }
-const couleur = e => TYPES[e.type] ? TYPES[e.type][1] : '#666';
+const couleur = e => e.externe ? (e.couleur || '#9aa5b1') : (TYPES[e.type] ? TYPES[e.type][1] : '#666');
 const persNom = id => { const p = (S.data?.personnel || []).find(x => +x.id === +id); return p ? p.prenom : '?'; };
 const matNom = id => { const m = (S.data?.materiel || []).find(x => +x.id === +id); return m ? m.nom : '?'; };
 // Droits : consultation de tous les agendas ; modification si toutes les personnes concernées sont autorisées
-const peutModif = e => { const d = S.data?.droits; if (!d) return false; if (d.modifiables === null) return true; return e.personnel.length > 0 && e.personnel.every(p => d.modifiables.includes(+p)); };
+const peutModif = e => { if (e.externe) return false; const d = S.data?.droits; if (!d) return false; if (d.modifiables === null) return true; return e.personnel.length > 0 && e.personnel.every(p => d.modifiables.includes(+p)); };
 const toutDroit = () => S.data?.droits?.niveau === 'tout';
 // Matériel lié : outils montés sur un même porteur = une seule machine
 const racineMat = id => { let m = (S.data?.materiel || []).find(x => +x.id === +id), n = 0; while (m && m.porteur_id && n++ < 10) m = S.data.materiel.find(x => +x.id === +m.porteur_id) || null; return m ? +m.id : +id; };
@@ -264,7 +266,7 @@ function vueSemaine() {
     const c0 = Math.max(0, Math.round((new Date(ymd(d0)) - new Date(ymd(du))) / 864e5)), c1 = Math.min(6, Math.round((new Date(ymd(d1)) - new Date(ymd(du))) / 864e5));
     if (c1 < 0 || c0 > 6) return;
     let l = 0; while ((lignes[l] || []).some(([a, b]) => !(c1 < a || c0 > b))) l++; (lignes[l] = lignes[l] || []).push([c0, c1]);
-    const x = document.createElement('div'); x.className = 'puce ' + e.statut; x.style.cssText = `position:absolute;left:calc(52px + (100% - 52px) * ${c0} / 7 + 2px);width:calc((100% - 52px) * ${c1 - c0 + 1} / 7 - 6px);top:${3 + l * 26}px;margin:0;background:${couleur(e)}`;
+    const x = document.createElement('div'); x.className = 'puce ' + e.statut + (e.externe ? ' externe' : ''); x.style.cssText = `position:absolute;left:calc(52px + (100% - 52px) * ${c0} / 7 + 2px);width:calc((100% - 52px) * ${c1 - c0 + 1} / 7 - 6px);top:${3 + l * 26}px;margin:0;background:${couleur(e)}`;
     x.innerHTML = titreEvt(e) + (e.personnel.length ? ' · <span style="opacity:.85">' + e.personnel.map(persNom).join(', ') + '</span>' : ''); x.title = infoBulle(e); x.dataset.id = e.id;
     bande.appendChild(x); glisserJour(x, e, d => { const n = Math.round((d - new Date(ymd(d0))) / 864e5); return n; });
   });
@@ -276,7 +278,7 @@ function vueSemaine() {
     const voies = []; du2.forEach(e => { let v = 0; while ((voies[v] || 0) > parse(e.debut)) v++; voies[v] = parse(e.fin); e._v = v; });
     du2.forEach(e => {
       const a = parse(e.debut), b = parse(e.fin), top = Math.max(0, (a.getHours() + a.getMinutes() / 60 - H0) * PXH), ht = Math.max(20, (b - a) / 36e5 * PXH - 2), nv = Math.max(1, voies.length);
-      const x = document.createElement('div'); x.className = 'evt ' + e.statut; x.dataset.id = e.id;
+      const x = document.createElement('div'); x.className = 'evt ' + e.statut + (e.externe ? ' externe' : ''); x.dataset.id = e.id;
       x.style.cssText = `top:${top}px;height:${ht}px;background:${couleur(e)};left:calc(${e._v} * 100% / ${nv} + 2px);width:calc(100% / ${nv} - 5px);right:auto`;
       x.innerHTML = `<b>${titreEvt(e)}</b><span class="h">${hm(a)}–${hm(b)}${e.ville ? ' · ' + esc(e.ville) : ''}</span>${e.personnel.length ? '<span class="h"> · ' + e.personnel.map(persNom).join(', ') + '</span>' : ''}<div class="poignee"></div>`;
       x.title = infoBulle(e); col.appendChild(x); glisserHoraire(x, e, du);
@@ -365,7 +367,7 @@ function vueMois() {
   document.querySelectorAll('.mois .jour').forEach(c => {
     const d = new Date(c.dataset.j + 'T12:00');
     ev.filter(e => parse(e.debut) < plus(d, 1) && parse(e.fin) > new Date(c.dataset.j + 'T00:00')).forEach(e => {
-      const x = document.createElement('span'); x.className = 'puce ' + e.statut; x.style.background = couleur(e); x.dataset.id = e.id;
+      const x = document.createElement('span'); x.className = 'puce ' + e.statut + (e.externe ? ' externe' : ''); x.style.background = couleur(e); x.dataset.id = e.id;
       x.innerHTML = (estBande(e) ? '' : hm(parse(e.debut)) + ' ') + titreEvt(e); x.title = infoBulle(e); c.appendChild(x); glisserJour(x, e, null, {jourOrigine: c.dataset.j});
     });
     deposerAP(c, () => null, c.dataset.j); c.addEventListener('dblclick', ev2 => { if (ev2.target === c || ev2.target.classList.contains('n')) nouvelle('chantier', jourEntier(c.dataset.j, 1)); });
@@ -391,7 +393,7 @@ function vueRessources() {
     const [k, rid] = c.dataset.res.split(':'), d0 = new Date(c.dataset.j + 'T00:00'), d1 = plus(d0, 1);
     const fr = k === 'm' ? S.data.materiel.filter(o => racineMat(o.id) === racineMat(rid)).map(o => +o.id) : [];
     ev.filter(e => parse(e.debut) < d1 && parse(e.fin) > d0 && (k === 'p' ? e.personnel.includes(+rid) : k === 'm' ? e.materiel.includes(+rid) : k === 'e' ? +e.equipe_id === +rid : !e.personnel.length && !e.materiel.length)).forEach(e => {
-      const x = document.createElement('span'); x.className = 'puce ' + e.statut; x.style.background = couleur(e); x.dataset.id = e.id;
+      const x = document.createElement('span'); x.className = 'puce ' + e.statut + (e.externe ? ' externe' : ''); x.style.background = couleur(e); x.dataset.id = e.id;
       x.innerHTML = titreEvt(e); x.title = infoBulle(e) + (peutModif(e) ? '\n\nGlisse vers une autre ligne pour changer de personne, de machine ou d\'équipe ; vers un autre jour pour déplacer.' : '');
       c.appendChild(x); c.classList.remove('libre'); glisserJour(x, e, null, {res: ['x', 'e'].includes(k) ? null : c.dataset.res, jourOrigine: c.dataset.j});
     });
@@ -507,6 +509,7 @@ function rendreMesTaches(l) {
 const aujourdhui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 async function ouvrirFiche(id, opts = {}) {
   if (!S.data) { setTimeout(() => ouvrirFiche(id, opts), 300); return; }
+  if (typeof id === 'string' && id[0] === 'x') { const x = (S.data.evenements || []).find(e => e.id === id); if (x) toast((x.agenda ? x.agenda + ' · ' : '') + x.titre + ' – ' + evtQuand(x) + (x.adresse ? ' · ' + x.adresse : '') + ' (agenda externe, lecture seule : se modifie dans l\'application d\'origine)'); return; }
   if (!id && !S.data.droits.planifier) return;
   let e;
   if (id) { try { e = await api('fiche', {id}); } catch (err) { toast(err.message, true); return; } } else e = opts.neuf;
@@ -519,7 +522,7 @@ async function ouvrirFiche(id, opts = {}) {
     ${e.client_reponse === 'confirme' ? `<div class="reponse ok">✓ Le client a confirmé la date le ${esc((e.client_repondu_le || '').slice(0, 16).split(' ')[0].split('-').reverse().join('/'))}.${e.client_message ? '<br>« ' + esc(e.client_message) + ' »' : ''}</div>` : ''}
     ${e.client_reponse === 'autre' ? `<div class="reponse autre">Le client demande une autre date${e.client_message ? ' : « ' + esc(e.client_message) + ' »' : '.'} <button class="mini" type="button" id="fVu">Marquer comme traité</button></div>` : ''}
     <div class="alertes" id="fAl"></div>
-    <div class="types">${Object.entries(TYPES).filter(([k]) => k !== 'urgence' || e.type === 'urgence').map(([k, [l, c]]) => `<label style="border-color:${c}"><input type="radio" name="type" value="${k}" ${k === e.type ? 'checked' : ''}>${l}</label>`).join('')}</div>
+    <div class="types">${Object.entries(TYPES).filter(([k]) => k !== 'externe' && (k !== 'urgence' || e.type === 'urgence')).map(([k, [l, c]]) => `<label style="border-color:${c}"><input type="radio" name="type" value="${k}" ${k === e.type ? 'checked' : ''}>${l}</label>`).join('')}</div>
     <label class="f-rdv">Type de rendez-vous <input name="motif" list="motifs" value="${esc(e.motif || '')}" placeholder="Ex. Réunion de chantier, visite de fin de travaux, rendez-vous prospect…"><datalist id="motifs">${(S.data.motifs || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist></label>
     <div class="g2"><label>Titre <input name="titre" value="${esc(e.titre)}" placeholder="Ex. Abattage 3 chênes – M. Dupont"></label><label>Statut <select name="statut">${opt(STATUTS, e.statut)}</select></label></div>
     ${(S.data.pictos || []).length && e.type !== 'absence' ? `<fieldset><legend>Pictogrammes <span class="muted small" style="font-weight:400">– points d'attention visibles d'un coup d'œil sur le créneau${S.data.droits.niveau === 'tout' ? ' (liste modifiable dans ⚙ Réglages)' : ''}</span></legend>
@@ -701,7 +704,7 @@ $('#suiv').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref
 $('#auj').onclick = () => { S.ref = new Date(); charger(); };
 $('#fPers').onchange = ev => { S.pers = ev.target.value; S.vue === 'tournee' ? vueTournee() : rendre(); };
 $('#nouveau').onclick = ev => { const m = document.createElement('div'); m.className = 'card'; Object.assign(m.style, {position: 'absolute', zIndex: 60, padding: '8px', margin: 0}); const r = ev.currentTarget.getBoundingClientRect(); m.style.left = (r.left + scrollX) + 'px'; m.style.top = (r.bottom + scrollY + 4) + 'px';
-  m.innerHTML = Object.entries(TYPES).filter(([k]) => k !== 'urgence').map(([k, [l, c]]) => `<button class="mini" style="display:block;width:100%;text-align:left;margin:3px 0;border-left:4px solid ${c}" data-t="${k}">${l}</button>`).join(''); document.body.appendChild(m);
+  m.innerHTML = Object.entries(TYPES).filter(([k]) => !['urgence', 'externe'].includes(k)).map(([k, [l, c]]) => `<button class="mini" style="display:block;width:100%;text-align:left;margin:3px 0;border-left:4px solid ${c}" data-t="${k}">${l}</button>`).join(''); document.body.appendChild(m);
   const f = e2 => { if (!m.contains(e2.target)) { m.remove(); document.removeEventListener('click', f, true); } }; setTimeout(() => document.addEventListener('click', f, true));
   m.querySelectorAll('button').forEach(b => b.onclick = () => { m.remove(); nouvelle(b.dataset.t); }); };
 filtresTypes(); charger();

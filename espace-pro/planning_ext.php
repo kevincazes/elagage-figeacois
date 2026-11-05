@@ -590,6 +590,7 @@ function pl_synchro_mandats(): void {
 function planning_taches_ext(): void {
     try { contrats_generer(); } catch (Throwable $t) {}
     try { taches_rappels(); } catch (Throwable $t) {}
+    try { agendas_sync_tous(); } catch (Throwable $t) {}
     try { contrats_echeances(); } catch (Throwable $t) {}
     if (pennylane_pret() && setting('pl_synchro_le') !== date('Y-m-d')) { set_setting('pl_synchro_le', date('Y-m-d')); try { pl_synchro_factures(); pl_synchro_mandats(); } catch (Throwable $t) {} }
     if (setting('avis_actif') === '1' && setting('avis_lien') !== '') {
@@ -670,4 +671,117 @@ function prestations_depuis_texte(int $eid, string $texte): int {
 function prestations_texte(int $eid): string {
     $l = []; foreach (prestations_liste($eid) as $p) $l[] = ($p['fait_le'] ? '✓ ' : '○ ') . $p['libelle'] . ($p['quantite'] !== null ? ' (' . rtrim(rtrim(number_format((float)$p['quantite'], 2, ',', ' '), '0'), ',') . ($p['unite'] ? ' ' . $p['unite'] : '') . ')' : '');
     return implode("\n", $l);
+}
+
+// ---------- Agendas externes (abonnement ICS : Google Agenda, iCloud, Outlook, Nextcloud…) rattachés à une personne ----------
+function agendas_liste(?int $pid = null): array { return q("SELECT a.*, p.prenom FROM agendas_externes a LEFT JOIN personnel p ON p.id = a.personnel_id" . ($pid ? " WHERE a.personnel_id = ?" : '') . " ORDER BY p.prenom, a.nom", $pid ? [$pid] : [])->fetchAll(); }
+function agenda_url_ok(string $u): bool { $u = preg_replace('#^webcals?://#i', 'https://', trim($u)); return (bool)preg_match('#^https?://[^\s]+$#i', $u) && !preg_match('#^https?://(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)#i', $u); }
+/** Télécharge et relit un agenda ; renvoie le nombre d'événements (ou false + message d'erreur enregistré) */
+function agenda_sync(int $id): int|false {
+    $a = q("SELECT * FROM agendas_externes WHERE id = ?", [$id])->fetch(); if (!$a) return false;
+    $url = preg_replace('#^webcals?://#i', 'https://', trim($a['url'])); $txt = false; $err = '';
+    if (defined('ICS_TEST_DIR') && is_dir(ICS_TEST_DIR)) { $f = ICS_TEST_DIR . '/' . md5($url) . '.ics'; $txt = is_file($f) ? file_get_contents($f) : false; if ($txt === false) $err = 'fichier test absent'; }
+    elseif (function_exists('curl_init')) {
+        $ch = curl_init($url); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_TIMEOUT => 15, CURLOPT_USERAGENT => 'ElagageFigeacois-Planning/1.0', CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]);
+        $txt = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); if ($txt === false) $err = 'téléchargement impossible : ' . curl_error($ch); elseif ($code >= 400) { $err = "réponse $code du serveur"; $txt = false; } curl_close($ch);
+    } else { $txt = @file_get_contents($url); if ($txt === false) $err = 'téléchargement impossible'; }
+    if ($txt !== false && stripos($txt, 'BEGIN:VCALENDAR') === false) { $txt = false; $err = "ce n'est pas un agenda iCalendar (vérifie que le lien est l'adresse .ics / webcal)"; }
+    if ($txt === false) { q("UPDATE agendas_externes SET erreur = ?, maj_le = NOW() WHERE id = ?", [mb_substr($err, 0, 255), $id]); return false; }
+    $evs = ics_lire($txt, date('Y-m-d', strtotime('-30 days')), date('Y-m-d', strtotime('+365 days')));
+    db()->beginTransaction();
+    q("DELETE FROM evenements_externes WHERE agenda_id = ?", [$id]);
+    foreach ($evs as $e) q("INSERT INTO evenements_externes (agenda_id, uid, debut, fin, journee, titre, lieu) VALUES (?,?,?,?,?,?,?)", [$id, mb_substr($e['uid'], 0, 190), $e['debut'], $e['fin'], $e['journee'], mb_substr($e['titre'], 0, 190), mb_substr($e['lieu'], 0, 190)]);
+    q("UPDATE agendas_externes SET erreur = '', maj_le = NOW(), nb = ? WHERE id = ?", [count($evs), $id]);
+    db()->commit();
+    return count($evs);
+}
+function agendas_sync_tous(): void { foreach (q("SELECT id FROM agendas_externes WHERE actif = 1 AND (maj_le IS NULL OR maj_le < DATE_SUB(NOW(), INTERVAL 55 MINUTE))") as $a) try { agenda_sync((int)$a['id']); } catch (Throwable $t) { try { db()->rollBack(); } catch (Throwable $t2) {} } }
+/** Événements externes qui chevauchent [du, au[, sous la forme d'événements du planning (lecture seule) */
+function externes_periode(string $du, string $au, ?int $pid = null): array {
+    $l = [];
+    foreach (q("SELECT x.*, a.personnel_id, a.nom AS agenda, a.couleur, a.prive FROM evenements_externes x JOIN agendas_externes a ON a.id = x.agenda_id WHERE a.actif = 1 AND x.debut < ? AND x.fin > ?" . ($pid ? " AND a.personnel_id = ?" : '') . " ORDER BY x.debut", $pid ? [$au, $du, $pid] : [$au, $du]) as $x)
+        $l[] = ['id' => 'x' . $x['id'], 'externe' => 1, 'agenda' => $x['agenda'], 'couleur' => $x['couleur'], 'type' => 'externe', 'titre' => (int)$x['prive'] ? 'Occupé (' . $x['agenda'] . ')' : $x['titre'], 'statut' => 'confirme', 'debut' => $x['debut'], 'fin' => $x['fin'], 'journee' => (int)$x['journee'],
+                'client_nom' => '', 'client_tel' => '', 'client_email' => '', 'adresse' => (int)$x['prive'] ? '' : $x['lieu'], 'cp' => '', 'ville' => '', 'lat' => null, 'lng' => null, 'personnel' => [(int)$x['personnel_id']], 'materiel' => [], 'equipe_id' => null, 'devis_montant' => null, 'notes' => '', 'consignes' => '', 'motif' => '', 'pictos' => '', 'phyto' => 0, 'priorite' => 2, 'alertes' => []];
+    return $l;
+}
+/** Lecture d'un fichier iCalendar : VEVENT avec dates (jour entier ou horaire, fuseaux), RRULE simples (quotidien, hebdo avec BYDAY, mensuel, annuel ; INTERVAL, COUNT, UNTIL), EXDATE, occurrences modifiées (RECURRENCE-ID). Fenêtre [du, au]. */
+function ics_lire(string $txt, string $du, string $au): array {
+    $txt = str_replace(["\r\n", "\r"], "\n", $txt); $txt = preg_replace("/\n[ \t]/", '', $txt); // dépliage des lignes
+    $tDu = strtotime("$du 00:00:00"); $tAu = strtotime("$au 23:59:59"); $out = []; $modifs = []; $tzDef = 'Europe/Paris';
+    if (preg_match('/^X-WR-TIMEZONE:(.+)$/mi', $txt, $m) && in_array(trim($m[1]), timezone_identifiers_list(), true)) $tzDef = trim($m[1]);
+    $lireDate = function (string $val, string $params, bool &$journee) use ($tzDef): ?int { // → timestamp
+        $val = trim($val); $journee = str_contains(strtoupper($params), 'VALUE=DATE') && !str_contains($val, 'T') || preg_match('/^\d{8}$/', $val) === 1;
+        if ($journee) { $d = DateTime::createFromFormat('Ymd', substr($val, 0, 8), new DateTimeZone($tzDef)); return $d ? $d->setTime(0, 0)->getTimestamp() : null; }
+        $tz = $tzDef; if (preg_match('/TZID=([^;:]+)/i', $params, $m)) { $z = trim($m[1], '"'); if (in_array($z, timezone_identifiers_list(), true)) $tz = $z; }
+        $utc = str_ends_with($val, 'Z'); $d = DateTime::createFromFormat('Ymd\THis', rtrim($val, 'Z'), new DateTimeZone($utc ? 'UTC' : $tz)); return $d ? $d->getTimestamp() : null;
+    };
+    preg_match_all('/BEGIN:VEVENT\n(.*?)\nEND:VEVENT/s', $txt, $blocs);
+    foreach ($blocs[1] as $bloc) {
+        $p = []; foreach (explode("\n", $bloc) as $ln) { if (!preg_match('/^([A-Z-]+)((?:;[^:]*)?):(.*)$/', $ln, $m)) continue; $p[$m[1]][] = [$m[2], $m[3]]; }
+        if (empty($p['DTSTART'])) continue;
+        $uid = trim($p['UID'][0][1] ?? md5($bloc)); $titre = isset($p['SUMMARY']) ? trim(preg_replace('/\\\\([,;])/', '$1', str_replace('\\n', ' ', $p['SUMMARY'][0][1]))) : '(sans titre)';
+        $lieu = isset($p['LOCATION']) ? trim(preg_replace('/\\\\([,;])/', '$1', str_replace('\\n', ' ', $p['LOCATION'][0][1]))) : '';
+        if (isset($p['STATUS']) && strtoupper(trim($p['STATUS'][0][1])) === 'CANCELLED') continue;
+        $j = false; $deb = $lireDate($p['DTSTART'][0][1], $p['DTSTART'][0][0], $j); if ($deb === null) continue;
+        $fin = null; $jf = false; if (isset($p['DTEND'])) $fin = $lireDate($p['DTEND'][0][1], $p['DTEND'][0][0], $jf);
+        elseif (isset($p['DURATION']) && preg_match('/P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?/', $p['DURATION'][0][1], $m)) $fin = $deb + (int)($m[1] ?? 0) * 604800 + (int)($m[2] ?? 0) * 86400 + (int)($m[3] ?? 0) * 3600 + (int)($m[4] ?? 0) * 60;
+        if ($fin === null || $fin <= $deb) $fin = $j ? $deb + 86400 : $deb + 3600;
+        $duree = $fin - $deb;
+        $ajouter = function (int $d) use (&$out, $uid, $titre, $lieu, $j, $duree, $tDu, $tAu) { $f = $d + $duree; if ($f <= $tDu || $d > $tAu) return; $out[$uid . '@' . $d] = ['uid' => $uid, 'titre' => $titre, 'lieu' => $lieu, 'journee' => $j ? 1 : 0, 'debut' => date('Y-m-d H:i:s', $d), 'fin' => date('Y-m-d H:i:s', $f)]; };
+        if (isset($p['RECURRENCE-ID'])) { $jr = false; $r = $lireDate($p['RECURRENCE-ID'][0][1], $p['RECURRENCE-ID'][0][0], $jr); if ($r !== null) $modifs[$uid][] = $r; $ajouter($deb); continue; }
+        if (empty($p['RRULE'])) { $ajouter($deb); continue; }
+        $r = []; foreach (explode(';', strtoupper($p['RRULE'][0][1])) as $kv) { [$k, $v] = array_pad(explode('=', $kv, 2), 2, ''); $r[$k] = $v; }
+        $ex = []; foreach ($p['EXDATE'] ?? [] as [$pa, $va]) foreach (explode(',', $va) as $v) { $jx = false; $x = $lireDate($v, $pa, $jx); if ($x !== null) $ex[] = $x; }
+        $int = max(1, (int)($r['INTERVAL'] ?? 1)); $count = isset($r['COUNT']) ? (int)$r['COUNT'] : null; $until = null;
+        if (isset($r['UNTIL'])) { $ju = false; $until = $lireDate($r['UNTIL'], str_contains($r['UNTIL'], 'T') ? '' : 'VALUE=DATE', $ju); if ($ju && $until !== null) $until += 86399; }
+        $freq = $r['FREQ'] ?? ''; $jours = ['SU' => 0, 'MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6];
+        $byday = []; if ($freq === 'WEEKLY' && !empty($r['BYDAY'])) foreach (explode(',', $r['BYDAY']) as $d) if (isset($jours[$d])) $byday[] = $jours[$d];
+        $n = 0; $i = 0; $base = new DateTime('@' . $deb); $base->setTimezone(new DateTimeZone($tzDef)); $limite = min($tAu, $until ?? $tAu);
+        $estExclu = fn(int $d) => in_array($d, $ex, true) || in_array(date('Y-m-d', $d), array_map(fn($x) => date('Y-m-d', $x), $ex), true) && $j;
+        while ($i < 2000) {
+            $occ = [];
+            if ($freq === 'WEEKLY' && $byday) { $sem = (clone $base)->modify('+' . ($i * $int) . ' weeks'); $lundi = (clone $sem)->modify(($sem->format('N') === '1' ? 'this' : 'last') . ' monday'); foreach ($byday as $wd) { $d = (clone $lundi)->modify('+' . (($wd + 6) % 7) . ' days')->setTime((int)$base->format('H'), (int)$base->format('i'), (int)$base->format('s')); if ($d->getTimestamp() >= $deb) $occ[] = $d->getTimestamp(); } sort($occ); }
+            else { $d = clone $base; $pas = ['DAILY' => 'days', 'WEEKLY' => 'weeks', 'MONTHLY' => 'months', 'YEARLY' => 'years'][$freq] ?? null; if (!$pas) break; if ($i) $d->modify('+' . ($i * $int) . ' ' . $pas); $occ[] = $d->getTimestamp(); }
+            foreach ($occ as $t) { if ($t > $limite) break 2; if ($count !== null && $n >= $count) break 2; $n++; if ($estExclu($t) || in_array($t, $modifs[$uid] ?? [], true)) continue; $ajouter($t); }
+            $i++; if ($occ && end($occ) > $limite) break;
+        }
+    }
+    foreach ($modifs as $uid => $dates) foreach ($dates as $d) unset($out[$uid . '@' . $d]); // l'occurrence de base remplacée par sa version modifiée
+    return array_values($out);
+}
+
+/** Traite les formulaires « agendas » (ajout, actualisation, suppression) ; $pids = personnes que l'utilisateur peut gérer (null = toutes) */
+function agendas_post(?array $pids): ?string {
+    if (($_POST['action'] ?? '') !== 'agenda') return null;
+    $op = (string)($_POST['op'] ?? ''); $pid = (int)($_POST['personnel_id'] ?? 0); $id = (int)($_POST['id'] ?? 0);
+    if ($id) { $a = q("SELECT * FROM agendas_externes WHERE id = ?", [$id])->fetch(); if (!$a) return 'Agenda introuvable.'; $pid = (int)$a['personnel_id']; }
+    if ($pids !== null && !in_array($pid, $pids, true)) return "Tu ne peux pas gérer l'agenda de cette personne.";
+    if ($op === 'ajouter') {
+        $url = trim((string)($_POST['url'] ?? '')); $nom = mb_substr(trim((string)($_POST['nom'] ?? '')), 0, 80) ?: 'Agenda perso';
+        if (!$pid) return 'Choisis la personne.'; if (!agenda_url_ok($url)) return "Adresse invalide : il faut l'adresse https:// ou webcal:// du calendrier (format iCal / .ics).";
+        q("INSERT INTO agendas_externes (personnel_id, nom, url, couleur, prive) VALUES (?,?,?,?,?)", [$pid, $nom, mb_substr($url, 0, 500), preg_match('/^#[0-9a-f]{6}$/i', (string)($_POST['couleur'] ?? '')) ? $_POST['couleur'] : '#9aa5b1', !empty($_POST['prive']) ? 1 : 0]);
+        $n = agenda_sync((int)db()->lastInsertId()); $a = q("SELECT erreur FROM agendas_externes WHERE id = LAST_INSERT_ID()")->fetch();
+        return $n === false ? "Agenda ajouté mais impossible à lire : " . ($a['erreur'] ?? '') : "Agenda ajouté : $n événement(s) repris.";
+    }
+    if ($op === 'actualiser' && $id) { q("UPDATE agendas_externes SET maj_le = NULL WHERE id = ?", [$id]); $n = agenda_sync($id); $a = q("SELECT erreur FROM agendas_externes WHERE id = ?", [$id])->fetch(); return $n === false ? 'Lecture impossible : ' . $a['erreur'] : "Agenda actualisé : $n événement(s)."; }
+    if ($op === 'supprimer' && $id) { q("DELETE FROM evenements_externes WHERE agenda_id = ?", [$id]); q("DELETE FROM agendas_externes WHERE id = ?", [$id]); return 'Agenda retiré.'; }
+    if ($op === 'actif' && $id) { q("UPDATE agendas_externes SET actif = 1 - actif WHERE id = ?", [$id]); return 'Agenda mis à jour.'; }
+    return 'Opération inconnue.';
+}
+/** Bloc HTML « Agenda » : lien d'abonnement sortant (le planning dans le téléphone) et agendas externes entrants, pour une ou plusieurs personnes */
+function agendas_bloc(array $personnes, bool $choixPersonne): string {
+    $h = '<h2>Agenda et calendriers</h2>';
+    if (count($personnes) === 1) { $p = $personnes[0]; if ($p['ics_token']) { $l = lien_base() . '/planning-ics.php?t=' . $p['ics_token']; $h .= '<h3 style="margin:8px 0 4px">1. Voir mon planning dans le calendrier du téléphone</h3><p class="small muted" style="margin:0 0 6px">Mes chantiers et rendez-vous apparaissent dans Calendrier (iPhone), Google Agenda ou Outlook, mis à jour tout seuls. Ce lien est personnel : ne pas le transmettre.</p>'
+        . '<p style="margin:0 0 4px"><button type="button" class="mini" onclick="navigator.clipboard.writeText(this.dataset.l).then(()=>this.textContent=\'Lien copié !\')" data-l="' . e($l) . '">Copier le lien d\'abonnement</button> <a class="mini" href="' . e(preg_replace('#^https?://#', 'webcal://', $l)) . '">Ouvrir dans l\'app Calendrier</a></p>'
+        . '<details class="small"><summary>Comment l\'ajouter ?</summary><ul style="margin:4px 0 0 18px"><li><b>iPhone</b> : touche « Ouvrir dans l\'app Calendrier » (ou Réglages › Apps › Calendrier › Comptes › Nouveau compte › Autre › Ajouter un cal. avec abonnement, puis colle le lien).</li><li><b>Google Agenda</b> (sur ordinateur) : à gauche, « Autres agendas » › + › À partir de l\'URL › colle le lien.</li><li><b>Outlook</b> : Ajouter un calendrier › S\'abonner à partir du web.</li></ul></details>'; } }
+    $h .= '<h3 style="margin:14px 0 4px">' . (count($personnes) === 1 ? '2. ' : '') . 'Afficher mes autres calendriers dans le planning</h3><p class="small muted" style="margin:0 0 6px">Rendez-vous perso, autre agenda pro… : ils s\'affichent en gris dans le planning (lecture seule) et comptent comme « occupé » quand on planifie. Il faut l\'adresse <b>iCal / .ics</b> du calendrier (lecture seule) : <b>Google Agenda</b> › paramètres de l\'agenda › « Adresse secrète au format iCal » ; <b>iCloud</b> › partager le calendrier › « Calendrier public » › copier le lien webcal ; <b>Outlook</b> › Calendrier partagé › Publier › lien ICS ; <b>Nextcloud</b> › lien d\'abonnement. Un lien CalDAV classique (avec mot de passe) n\'est pas pris en charge : utilise l\'adresse de publication iCal, c\'est le même contenu.</p>';
+    $ids = array_map(fn($p) => (int)$p['id'], $personnes); $liste = array_filter(agendas_liste(), fn($a) => in_array((int)$a['personnel_id'], $ids, true));
+    if ($liste) { $h .= '<div style="overflow-x:auto"><table class="tbl"><tr>' . ($choixPersonne ? '<th>Personne</th>' : '') . '<th>Calendrier</th><th>Événements</th><th>Dernière lecture</th><th></th></tr>';
+        foreach ($liste as $a) $h .= '<tr' . ((int)$a['actif'] ? '' : ' style="opacity:.55"') . '>' . ($choixPersonne ? '<td>' . e($a['prenom'] ?? '') . '</td>' : '') . '<td><i class="conf" style="background:' . e($a['couleur']) . '"></i>' . e($a['nom']) . ((int)$a['prive'] ? ' <span class="small muted">(titres masqués)</span>' : '') . '<br><span class="small muted" style="word-break:break-all">' . e(mb_strimwidth($a['url'], 0, 70, '…')) . '</span></td><td>' . (int)$a['nb'] . '</td><td class="small">' . ($a['maj_le'] ? date('d/m H:i', strtotime($a['maj_le'])) : '—') . ($a['erreur'] ? '<br><span style="color:#e6332a">' . e($a['erreur']) . '</span>' : '') . '</td>'
+            . '<td style="white-space:nowrap"><form method="post" style="display:inline">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="id" value="' . (int)$a['id'] . '"><button class="mini" name="op" value="actualiser">Actualiser</button> <button class="mini" name="op" value="actif">' . ((int)$a['actif'] ? 'Masquer' : 'Afficher') . '</button> <button class="mini danger" name="op" value="supprimer" onclick="return confirm(\'Retirer ce calendrier du planning ?\')">Retirer</button></form></td></tr>';
+        $h .= '</table></div>'; }
+    $h .= '<form method="post" class="inline" style="margin-top:8px">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="op" value="ajouter">';
+    $h .= $choixPersonne ? '<select name="personnel_id" required><option value="">Personne…</option>' . implode('', array_map(fn($p) => '<option value="' . (int)$p['id'] . '">' . e($p['prenom'] . ' ' . $p['nom']) . '</option>', $personnes)) . '</select>' : '<input type="hidden" name="personnel_id" value="' . (int)$personnes[0]['id'] . '">';
+    $h .= '<input name="nom" placeholder="Nom (ex. Perso, Google)" style="max-width:170px"><input name="url" placeholder="https://… ou webcal://… (adresse iCal / .ics)" required style="min-width:280px;flex:1"><input type="color" name="couleur" value="#9aa5b1" title="Couleur" style="width:44px;padding:2px"><label class="small" style="display:inline-flex;gap:4px;align-items:center;margin:0"><input type="checkbox" name="prive" value="1" style="width:auto;margin:0"> masquer les titres (afficher « Occupé »)</label><button class="btn">Ajouter</button></form>';
+    return $h;
 }

@@ -22,11 +22,14 @@ $donnees = array_map(function ($e) use ($noms, $mats, $pid, $rapports, $PICTOS) 
         'consignes' => (string)$e['consignes'], 'phyto' => (int)$e['phyto'], 'motif' => (string)$e['motif'], 'pictos' => array_values(array_map(fn($c) => $PICTOS[$c], pictos_evt($e))), 'taches' => taches_liste((int)$e['id']), 'prestations' => prestations_liste((int)$e['id']), 'avec' => array_values(array_filter(array_map(fn($i) => $noms[$i] ?? null, array_diff($e['personnel'], [$pid])))),
         'materiel' => array_values(array_filter(array_map(fn($i) => $mats[$i] ?? null, $e['materiel']))), 'rapport' => $rapports[(int)$e['id']] ?? null, 'dict' => dict_alertes($e)];
 }, $evs);
+if ($p) { try { foreach (externes_periode("$jour 00:00:00", date('Y-m-d 00:00:00', strtotime("$jour +1 day")), $pid) as $x) $donnees[] = ['id' => $x['id'], 'externe' => 1, 'agenda' => $x['agenda'], 'couleur' => $x['couleur'], 'type' => 'externe', 'titre' => $x['titre'], 'statut' => 'confirme', 'debut' => $x['debut'], 'fin' => $x['fin'], 'journee' => $x['journee'], 'client' => '', 'tel' => '', 'email' => '', 'client_id' => null, 'adresse' => $x['adresse'], 'cp' => '', 'ville' => '', 'lat' => null, 'lng' => null, 'consignes' => '', 'phyto' => 0, 'motif' => '', 'pictos' => [], 'taches' => [], 'prestations' => [], 'avec' => [], 'materiel' => [], 'rapport' => null, 'dict' => []]; } catch (Throwable $t) {} }
+usort($donnees, fn($a, $b) => strcmp($a['debut'], $b['debut']));
 page_start('Mon planning', 'mon-planning.php');
 ?>
 <style>
 main{max-width:720px}
 .lst{list-style:none;margin:6px 0 0;padding:0}.lst li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #e4e8de;font-size:.92rem}.lst li.fait .l{text-decoration:line-through;opacity:.6}.lst .l{flex:1;min-width:0}.lst .qui{font-size:.78rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:24px!important;height:24px;margin:0!important;flex:none}
+.rdv.externe{opacity:.8;background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.025) 0 6px,transparent 6px 12px)}
 .pictos{letter-spacing:1px;margin-right:4px}.ft-bloc .pictos{font-size:1.3rem}
 .mp-haut{background:var(--brun);color:#fff;border-radius:0 0 26px 26px;margin:-22px -20px 16px;padding:14px 16px 16px;text-align:center}
 .mp-haut h2{color:#fff;margin:0 0 8px;font-size:1.25rem}.mp-nav{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -68,7 +71,7 @@ main>h1{position:absolute;left:-9999px}
 <div id="liste"><?php if (!$p): ?><p class="vide">Choisis une personne pour voir ses rendez-vous.</p><?php elseif (!$evs): ?><p class="vide">Rien de prévu ce jour-là.</p><?php endif; ?></div>
 <div class="fiche-t" id="ft" aria-modal="true" role="dialog"></div>
 <script>
-const EVS = <?= json_encode($donnees, JSON_UNESCAPED_UNICODE) ?>, TYPES = <?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, JOUR = <?= json_encode($jour) ?>;
+const EVS = <?= json_encode($donnees, JSON_UNESCAPED_UNICODE) ?>, TYPES = Object.assign(<?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, {externe: ['Autre agenda', '#9aa5b1']}), JOUR = <?= json_encode($jour) ?>;
 const FACT = <?= (float)setting('planning_facteur', '1.3') ?>, VIT = <?= (float)setting('planning_vitesse', '55') ?>, DEP = <?= json_encode(depot()) ?>;
 const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
 const p2 = n => String(n).padStart(2, '0'), hm = s => s.slice(11, 16), parse = s => new Date(s.replace(' ', 'T'));
@@ -77,7 +80,7 @@ let ICI = null;
 function anneau(e) { // portion de la journée occupée (comme un cadran)
   const d = parse(e.debut), f = parse(e.fin), a0 = ((d.getHours() + d.getMinutes() / 60) % 12) / 12 * 360, a1 = a0 + Math.min(359, (f - d) / 36e5 / 12 * 360);
   const pt = a => { const r = (a - 90) * Math.PI / 180; return [29 + 23 * Math.cos(r), 29 + 23 * Math.sin(r)]; }; const [x0, y0] = pt(a0), [x1, y1] = pt(a1);
-  const c = TYPES[e.type] ? TYPES[e.type][1] : '#888';
+  const c = e.externe ? (e.couleur || '#9aa5b1') : (TYPES[e.type] ? TYPES[e.type][1] : '#888');
   return `<svg viewBox="0 0 58 58"><circle cx="29" cy="29" r="23" fill="none" stroke="#d7d2c8" stroke-width="2" stroke-dasharray="1.5 3"/><path d="M${x0} ${y0} A23 23 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}" fill="none" stroke="${c}" stroke-width="5" stroke-linecap="round"/></svg>`;
 }
 function badge(e, prochain) {
@@ -95,7 +98,7 @@ function rendre() {
     if (e.lat && prec) { const k = km(prec.lat, prec.lng, e.lat, e.lng); dist = `<span>📍 ${k < 10 ? k.toFixed(1) : Math.round(k)} km</span><span>⏱ ${Math.max(1, Math.round(k / VIT * 60))} min</span>`; }
     if (e.lat && i === 0 && !ICI) dist += '<span class="muted" style="font-weight:400">depuis le dépôt</span>';
     if (e.lat) prec = {lat: e.lat, lng: e.lng};
-    return `<div class="rdv" data-i="${i}"><div class="h">${anneau(e)}${e.journee ? 'Journée' : hm(e.debut) + ' – ' + hm(e.fin)}</div><div class="c">
+    return `<div class="rdv${e.externe ? ' externe' : ''}" data-i="${i}"><div class="h">${anneau(e)}${e.journee ? 'Journée' : hm(e.debut) + ' – ' + hm(e.fin)}</div><div class="c">
       <div class="l1"><span class="hr">${e.journee ? (TYPES[e.type] || ['RDV'])[0] : hm(e.debut)}</span>${badge(e, proch)}</div>
       <div class="t">${e.pictos.length ? '<span class="pictos" title="' + esc(e.pictos.map(p => p.libelle).join('\n')) + '">' + e.pictos.map(p => p.emoji).join('') + '</span>' : ''}${esc(e.client || e.titre)}${e.taches.some(t => !t.fait_le) ? ' <span class="muted">☐' + e.taches.filter(t => !t.fait_le).length + '</span>' : ''}${e.client && e.titre !== e.client ? ' <span class="muted">· ' + esc(e.titre) + '</span>' : ''}</div><div class="v">${esc([e.cp, e.ville].filter(Boolean).join(' '))}${e.motif ? ' · <span style="text-transform:none">' + esc(e.motif) + '</span>' : ''}</div>
       <div class="km">${dist}${e.rapport ? `<span title="Rapport">📝${e.rapport.nb ? ' ' + e.rapport.nb + ' 📷' : ''}${e.rapport.signe_le ? ' ✓' : ''}</span>` : ''}${e.dict.length ? '<span style="color:#e6332a" title="' + esc(e.dict.join(' ')) + '">⚠ DT-DICT</span>' : ''}</div></div></div>`;
@@ -103,6 +106,7 @@ function rendre() {
   document.querySelectorAll('.rdv').forEach(d => d.onclick = () => ouvrir(EVS[+d.dataset.i]));
 }
 function ouvrir(e) {
+  if (e.externe) { $('#ft').innerHTML = `<div class="ft-haut"><button type="button" id="ftR">‹ Retour</button><h3>${esc(e.titre)}</h3><small>${esc(e.agenda || 'Autre agenda')} · ${e.journee ? 'journée' : hm(e.debut) + ' – ' + hm(e.fin)}</small></div><div class="ft-corps">${e.adresse ? `<div class="ft-bloc">📍 ${esc(e.adresse)}</div>` : ''}<p class="muted small" style="text-align:center">Événement de ton autre calendrier (lecture seule) : il se modifie dans l'application d'origine.</p></div>`; $('#ft').classList.add('on'); document.body.style.overflow = 'hidden'; history.pushState({f: e.id}, '', '#x'); $('#ftR').onclick = () => history.back(); return; }
   const tel = (e.tel || '').replace(/[^0-9+]/g, ''), dest = e.lat ? e.lat + ',' + e.lng : encodeURIComponent([e.adresse, e.cp, e.ville].filter(Boolean).join(' '));
   const k = e.lat && ICI ? km(ICI.lat, ICI.lng, e.lat, e.lng) : null;
   const b = (h, ic, t, ok = true) => `<a href="${esc(h)}" ${h.startsWith('http') ? 'target="_blank" rel="noopener"' : ''} class="${ok ? '' : 'off'}" title="${t}" aria-label="${t}">${ic}</a>`;
