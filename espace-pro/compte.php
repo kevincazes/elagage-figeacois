@@ -22,6 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cible) { $_SESSION['user']['prenom'] = $prenom; $_SESSION['user']['email'] = $email; }
             flash('Informations enregistrées.');
         }
+    } elseif ($a === 'appareil_oublier' && $cible) {
+        q("DELETE FROM connexions_souvenir WHERE id = ? AND utilisateur_id = ?", [(int)($_POST['cid'] ?? 0), $id]); flash('Cet appareil devra se reconnecter.');
+    } elseif ($a === 'appareils_autres' && $cible) {
+        $sel = str_starts_with((string)($_COOKIE['ef_souvenir'] ?? ''), 's') ? substr(explode(':', (string)$_COOKIE['ef_souvenir'], 2)[0], 1) : '';
+        q("DELETE FROM connexions_souvenir WHERE utilisateur_id = ? AND selecteur <> ?", [$id, $sel]); flash('Les autres appareils devront se reconnecter.');
     } elseif ($a === 'agenda') {
         $mp = q("SELECT id FROM personnel WHERE utilisateur_id = ? AND actif = 1", [$id])->fetchAll(); $m = agendas_post($moi['role'] === 'admin' ? null : array_map(fn($x) => (int)$x['id'], $mp));
         if ($m !== null) flash($m, str_contains($m, 'impossible') || str_contains($m, 'invalide') || str_contains($m, 'peux pas') ? 'err' : 'ok');
@@ -69,4 +74,15 @@ page_start($cible ? 'Mon compte' : 'Compte de ' . $u['prenom'] . ' ' . $u['nom']
 <?php $mesPers = q("SELECT * FROM personnel WHERE utilisateur_id = ? AND actif = 1 ORDER BY id", [$id])->fetchAll(); if ($mesPers): ?>
 <section class="card" id="agenda"><?= agendas_bloc($mesPers, count($mesPers) > 1) ?></section>
 <?php elseif ($cible): ?><section class="card"><h2>Agenda et calendriers</h2><p class="muted small">Ton compte n'est relié à aucune fiche du personnel : demande à un administrateur de le relier (Chantiers & agenda › Personnel, matériel, équipes) pour recevoir ton planning dans ton calendrier et y rattacher tes autres agendas.</p></section><?php endif; ?>
+<?php if ($cible): $apps = q("SELECT * FROM connexions_souvenir WHERE utilisateur_id = ? AND expire > NOW() ORDER BY vu_le DESC", [$id])->fetchAll(); $selMoi = str_starts_with((string)($_COOKIE['ef_souvenir'] ?? ''), 's') ? substr(explode(':', (string)$_COOKIE['ef_souvenir'], 2)[0], 1) : ''; ?>
+<section class="card"><h2>Appareils restés connectés</h2>
+  <p class="muted small">Chaque appareil où « Rester connecté » était coché garde sa connexion 60 jours, renouvelés à chaque visite. Se connecter ailleurs ne le déconnecte pas.</p>
+  <?php if (!$apps): ?><p class="muted">Aucun pour l'instant : coche « Rester connecté sur cet appareil » à la prochaine connexion.</p><?php else: ?>
+  <div class="scroll"><table class="tbl"><thead><tr><th>Appareil</th><th>Dernière visite</th><th>Connecté depuis</th><th></th></tr></thead><tbody>
+  <?php foreach ($apps as $c): ?><tr><td><strong><?= e($c['appareil']) ?></strong><?= $c['selecteur'] === $selMoi ? ' <span class="muted small">(cet appareil)</span>' : '' ?></td><td><?= e(date('d/m/Y H:i', strtotime($c['vu_le']))) ?></td><td><?= e(date('d/m/Y', strtotime($c['cree_le']))) ?></td>
+    <td><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="appareil_oublier"><input type="hidden" name="cid" value="<?= (int)$c['id'] ?>"><button class="mini">Déconnecter</button></form></td></tr><?php endforeach; ?>
+  </tbody></table></div>
+  <?php if (count($apps) > 1): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="appareils_autres"><button class="mini">Déconnecter tous les autres appareils</button></form><?php endif; endif; ?>
+</section>
+<?php endif; ?>
 <?php page_end(); ?>

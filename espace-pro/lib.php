@@ -58,6 +58,7 @@ function migrate(): void {
         "CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereaux (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(190) NOT NULL, client VARCHAR(190) NOT NULL DEFAULT '', notes TEXT, statut VARCHAR(10) NOT NULL DEFAULT 'brouillon', coef DECIMAL(6,3) NULL, tva DECIMAL(5,2) NULL, taux_json TEXT, cree_par INT, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, fige_le DATETIME NULL, verrou_par INT NULL, verrou_le DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereau_lignes (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, numero VARCHAR(12) NOT NULL DEFAULT '', type VARCHAR(10) NOT NULL DEFAULT 'ligne', code VARCHAR(30) NOT NULL DEFAULT '', libelle VARCHAR(255) NOT NULL DEFAULT '', unite VARCHAR(30) NOT NULL DEFAULT '', ligne_id INT NULL, quantite DECIMAL(10,2) NULL, pu_manuel DECIMAL(10,2) NULL, pu_fige DECIMAL(10,2) NULL, INDEX (bordereau_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS connexions_souvenir (id INT AUTO_INCREMENT PRIMARY KEY, utilisateur_id INT NOT NULL, selecteur CHAR(24) NOT NULL UNIQUE, jeton_hash CHAR(64) NOT NULL, appareil VARCHAR(160) NOT NULL DEFAULT '', cree_le DATETIME NOT NULL, vu_le DATETIME NOT NULL, expire DATETIME NOT NULL, INDEX (utilisateur_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS bordereau_moyens (id INT AUTO_INCREMENT PRIMARY KEY, bordereau_id INT NOT NULL, bl_id INT NOT NULL, ressource_id INT NULL, libelle VARCHAR(120) NOT NULL DEFAULT '', taux DECIMAL(10,2) NOT NULL DEFAULT 0, heures DECIMAL(8,2) NOT NULL DEFAULT 0, INDEX (bordereau_id), INDEX (bl_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS actions (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, duree DECIMAL(6,2) NOT NULL DEFAULT 0, description VARCHAR(255) NOT NULL DEFAULT '', ordre INT NOT NULL DEFAULT 0, actif TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS ligne_actions (ligne_id INT NOT NULL, action_id INT NOT NULL, nb DECIMAL(6,2) NOT NULL DEFAULT 1, PRIMARY KEY (ligne_id, action_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
@@ -354,28 +355,48 @@ function user(): ?array {
         }
         return $_SESSION['user'];
     }
-    // Reconnexion automatique : cookie « rester connecté » (id:jeton), jeton haché en base, 30 jours
+    // Reconnexion automatique : cookie « rester connecté » propre à chaque appareil (sélecteur:jeton), jeton haché en base,
+    // 60 jours renouvelés à chaque visite ; se connecter sur un autre appareil ne déconnecte plus le premier
     if (!empty($_COOKIE['ef_souvenir']) && str_contains($_COOKIE['ef_souvenir'], ':')) {
-        [$id, $jeton] = explode(':', $_COOKIE['ef_souvenir'], 2);
+        [$sel, $jeton] = explode(':', $_COOKIE['ef_souvenir'], 2);
         try {
-            $u = q("SELECT * FROM utilisateurs WHERE id = ? AND actif = 1 AND souvenir IS NOT NULL AND souvenir_expire > NOW()", [(int)$id])->fetch();
-            if ($u && password_verify($jeton, $u['souvenir'])) {
+            $u = null;
+            if (str_starts_with($sel, 's')) {
+                $c = q("SELECT * FROM connexions_souvenir WHERE selecteur = ? AND expire > NOW()", [substr($sel, 1)])->fetch();
+                if ($c && hash_equals($c['jeton_hash'], hash('sha256', $jeton))) {
+                    $u = q("SELECT * FROM utilisateurs WHERE id = ? AND actif = 1", [$c['utilisateur_id']])->fetch() ?: null;
+                    if ($u) { q("UPDATE connexions_souvenir SET vu_le = NOW(), expire = DATE_ADD(NOW(), INTERVAL 60 DAY) WHERE id = ?", [$c['id']]); souvenir_cookie($_COOKIE['ef_souvenir']); }
+                }
+            } else { // ancien format (un seul jeton par compte) : converti en jeton propre à cet appareil
+                $o = q("SELECT * FROM utilisateurs WHERE id = ? AND actif = 1 AND souvenir IS NOT NULL AND souvenir_expire > NOW()", [(int)$sel])->fetch();
+                if ($o && password_verify($jeton, $o['souvenir'])) { $u = $o; souvenir_creer((int)$o['id']); }
+            }
+            if ($u) {
                 session_regenerate_id(true);
                 $_SESSION['user'] = ['id' => $u['id'], 'prenom' => $u['prenom'], 'email' => $u['email'], 'role' => $u['role']];
                 return $_SESSION['user'];
             }
-        } catch (Throwable $t) {}
+        } catch (Throwable $t) { return null; } // base indisponible : on garde le cookie pour la prochaine fois
         setcookie('ef_souvenir', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
     }
     return null;
 }
-function souvenir_creer(int $uid): void {
-    $jeton = bin2hex(random_bytes(32));
-    q("UPDATE utilisateurs SET souvenir = ?, souvenir_expire = DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE id = ?", [password_hash($jeton, PASSWORD_DEFAULT), $uid]);
-    setcookie('ef_souvenir', "$uid:$jeton", ['expires' => time() + 30 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+function souvenir_cookie(string $val): void {
+    setcookie('ef_souvenir', $val, ['expires' => time() + 60 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
 }
+function souvenir_creer(int $uid): void {
+    $sel = bin2hex(random_bytes(12)); $jeton = bin2hex(random_bytes(32));
+    $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+    $app = (preg_match('/iPhone|iPad/', $ua) ? 'iPhone / iPad' : (preg_match('/Android/', $ua) ? 'Android' : (preg_match('/Windows/', $ua) ? 'Ordinateur Windows' : (preg_match('/Macintosh/', $ua) ? 'Mac' : 'Appareil'))))
+        . (preg_match('/Edg\//', $ua) ? ' · Edge' : (preg_match('/Chrome\//', $ua) ? ' · Chrome' : (preg_match('/Firefox\//', $ua) ? ' · Firefox' : (preg_match('/Safari\//', $ua) ? ' · Safari' : ''))));
+    q("INSERT INTO connexions_souvenir (utilisateur_id, selecteur, jeton_hash, appareil, cree_le, vu_le, expire) VALUES (?,?,?,?,NOW(),NOW(),DATE_ADD(NOW(), INTERVAL 60 DAY))", [$uid, $sel, hash('sha256', $jeton), $app]);
+    try { q("DELETE FROM connexions_souvenir WHERE expire < NOW()"); } catch (Throwable $t) {}
+    souvenir_cookie("s$sel:$jeton");
+}
+/** Déconnexion : n'oublie que CET appareil (les autres restent connectés) */
 function souvenir_effacer(?int $uid): void {
-    if ($uid) try { q("UPDATE utilisateurs SET souvenir = NULL, souvenir_expire = NULL WHERE id = ?", [$uid]); } catch (Throwable $t) {}
+    $c = (string)($_COOKIE['ef_souvenir'] ?? '');
+    if ($c !== '' && str_starts_with($c, 's') && str_contains($c, ':')) try { q("DELETE FROM connexions_souvenir WHERE selecteur = ?", [substr(explode(':', $c, 2)[0], 1)]); } catch (Throwable $t) {}
     setcookie('ef_souvenir', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
 }
 function require_login(): void { if (!user()) redirect('login.php'); migrate(); check_csrf(); }

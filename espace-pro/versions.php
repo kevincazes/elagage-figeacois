@@ -3,6 +3,7 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.7.9', '2026-11-05', [
+        'Rester connecté : chaque appareil garde sa propre connexion (se connecter sur le téléphone ne déconnecte plus l\'ordinateur), 60 jours renouvelés à chaque visite ; liste des appareils connectés dans Mon compte, avec « Déconnecter »',
         'Sur téléphone, la première page ouverte est « Mon planning » (chantiers et rendez-vous attribués) ; le tableau de bord reste dans le menu',
         'Menu sur téléphone : il défile lui-même (la page derrière ne bouge plus) et une seule rubrique est ouverte à la fois',
     ]],

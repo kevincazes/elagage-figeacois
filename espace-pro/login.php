@@ -24,7 +24,7 @@ page_simple_start('Connexion');
 <form method="post"><?= csrf_field() ?>
   <label>E-mail <input type="email" name="email" required autofocus></label>
   <label>Mot de passe <input type="password" name="mdp" required></label>
-  <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="souvenir" value="1" checked style="width:auto;margin:0"> Rester connecté sur cet appareil (30 jours)</label>
+  <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="souvenir" value="1" checked style="width:auto;margin:0"> Rester connecté sur cet appareil (60 jours, renouvelés à chaque visite)</label>
   <button class="btn" type="submit">Se connecter</button>
 </form>
 <p class="muted"><a href="mdp-oublie.php">Mot de passe oublié ?</a> · <a href="../index.html">Retour au site</a></p>
