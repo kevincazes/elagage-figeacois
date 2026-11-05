@@ -74,6 +74,10 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
 <p class="lead">Les personnes, les machines et les équipes utilisées par le planning. Une <strong>équipe</strong> regroupe des personnes et leur matériel habituel : on l'affecte en un clic à un chantier. Un outil <strong>monté sur</strong> un porte-outil partage la même machine : il ne peut pas être utilisé en même temps qu'un autre outil du même porteur.</p>
 <p><a class="btn secondary" href="planning.php">← Retour au planning</a> <a class="mini" href="#personnel">Personnel</a> <a class="mini" href="#materiel">Matériel</a> <a class="mini" href="#equipes">Équipes</a> <a class="mini" href="#secteurs">Secteurs</a> <a class="mini" href="#reglages">Réglages</a><?= est_admin() ? ' <a class="mini" href="reglages-planning.php">SMS, avis, Pennylane, Urgence Élagage…</a>' : '' ?></p>
 
+<style>
+.multi{position:relative;min-width:170px}.multi summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;border:1px solid #d5dccd;border-radius:8px;padding:6px 9px;background:var(--blanc);font-size:.85rem;line-height:1.3}.multi summary::-webkit-details-marker{display:none}.multi summary .res{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}.multi summary i{font-style:normal;font-size:.7rem;opacity:.7}
+.multi .comp{position:absolute;top:calc(100% + 4px);left:0;z-index:40;background:var(--blanc);border:1px solid #d5dccd;border-radius:10px;padding:8px;box-shadow:0 10px 24px rgba(28,59,43,.16);display:flex;flex-direction:column;gap:2px;min-width:220px}.multi .comp label{display:flex;gap:8px;align-items:center;margin:0;border:0;background:none;padding:5px 6px;border-radius:6px;font-size:.88rem;cursor:pointer;white-space:nowrap}.multi .comp label:hover{background:var(--clair)}.multi .comp input{width:auto;margin:0}
+</style>
 <h2 id="personnel">Personnel</h2>
 <form method="post" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="personnel">
 <div class="scroll"><table class="tbl"><thead><tr><th>Prénom</th><th>Nom</th><th>Poste</th><th>Téléphone</th><th>E-mail</th><th>Compétences</th><th>Compte de l'espace pro</th><th>Couleur</th><th>Ordre</th><th>Actif</th></tr></thead><tbody>
@@ -84,7 +88,7 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
   <td><input name="p[<?= $k ?>][poste]" value="<?= e($p['poste']) ?>" placeholder="Grimpeur, chef d'équipe…" style="min-width:130px"></td>
   <td><input name="p[<?= $k ?>][telephone]" value="<?= e($p['telephone']) ?>" style="min-width:110px"></td>
   <td><input name="p[<?= $k ?>][email]" value="<?= e($p['email']) ?>" style="min-width:160px"></td>
-  <td><div class="comp"><?php foreach (COMPETENCES as $c => $l): ?><label><input type="checkbox" name="p[<?= $k ?>][comp][<?= $c ?>]" value="1" <?= str_contains(",{$p['competences']},", ",$c,") ? 'checked' : '' ?>><?= e($l) ?></label><?php endforeach; ?></div></td>
+  <td><details class="multi"><summary><span class="res"><?php $sel = array_values(array_intersect_key(COMPETENCES, array_flip(array_filter(explode(',', (string)$p['competences']))))); echo $sel ? e(implode(', ', $sel)) : '<span class="muted">Aucune</span>'; ?></span> <i>▾</i></summary><div class="comp"><?php foreach (COMPETENCES as $c => $l): ?><label><input type="checkbox" name="p[<?= $k ?>][comp][<?= $c ?>]" value="1" <?= str_contains(",{$p['competences']},", ",$c,") ? 'checked' : '' ?>><?= e($l) ?></label><?php endforeach; ?></div></details></td>
   <td><select name="p[<?= $k ?>][utilisateur_id]"><option value="">—</option><?php foreach ($comptes as $u): ?><option value="<?= $u['id'] ?>" <?= (int)$p['utilisateur_id'] === (int)$u['id'] ? 'selected' : '' ?>><?= e($u['prenom'] . ' ' . $u['nom']) ?></option><?php endforeach; ?></select>
     <?php if ($k !== 'nouveau' && $p['ics_token']): ?><br><button type="button" class="mini" onclick="navigator.clipboard.writeText(this.dataset.l).then(()=>this.textContent='Lien copié !')" data-l="<?= e(lien_base() . '/planning-ics.php?t=' . $p['ics_token']) ?>" title="Adresse à ajouter dans l'agenda du téléphone (abonnement) : ses chantiers et rendez-vous s'y affichent tout seuls">Lien agenda du téléphone</button><?php endif; ?></td>
   <td><input type="color" name="p[<?= $k ?>][couleur]" value="<?= e($p['couleur']) ?>"></td>
@@ -96,6 +100,11 @@ page_start('Personnel, matériel et équipes', 'planning.php', ['planning.php', 
 <p><button class="btn">Enregistrer le personnel</button> <span class="muted small">Le « compte de l'espace pro » relie la personne à son compte : elle voit alors ses chantiers dans « Mon planning ». Le « lien agenda » s'ajoute à l'agenda du téléphone (Google Agenda : « À partir de l'URL » ; iPhone : Réglages › Calendrier › Comptes › Ajouter un calendrier avec abonnement).</span></p>
 </form>
 
+<script>
+// liste déroulante des compétences : résumé mis à jour, un seul menu ouvert, fermeture au clic ailleurs
+document.querySelectorAll('details.multi').forEach(d => { const maj = () => { const l = [...d.querySelectorAll('input:checked')].map(i => i.parentNode.textContent.trim()); d.querySelector('.res').innerHTML = l.length ? l.map(x => x.replace(/[<>&]/g, '')).join(', ') : '<span class="muted">Aucune</span>'; }; d.querySelectorAll('input').forEach(i => i.addEventListener('change', maj)); });
+document.addEventListener('click', e => { const d = e.target.closest('details.multi'); document.querySelectorAll('details.multi[open]').forEach(x => { if (x !== d) x.open = false; }); });
+</script>
 <h2 id="materiel">Matériel</h2>
 <form method="post" data-paquet><?= csrf_field() ?><input type="hidden" name="action" value="materiel">
 <div class="scroll"><table class="tbl"><thead><tr><th>Nom</th><th>Type</th><th>Monté sur (machine partagée)</th><th>Immatriculation</th><th>Compétence requise</th><th>Prochain contrôle (VGP…)</th><th>Notes</th><th>Couleur</th><th>Ordre</th><th>Actif</th></tr></thead><tbody>
