@@ -112,7 +112,7 @@ if ($lecture): ?>
 <?php else: ?>
 <p class="muted no-print">Tu as la main sur ce dossier. <a href="bordereaux.php" onclick="navigator.sendBeacon('bordereau.php?id=<?= $bid ?>&liberer=1')">Libérer et revenir à la liste</a></p>
 <?php endif; ?>
-<form method="post" class="card"><?= csrf_field() ?><input type="hidden" name="action" value="entete">
+<form method="post" class="card" id="fEntete"><?= csrf_field() ?><input type="hidden" name="action" value="entete">
   <div class="cols">
     <label>Marché <input name="nom" value="<?= e($b['nom']) ?>" required <?= $ro ? 'readonly' : '' ?>></label>
     <label>Collectivité / client <input name="client" value="<?= e($b['client']) ?>" <?= $ro ? 'readonly' : '' ?>></label>
@@ -129,6 +129,19 @@ if ($lecture): ?>
 </form>
 <form id="figer" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="figer"></form>
 <form id="defiger" method="post"><?= csrf_field() ?><input type="hidden" name="action" value="defiger"></form>
+<?php // Comparaison des équipes : total du bordereau recalculé avec chaque équipe (lignes à prix manuel inchangées)
+$COMP = [];
+if (count($equipes) > 1 && !$fige && $nbQte) foreach ($equipes as $x) { $man = 0.0; $ls = [];
+    foreach ($lignes as $l) if ($l['type'] === 'ligne' && $l['quantite'] !== null) { $qt = (float)$l['quantite'];
+        if ($l['pu_manuel'] !== null) $man += (float)$l['pu_manuel'] * $qt; elseif (isset($cat[$l['ligne_id']])) $ls[] = [round(prix_catalogue_brut($cat[$l['ligne_id']], (int)$x['id']), 4), $qt]; }
+    $COMP[] = ['id' => (int)$x['id'], 'nom' => $x['nom'], 'taux' => (float)$x['taux'], 'man' => $man, 'l' => $ls]; }
+if ($COMP): ?>
+<section class="card comp-eq no-print" id="compEq">
+  <h3>Comparer les équipes <span class="muted small">(total HT de ce bordereau avec chaque équipe, ajustement du curseur compris ; les lignes à prix saisi à la main ne changent pas)</span></h3>
+  <div class="scroll"><table class="tbl"><thead><tr><th>Équipe</th><th class="r">Taux horaire</th><th class="r">Total HT</th><th class="r">Écart avec l'équipe appliquée</th><th></th></tr></thead><tbody id="compCorps"></tbody></table></div>
+  <?php if (est_admin()): ?><p class="small muted">Ajouter une équipe (par exemple une équipe intermédiaire) : <a href="parametres.php#ressources">Chiffrage › Paramètres de prix › Ajouter une ressource</a>, type « Équipe ».</p><?php endif; ?>
+</section>
+<?php endif; ?>
 
 <datalist id="catcodes"><?php foreach ($catalogue as $c): ?><option value="<?= e($c['code'] !== '' ? $c['code'] : '#' . $c['id']) ?>"><?= e(mb_substr($c['libelle'], 0, 90)) ?> · <?= money(prix_catalogue($c, $eqId)) ?></option><?php endforeach; ?></datalist>
 <?php if (!$ro): ?><p class="barre-ajout">Ajouter : <a class="mini" href="#ajout">un pack</a> <a class="mini" href="#ajout-cat">des lignes du catalogue</a> <a class="mini" href="#ajout">un titre de section</a> <a class="mini" href="#ajout">une ligne libre</a> <span class="muted small">· Colonnes : <strong>PU calculé</strong> = temps du catalogue × taux de l'équipe × coefficient (clic ↗ pour régler le temps) ; <strong>PU imposé</strong> = prix forcé pour ce marché seulement ; <strong>PU retenu</strong> = celui qui part dans l'offre.</span></p><?php endif; ?>
@@ -222,11 +235,23 @@ const num = v => parseFloat(String(v).replace(/[\s\u00a0\u202f]/g, '').replace('
 const fmt = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 const TVA = <?= json_encode($tva) ?>, PAS = <?= json_encode((float)setting('arrondi', '1')) ?>, AJUST0 = <?= json_encode($ajust) ?>;
 const arrondir = v => PAS > 0 ? Math.round(v / PAS) * PAS : Math.round(v * 100) / 100;
+const COMP = <?= json_encode($COMP, JSON_UNESCAPED_UNICODE) ?>, EQ_ACTU = <?= json_encode($eqId) ?>, RO = <?= $ro ? 'true' : 'false' ?>;
+const eurC = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+function comparer() {
+  const c = document.getElementById('compCorps'); if (!c || !COMP.length) return;
+  const cu = document.getElementById('ajust'), a = cu ? +cu.value : 0;
+  const tot = COMP.map(x => x.man + x.l.reduce((s, [b, q]) => s + arrondir(b * (1 + a / 100)) * q, 0));
+  const ref = tot[COMP.findIndex(x => x.id === EQ_ACTU)] ?? tot[0], mx = Math.max(...tot) || 1;
+  c.innerHTML = COMP.map((x, i) => { const d = tot[i] - ref, p = ref ? d / ref * 100 : 0, actu = x.id === EQ_ACTU;
+    return `<tr class="${actu ? 'actu' : ''}"><td><strong>${x.nom.replace(/[<&]/g, '')}</strong>${actu ? ' <span class="pastille">appliquée</span>' : ''}<div class="barre"><i style="width:${Math.round(tot[i] / mx * 100)}%"></i></div></td><td class="r">${eurC(x.taux)}/h</td><td class="r"><strong>${eurC(tot[i])}</strong></td><td class="r">${actu ? '—' : (d > 0 ? '+' : '') + eurC(d) + ' (' + (d > 0 ? '+' : '') + p.toFixed(1).replace('.', ',') + ' %)'}</td><td>${actu || RO ? '' : `<button type="button" class="mini" data-eq="${x.id}">Appliquer</button>`}</td></tr>`; }).join('');
+  c.querySelectorAll('[data-eq]').forEach(b => b.onclick = () => { const f = document.getElementById('fEntete'), s = f.querySelector('select[name=equipe_id]'); if (s) { s.value = b.dataset.eq; f.submit(); } });
+}
+comparer();
 // Curseur d'ajustement : les PU calculés sont recalculés depuis le prix brut (avant arrondi), comme le fera le serveur à l'enregistrement
 const curseur = document.getElementById('ajust');
 if (curseur) curseur.addEventListener('input', () => { const a = +curseur.value; document.getElementById('ajustVal').textContent = (a > 0 ? '+' : '') + a + ' %';
   document.querySelectorAll('tr[data-calc]').forEach(tr => { const brut = parseFloat(tr.dataset.brut || '0'); if (!brut) return; const pu = arrondir(brut * (1 + a / 100)); tr.dataset.calc = pu; const c = tr.querySelector('.calc a'); if (c) c.textContent = fmt(pu); });
-  document.querySelectorAll('tr[data-calc]').forEach(tr => tr.dispatchEvent(new Event('input'))); document.getElementById('ajustVal').style.color = a ? 'var(--rouge)' : ''; });
+  document.querySelectorAll('tr[data-calc]').forEach(tr => tr.dispatchEvent(new Event('input'))); document.getElementById('ajustVal').style.color = a ? 'var(--rouge)' : ''; comparer(); });
 function recalc() {
   let total = 0, totalPU = 0, nb = 0;
   document.querySelectorAll('tr[data-calc]').forEach(tr => {

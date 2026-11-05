@@ -3,6 +3,8 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.7', '2026-11-05', [
+        'Tableau de bord : en mode « Personnaliser », chaque famille se déplace entière en attrapant son titre (souris ou doigt) pour la placer au-dessus ou en dessous d\'une autre ; logo Grality',
+        'Bordereau : comparaison des équipes (total HT avec chaque équipe, écart en € et en %, curseur d\'ajustement compris) et bouton « Appliquer » ; on peut créer autant d\'équipes que voulu (ex. équipe intermédiaire) dans Paramètres de prix',
         'Liens des outils du tableau de bord (Drive, Extrabat, Urgence Élagage, Arbogestion, Grality, Kleyk) : page dédiée Compte › Liens des outils, bouton « Régler les liens » sur le tableau de bord ; panneau de l\'assistant : la conversation défile dans le panneau même quand elle est longue',
         'Tableaux du chiffrage (bordereau, catalogue, import) : grande poignée en bas à droite pour agrandir ou réduire le tableau, largeur de chaque colonne réglable en tirant le bord de son titre (double-clic pour revenir), réglages mémorisés',
         'Bordereau : curseur d\'ajustement des prix (−30 % à +30 %) recalculé en direct et repris dans l\'export ; tableaux à taille réglable et plein écran',

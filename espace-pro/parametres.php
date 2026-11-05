@@ -68,9 +68,9 @@ page_start('Paramètres', 'parametres.php');
 </section>
 <?php endif; ?>
 <div class="cols cols-2">
-<section class="card">
+<section class="card" id="ressources">
   <h2>Taux horaires des ressources</h2>
-  <p class="muted">Prix horaire de chaque moyen. « Équipe » couvre tout ce qui est toujours présent ; les autres lignes sont des moyens spécifiques ajoutés ligne par ligne dans le catalogue.</p>
+  <p class="muted">Prix horaire de chaque moyen. « Équipe » couvre tout ce qui est toujours présent (on peut en créer plusieurs, ex. standard, intermédiaire, marché public : chaque bordereau choisit la sienne et les compare) ; les autres lignes sont des moyens spécifiques ajoutés ligne par ligne dans le catalogue.</p>
   <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="taux">
   <div class="scroll"><table class="tbl">
     <tr><th>Ressource</th><th>Type</th><th class="r">€ HT / heure</th><th></th></tr>

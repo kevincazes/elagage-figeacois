@@ -21,7 +21,7 @@ $liens = [
     ['Extrabat', setting('lien_extrabat'), 'Gestion commerciale et espace client', '../images/logo-extrabat.png'],
     ['Urgence Élagage', setting('lien_urgence'), 'Dispositif collectivités', '../images/logo-urgence-elagage.png'],
     ['Arbogestion', setting('lien_arbogestion'), 'Gestion du patrimoine arboré', '../images/logo-arbogestion.png'],
-    ['Grality', setting('lien_grality'), 'Inventaire et suivi des arbres', $icone(setting('lien_grality'))],
+    ['Grality', setting('lien_grality'), 'Inventaire et suivi des arbres', '../images/logo-grality.png'],
     ['Kleyk', setting('lien_kleyk'), "Fiches d'intervention", $icone(setting('lien_kleyk'))],
 ];
 // ---- Widgets du tableau de bord : liste complète (selon les droits), ordre et masquage propres à chaque compte
@@ -77,7 +77,8 @@ page_start('Tableau de bord', 'index.php');
 ?>
 <?= pictos_sprite() ?>
 <style>.tdb-barre{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.tdb-barre .btn.on{background:var(--sapin)}
-.tdb-grp h2{display:flex;align-items:center;gap:8px}.tdb-grp h2 .gmv{display:none;gap:2px}.edit .tdb-grp h2 .gmv{display:inline-flex}.gmv button{border:1px solid #d5dccd;background:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:.8rem;line-height:1}
+.tdb-grp h2{display:flex;align-items:center;gap:8px}.tdb-grp h2 .gmv{display:none;gap:2px}.edit .tdb-grp h2 .gmv{display:inline-flex}.edit .tdb-grp>h2{cursor:grab;touch-action:none}.edit .tdb-grp{outline:2px dashed #b9c9a6;outline-offset:3px}.tdb-grp.gdrag{opacity:.55;outline:3px solid var(--sapin)!important;box-shadow:0 16px 40px rgba(28,59,43,.25)}body.gtire,body.gtire *{cursor:grabbing!important;user-select:none}.gpoig{display:inline-flex;align-items:center;gap:6px;border:1px solid #d5dccd;background:#fff;border-radius:6px;height:26px;padding:0 8px;font-size:.78rem;font-weight:700;color:#5b6b5f;margin-right:4px}
+.gmv button{border:1px solid #d5dccd;background:#fff;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:.8rem;line-height:1}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));grid-auto-rows:minmax(120px,auto);grid-auto-flow:dense;gap:14px;margin:0 0 8px}.tile.cache{display:none}
 .tile.l{grid-column:span 2}.tile.xl{grid-column:span 2;grid-row:span 2}.tile.xl strong{font-size:3rem}
 .tile .extra{display:none;margin-top:10px;border-top:1px solid #eef1ea;padding-top:8px}.tile.l .extra,.tile.xl .extra{display:block}.tile .plus{list-style:none;margin:0;padding:0;font-size:.85rem}.tile .plus li{padding:3px 0;border-bottom:1px dashed #eef1ea}.tile .plus li:last-child{border:0}.tile.l .plus li:nth-child(n+4){display:none}.tile .plus a{color:var(--sapin)}
@@ -90,7 +91,7 @@ page_start('Tableau de bord', 'index.php');
 <div class="tdb-barre"><p class="lead" style="margin:0">Bonjour <?= e(user()['prenom']) ?>. Que veux-tu faire ?</p><button type="button" class="btn secondary" id="tdbPerso" title="Déplacer les widgets, changer leur taille, en masquer, en remettre">Personnaliser le tableau de bord</button></div>
 <div id="tdb">
 <?php foreach ($gOrdre as $g): $lst = array_filter($ordre, fn($k) => $W[$k]['groupe'] === $g); if (!$lst) continue; ?>
-<section class="tdb-grp" data-g="<?= $g ?>"><h2><?= e($GROUPES[$g]) ?><?= $g === 'Outils' && est_admin() ? ' <a class="mini reg-liens" href="liens.php" title="Modifier les adresses des outils">Régler les liens</a>' : '' ?> <span class="gmv"><button type="button" class="gh" title="Monter cette famille">▲</button><button type="button" class="gb" title="Descendre cette famille">▼</button></span></h2>
+<section class="tdb-grp" data-g="<?= $g ?>"><h2><?= e($GROUPES[$g]) ?><?= $g === 'Outils' && est_admin() ? ' <a class="mini reg-liens" href="liens.php" title="Modifier les adresses des outils">Régler les liens</a>' : '' ?> <span class="gmv"><span class="gpoig" title="Attraper la famille pour la placer au-dessus ou en dessous d'une autre"><svg viewBox="0 0 12 18" width="10" height="16"><g fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></g></svg> Déplacer la famille</span><button type="button" class="gh" title="Monter cette famille">▲</button><button type="button" class="gb" title="Descendre cette famille">▼</button></span></h2>
 <div class="tiles">
 <?php foreach ($lst as $k): $t = $W[$k]; $cache = in_array($k, $masques, true); $taille = $tailles[$k] ?? ''; $img = $t['img'] ? '<img class="tile-ico" src="' . e($t['img']) . '" alt="" loading="lazy">' : '';
   $outils = '<div class="outils"><span class="poignee" title="Glisser pour déplacer">⠿</span><span><button type="button" class="taille" title="Taille : normale → large → grande">' . ['' => 'Normal', 'l' => 'Large', 'xl' => 'Grand'][$taille] . '</button> <button type="button" class="masq" title="Masquer">✕</button></span></div>'; ?>
@@ -101,7 +102,7 @@ page_start('Tableau de bord', 'index.php');
 <?php endforeach; ?>
 </div>
 <div id="tdbMasques"></div>
-<p class="small muted" id="tdbAide" hidden>Glisse un widget par sa poignée ⠿ pour l'ordonner dans sa famille (appui long sur téléphone), « Normal / Large / Grand » change sa taille, ✕ le masque ; ▲▼ ordonnent les familles. Tout est propre à ton compte et enregistré au fur et à mesure.</p>
+<p class="small muted" id="tdbAide" hidden>Glisse un widget par sa poignée ⠿ pour l'ordonner dans sa famille (appui long sur téléphone), « Normal / Large / Grand » change sa taille, ✕ le masque ; pour déplacer une famille entière, attrape son titre (ou « Déplacer la famille ») et glisse-la au-dessus ou en dessous d'une autre (▲▼ marchent aussi). Tout est propre à ton compte et enregistré au fur et à mesure.</p>
 <?php if ($alertesPl): ?><div class="flash err" style="margin-top:14px"><strong>Planning : <?= count($alertesPl) ?> point(s) à regarder</strong><ul style="margin:6px 0 0;padding-left:18px"><?php foreach (array_slice($alertesPl, 0, 5) as $a): ?><li><?= $a['id'] ? '<a href="planning.php?fiche=' . $a['id'] . '">' . e($a['txt']) . '</a>' : (!empty($a['url']) ? '<a href="' . e($a['url']) . '">' . e($a['txt']) . '</a>' : e($a['txt'])) ?></li><?php endforeach; ?></ul><a class="mini" href="planning.php" style="margin-top:6px">Ouvrir le planning</a></div><?php endif; ?>
 <script>
 (() => {
@@ -123,6 +124,14 @@ page_start('Tableau de bord', 'index.php');
   D.addEventListener('dragover', ev => { if (!edit || !drag) return; ev.preventDefault(); const c = ev.target.closest('.tile'); D.querySelectorAll('.cible').forEach(x => x.classList.remove('cible')); if (c && c !== drag && c.closest('.tdb-grp') === drag.closest('.tdb-grp')) c.classList.add('cible'); });
   D.addEventListener('drop', ev => { if (!edit || !drag) return; ev.preventDefault(); const c = ev.target.closest('.tile'); if (c) { const r = c.getBoundingClientRect(); if (deposer(drag, c, (ev.clientX - r.left) > r.width / 2)) sauver(); } });
   D.addEventListener('dragend', () => { D.querySelectorAll('.cible, .drag').forEach(x => x.classList.remove('cible', 'drag')); drag = null; });
+  // Familles : attraper l'en-tête (souris ou doigt) et la glisser au-dessus ou en dessous d'une autre
+  let gs = null;
+  D.addEventListener('pointerdown', ev => { if (!edit) return; const h = ev.target.closest('.tdb-grp > h2'); if (!h || ev.target.closest('button')) return; ev.preventDefault(); gs = h.parentElement; gs.classList.add('gdrag'); document.body.classList.add('gtire'); });
+  document.addEventListener('pointermove', ev => { if (!gs) return; const autres = [...D.querySelectorAll('.tdb-grp')].filter(x => x !== gs);
+    for (const x of autres) { const r = x.getBoundingClientRect(); if (ev.clientY > r.top && ev.clientY < r.bottom) { const apres = ev.clientY > r.top + r.height / 2; if (apres && x.nextElementSibling !== gs) x.after(gs); else if (!apres && x.previousElementSibling !== gs) x.before(gs); break; } }
+    if (ev.clientY < 60) window.scrollBy(0, -12); else if (ev.clientY > innerHeight - 60) window.scrollBy(0, 12); });
+  const finG = () => { if (!gs) return; gs.classList.remove('gdrag'); document.body.classList.remove('gtire'); gs = null; sauver(); };
+  document.addEventListener('pointerup', finG); document.addEventListener('pointercancel', finG);
   let tp = null, tt = null; // tactile : appui long puis déplacement
   D.addEventListener('touchstart', ev => { if (!edit) return; const t = ev.target.closest('.tile'); if (!t) return; tt = setTimeout(() => { tp = t; t.classList.add('drag'); }, 250); }, {passive: true});
   D.addEventListener('touchmove', ev => { if (!edit) return; if (!tp) { clearTimeout(tt); return; } ev.preventDefault(); const p = ev.touches[0]; const c = document.elementFromPoint(p.clientX, p.clientY)?.closest('.tile'); if (c) { const r = c.getBoundingClientRect(); deposer(tp, c, p.clientY > r.top + r.height / 2); } }, {passive: false});
