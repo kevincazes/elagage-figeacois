@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.9', '2026-11-06', [
+        'Agenda du téléphone modifiable dans les deux sens (CalDAV) : Mon compte › « Agenda du téléphone, modifiable » donne le serveur, l\'identifiant et un mot de passe agenda ; sur l\'iPhone (compte CalDAV) ou Android (DAVx⁵), déplacer ou renommer un rendez-vous ou une visite met à jour le planning ; un rendez-vous créé sur le téléphone arrive dans le planning ; les chantiers restent fixes',
+        'Agendas externes (Extrabat…) : couleur modifiable directement dans la liste des agendas',
+    ]],
     ['2.8.2', '2026-11-06', [
         'Agendas protégés (CalDAV : Extrabat, iCloud, Nextcloud…) : adresse du serveur + nom d\'utilisateur + mot de passe (chiffré sur le serveur, jamais réaffiché) ; les calendriers sont trouvés tout seuls et relus toutes les heures',
     ]],

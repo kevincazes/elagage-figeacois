@@ -3,3 +3,14 @@
   Require all denied
 </FilesMatch>
 Options -Indexes
+
+# Agenda synchronisé (CalDAV) : transmet l'identification au script et accepte les adresses /caldav.php/…
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule ^caldav\.php - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  RewriteRule ^caldav\.php/ caldav.php [L]
+</IfModule>
