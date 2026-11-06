@@ -3,7 +3,7 @@
   const b = document.getElementById('notif'); if (!b || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
   const csrf = document.querySelector('meta[name=csrf]')?.content || '';
   const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
-  const maj = async () => { const reg = await navigator.serviceWorker.ready; const s = await reg.pushManager.getSubscription(); b.hidden = false; b.textContent = s && Notification.permission === 'granted' ? '🔔 Notifications activées' : '🔔 Activer les notifications'; b.dataset.on = s ? '1' : ''; };
+  const maj = async () => { const reg = await navigator.serviceWorker.ready; const s = await reg.pushManager.getSubscription(); b.hidden = false; b.innerHTML = '<svg class="pi" viewBox="0 0 24 24" style="width:1em;height:1em;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg> ' + (s && Notification.permission === 'granted' ? 'Notifications activées' : 'Activer les notifications'); b.dataset.on = s ? '1' : ''; };
   b.onclick = async () => {
     try {
       const reg = await navigator.serviceWorker.ready;

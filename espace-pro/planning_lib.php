@@ -23,6 +23,7 @@ function planning_alters(): array { return ["ALTER TABLE evenements ADD COLUMN k
               "ALTER TABLE evenements ADD COLUMN contrat_id INT NULL", "ALTER TABLE evenements ADD COLUMN urgence_ref VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN termine_le DATETIME NULL", "ALTER TABLE evenements ADD COLUMN avis_le DATETIME NULL",
               "ALTER TABLE evenements ADD COLUMN secteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN contrat_mois VARCHAR(7) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN phyto TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN motif VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD COLUMN pictos VARCHAR(200) NOT NULL DEFAULT ''",
               "CREATE TABLE IF NOT EXISTS agendas_externes (id INT AUTO_INCREMENT PRIMARY KEY, personnel_id INT NOT NULL, nom VARCHAR(80) NOT NULL, url VARCHAR(500) NOT NULL, couleur VARCHAR(7) NOT NULL DEFAULT '#9aa5b1', prive TINYINT NOT NULL DEFAULT 0, actif TINYINT NOT NULL DEFAULT 1, nb INT NOT NULL DEFAULT 0, maj_le DATETIME NULL, erreur VARCHAR(255) NOT NULL DEFAULT '', cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX (personnel_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+              "CREATE TABLE IF NOT EXISTS trajets_cache (cle VARCHAR(64) PRIMARY KEY, km DECIMAL(7,1) NOT NULL, min INT NOT NULL, maj DATETIME NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
               "CREATE TABLE IF NOT EXISTS evenements_externes (id INT AUTO_INCREMENT PRIMARY KEY, agenda_id INT NOT NULL, uid VARCHAR(190) NOT NULL DEFAULT '', debut DATETIME NOT NULL, fin DATETIME NOT NULL, journee TINYINT NOT NULL DEFAULT 0, titre VARCHAR(190) NOT NULL DEFAULT '', lieu VARCHAR(190) NOT NULL DEFAULT '', INDEX (agenda_id), INDEX (debut)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
               "CREATE TABLE IF NOT EXISTS evt_prestations (id INT AUTO_INCREMENT PRIMARY KEY, evenement_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, libelle VARCHAR(255) NOT NULL, quantite DECIMAL(10,2) NULL, unite VARCHAR(30) NOT NULL DEFAULT '', source VARCHAR(20) NOT NULL DEFAULT 'manuel', fait_le DATETIME NULL, fait_par INT NULL, remarque VARCHAR(255) NOT NULL DEFAULT '', INDEX (evenement_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
               "CREATE TABLE IF NOT EXISTS evt_taches (id INT AUTO_INCREMENT PRIMARY KEY, evenement_id INT NOT NULL, libelle VARCHAR(150) NOT NULL, personnel_id INT NULL, echeance DATE NULL, delai_j INT NULL, picto VARCHAR(30) NOT NULL DEFAULT '', fait_le DATETIME NULL, fait_par INT NULL, rappel_le DATETIME NULL, cree_par INT NULL, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX (evenement_id), INDEX (personnel_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", "ALTER TABLE contrats ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD INDEX (client_id)",
@@ -195,6 +196,61 @@ function distance_km(float $lat1, float $lng1, float $lat2, float $lng2): float 
     return 2 * $r * asin(min(1, sqrt($a))) * (float)setting('planning_facteur', '1.3');
 }
 function trajet_min(float $km): int { return (int)round($km / max(10, (float)setting('planning_vitesse', '55')) * 60); }
+/** Temps de route réel entre deux points (calcul d'itinéraire OSRM, gratuit, mis en cache 120 jours), majoré pour les véhicules de chantier.
+ *  Sans réseau ou si le service ne répond pas : estimation vol d'oiseau × facteur route / vitesse moyenne. Renvoie km, min, source (route|estim). */
+function trajet(float $la1, float $lo1, float $la2, float $lo2, bool $reseau = true): array {
+    static $appels = 0, $memo = [];
+    $maj = 1 + max(0, (float)setting('planning_trajet_maj', '10')) / 100;
+    $cle = sprintf('%.4f,%.4f|%.4f,%.4f', $la1, $lo1, $la2, $lo2);
+    if (abs($la1 - $la2) < 0.0005 && abs($lo1 - $lo2) < 0.0005) return ['km' => 0.0, 'min' => 0, 'source' => 'route'];
+    if (!isset($memo[$cle])) {
+        $c = null; try { $c = q("SELECT km, min FROM trajets_cache WHERE cle = ? AND maj > DATE_SUB(NOW(), INTERVAL 120 DAY)", [$cle])->fetch(); } catch (Throwable $t) {}
+        if (!$c && $reseau && setting('planning_routage', 'route') === 'route' && $appels < 30) {
+            $appels++;
+            $url = rtrim(setting('planning_osrm', 'https://router.project-osrm.org'), '/') . sprintf('/route/v1/driving/%.5f,%.5f;%.5f,%.5f?overview=false', $lo1, $la1, $lo2, $la2);
+            $ctx = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true, 'header' => "User-Agent: EspacePro-ElagageFigeacois/1.0\r\n"]]);
+            $rep = @file_get_contents($url, false, $ctx); $j = $rep ? json_decode($rep, true) : null;
+            if (($j['code'] ?? '') === 'Ok' && isset($j['routes'][0]['duration'])) {
+                $c = ['km' => round($j['routes'][0]['distance'] / 1000, 1), 'min' => (int)ceil($j['routes'][0]['duration'] / 60)];
+                try { q("REPLACE INTO trajets_cache (cle, km, min, maj) VALUES (?,?,?,NOW())", [$cle, $c['km'], $c['min']]); } catch (Throwable $t) {}
+            } elseif ($rep === false) $appels = 99; // service injoignable : estimations pour le reste de la page
+        }
+        $memo[$cle] = $c ? ['km' => (float)$c['km'], 'min' => (int)$c['min'], 'source' => 'route'] : null;
+    }
+    if ($memo[$cle]) return ['km' => $memo[$cle]['km'], 'min' => (int)round($memo[$cle]['min'] * $maj), 'source' => 'route'];
+    $km = distance_km($la1, $lo1, $la2, $lo2);
+    return ['km' => round($km, 1), 'min' => trajet_min($km), 'source' => 'estim'];
+}
+/** Trajets d'une période : pour chaque personne et chaque jour, le départ du dépôt vers le 1er rendez-vous à l'heure, puis chaque rendez-vous vers le suivant.
+ *  [{pid, de (id ou 'depot'), vers, km, min, source, ecart (min entre la fin du précédent et le début du suivant), depart (heure conseillée)}] */
+function trajets_periode(array $evs, bool $reseau = true): array {
+    $parP = [];
+    foreach ($evs as $e) {
+        if (empty($e['lat']) || empty($e['lng']) || !empty($e['journee']) || !empty($e['externe']) || substr((string)$e['fin'], 0, 10) !== substr((string)$e['debut'], 0, 10) || in_array($e['type'] ?? '', ['absence', 'entretien'], true) || ($e['statut'] ?? '') === 'annule' || empty($e['debut'])) continue;
+        foreach ($e['personnel'] ?? [] as $pid) $parP[(int)$pid][substr($e['debut'], 0, 10)][] = $e;
+    }
+    $dep = depot(); $out = [];
+    foreach ($parP as $pid => $jours) foreach ($jours as $jour => $liste) {
+        usort($liste, fn($a, $b) => strcmp($a['debut'], $b['debut']));
+        $prec = null;
+        foreach ($liste as $e) {
+            if ($prec === null) { $t = trajet($dep['lat'], $dep['lng'], (float)$e['lat'], (float)$e['lng'], $reseau);
+                $out[] = ['pid' => $pid, 'de' => 'depot', 'vers' => (int)$e['id'], 'km' => $t['km'], 'min' => $t['min'], 'source' => $t['source'], 'ecart' => null, 'depart' => date('H:i', strtotime($e['debut']) - $t['min'] * 60)]; }
+            elseif (strtotime($e['debut']) >= strtotime($prec['fin'])) { $t = trajet((float)$prec['lat'], (float)$prec['lng'], (float)$e['lat'], (float)$e['lng'], $reseau);
+                $out[] = ['pid' => $pid, 'de' => (int)$prec['id'], 'vers' => (int)$e['id'], 'km' => $t['km'], 'min' => $t['min'], 'source' => $t['source'], 'ecart' => (int)round((strtotime($e['debut']) - strtotime($prec['fin'])) / 60), 'depart' => date('H:i', strtotime($prec['fin']))]; }
+            if ($prec === null || strtotime($e['fin']) > strtotime($prec['fin'])) $prec = $e;
+        }
+    }
+    return $out;
+}
+/** Arrivée au plus tôt d'une personne à un rendez-vous : fin du rendez-vous précédent de la journée + route (ou départ du dépôt) */
+function trajet_avant(int $pid, string $debut, float $lat, float $lng, ?int $sauf = null): ?array {
+    $j = substr($debut, 0, 10);
+    $o = q("SELECT ev.id, ev.titre, ev.fin, ev.lat, ev.lng FROM evenements ev JOIN evenement_personnel ep ON ep.evenement_id = ev.id WHERE ep.personnel_id = ? AND ev.id <> ? AND ev.statut <> 'annule' AND ev.journee = 0 AND ev.lat IS NOT NULL AND ev.type NOT IN ('absence','entretien') AND ev.fin <= ? AND ev.fin >= ? ORDER BY ev.fin DESC LIMIT 1", [$pid, (int)$sauf, $debut, "$j 00:00:00"])->fetch();
+    if (!$o) return null;
+    $t = trajet((float)$o['lat'], (float)$o['lng'], $lat, $lng);
+    return ['de' => $o['titre'], 'fin' => substr($o['fin'], 11, 5), 'km' => $t['km'], 'min' => $t['min'], 'source' => $t['source'], 'arrivee' => date('Y-m-d H:i:s', strtotime($o['fin']) + $t['min'] * 60)];
+}
 function depot(): array { return ['lat' => (float)setting('planning_depot_lat', '44.6001'), 'lng' => (float)setting('planning_depot_lng', '1.9475'), 'nom' => setting('planning_depot', 'Dépôt')]; }
 
 // ---- Conflits et alertes d'un événement ----
@@ -236,7 +292,7 @@ function evt_conflits(array $e): array {
         foreach ($e['personnel'] ?? [] as $pid) {
             $j = substr($deb, 0, 10);
             foreach (q("SELECT ev.id, ev.titre, ev.debut, ev.fin, ev.lat, ev.lng FROM evenements ev JOIN evenement_personnel ep ON ep.evenement_id = ev.id WHERE ep.personnel_id = ? AND ev.id <> ? AND ev.statut <> 'annule' AND ev.lat IS NOT NULL AND ev.journee = 0 AND ev.type IN ('visite','rdv','chantier','urgence') AND DATE(ev.debut) = ?", [$pid, $id, $j]) as $o) {
-                $km = distance_km((float)$o['lat'], (float)$o['lng'], (float)$e['lat'], (float)$e['lng']); $min = trajet_min($km); if ($min < 5) continue;
+                $tj = trajet((float)$o['lat'], (float)$o['lng'], (float)$e['lat'], (float)$e['lng']); $km = $tj['km']; $min = $tj['min']; if ($min < 5) continue;
                 if (strtotime($o['fin']) <= strtotime($deb)) { $ecart = (strtotime($deb) - strtotime($o['fin'])) / 60; if ($ecart < $min) $al[] = ($pers[$pid]['prenom'] ?? 'Personne') . " : temps de trajet insuffisant après « {$o['titre']} » (" . round($km) . " km ≈ $min min, écart " . (int)$ecart . " min)."; }
                 elseif (strtotime($o['debut']) >= strtotime($fin)) { $ecart = (strtotime($o['debut']) - strtotime($fin)) / 60; if ($ecart < $min) $al[] = ($pers[$pid]['prenom'] ?? 'Personne') . " : temps de trajet insuffisant avant « {$o['titre']} » (" . round($km) . " km ≈ $min min, écart " . (int)$ecart . " min)."; }
             }

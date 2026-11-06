@@ -70,7 +70,7 @@ page_start('Réglages du planning', 'reglages-planning.php', ['planning.php', 'P
 
 <form method="post" class="card" id="notifications"><?= csrf_field() ?><input type="hidden" name="action" value="notifications"><h2 style="margin-top:0">Notifications sur le téléphone</h2>
   <label style="display:flex;gap:8px;align-items:center;font-weight:900"><?= $chk('push_actif') ?> Envoyer les notifications (nouveau chantier, changement de date, congés, réponse d'un client…)</label>
-  <p class="muted small">Chaque salarié les active sur son téléphone depuis « Mon planning » ou « Mes notifications » (bouton 🔔). Sur iPhone, l'espace pro doit d'abord être ajouté à l'écran d'accueil.</p>
+  <p class="muted small">Chaque salarié les active sur son téléphone depuis « Mon planning » ou « Mes notifications » (bouton « Activer les notifications »). Sur iPhone, l'espace pro doit d'abord être ajouté à l'écran d'accueil.</p>
   <button class="btn">Enregistrer</button></form>
 <form method="post" style="margin:-6px 0 18px"><?= csrf_field() ?><input type="hidden" name="action" value="push_test"><button class="mini">M'envoyer une notification de test</button></form>
 

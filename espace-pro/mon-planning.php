@@ -24,11 +24,14 @@ $donnees = array_map(function ($e) use ($noms, $mats, $pid, $rapports, $PICTOS) 
 }, $evs);
 if ($p) { try { foreach (externes_periode("$jour 00:00:00", date('Y-m-d 00:00:00', strtotime("$jour +1 day")), $pid) as $x) $donnees[] = ['id' => $x['id'], 'externe' => 1, 'agenda' => $x['agenda'], 'couleur' => $x['couleur'], 'type' => 'externe', 'titre' => $x['titre'], 'statut' => 'confirme', 'debut' => $x['debut'], 'fin' => $x['fin'], 'journee' => $x['journee'], 'client' => '', 'tel' => '', 'email' => '', 'client_id' => null, 'adresse' => $x['adresse'], 'cp' => '', 'ville' => '', 'lat' => null, 'lng' => null, 'consignes' => '', 'phyto' => 0, 'motif' => '', 'pictos' => [], 'taches' => [], 'prestations' => [], 'avec' => [], 'materiel' => [], 'rapport' => null, 'dict' => []]; } catch (Throwable $t) {} }
 usort($donnees, fn($a, $b) => strcmp($a['debut'], $b['debut']));
+// Temps de route réels de la journée (dépôt → 1er rendez-vous, puis d'un rendez-vous au suivant), calculés et mis en cache côté serveur
+$ROUTES = []; if ($p && $evs) { try { foreach (trajets_periode($evs) as $t) if ($t['pid'] === $pid) $ROUTES[$t['vers']] = $t; } catch (Throwable $t) {} }
 page_start('Mon planning', 'mon-planning.php');
 ?>
 <style>
 main{max-width:720px}
 .lst{list-style:none;margin:6px 0 0;padding:0}.lst li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed #e4e8de;font-size:.92rem}.lst li.fait .l{text-decoration:line-through;opacity:.6}.lst .l{flex:1;min-width:0}.lst .qui{font-size:.78rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:24px!important;height:24px;margin:0!important;flex:none}
+.route{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:-4px 0 8px 18px;padding:5px 10px;border-left:3px dashed #9fb3c8;color:#3d5a80;font-size:.84rem}.route .pi{width:15px;height:15px}.route a{margin-left:auto;font-weight:700}.route.court{border-left-color:#e6332a;color:#a3271c;background:#fdf1ef;border-radius:0 8px 8px 0}.ici{color:#2f6b45}
 .rdv.externe{opacity:.8;background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.025) 0 6px,transparent 6px 12px)}
 .pictos{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-3px}.pictos .pi{width:17px;height:17px;color:var(--brun)}.ft-bloc .pictos .pi{width:28px;height:28px}
 .mp-haut{background:var(--brun);color:#fff;border-radius:0 0 26px 26px;margin:-22px -20px 16px;padding:14px 16px 16px;text-align:center}
@@ -62,8 +65,8 @@ main>h1{position:absolute;left:-9999px}
 <div class="mp-outils">
   <form><input type="hidden" name="jour" value="<?= e($jour) ?>"><select name="p" onchange="this.form.submit()" aria-label="Agenda de"><option value="">— Choisir —</option><?php foreach ($persL as $x): ?><option value="<?= $x['id'] ?>" <?= (int)$x['id'] === $pid ? 'selected' : '' ?>><?= e($x['prenom'] . ' ' . $x['nom']) ?><?= $moi && (int)$moi['id'] === (int)$x['id'] ? ' (moi)' : '' ?></option><?php endforeach; ?></select></form>
   <?php if ($jour !== date('Y-m-d')): ?><a class="mini" href="?p=<?= $pid ?>">Aujourd'hui</a><?php endif; ?>
-  <button class="mini" type="button" id="notif" hidden>🔔 Activer les notifications</button>
-  <?php if ($p && $p['ics_token'] && (($moi && (int)$moi['id'] === $pid) || planning_niveau() === 'tout')): ?><button type="button" class="mini" onclick="navigator.clipboard.writeText(this.dataset.l).then(()=>this.textContent='Lien copié !')" data-l="<?= e(lien_base() . '/planning-ics.php?t=' . $p['ics_token']) ?>" title="Google Agenda : « À partir de l'URL ». iPhone : Réglages › Calendrier › Comptes › Ajouter un compte › Autre › Calendrier avec abonnement.">📅 Lien agenda</button><?php endif; ?>
+  <button class="mini" type="button" id="notif" hidden><svg class="pi"><use href="#pi-bell"/></svg> Activer les notifications</button>
+  <?php if ($p && $p['ics_token'] && (($moi && (int)$moi['id'] === $pid) || planning_niveau() === 'tout')): ?><button type="button" class="mini" onclick="navigator.clipboard.writeText(this.dataset.l).then(()=>this.textContent='Lien copié !')" data-l="<?= e(lien_base() . '/planning-ics.php?t=' . $p['ics_token']) ?>" title="Google Agenda : « À partir de l'URL ». iPhone : Réglages › Calendrier › Comptes › Ajouter un compte › Autre › Calendrier avec abonnement."><svg class="pi"><use href="#pi-calendar"/></svg> Lien agenda</button><?php endif; ?>
 </div>
 <?php if (!$moi): ?><p class="muted small" style="text-align:center">Ton compte n'est relié à aucune fiche du personnel : demande à l'administrateur de le relier (Planning › Personnel, matériel, équipes).</p><?php endif; ?>
 <?php if ($mesTaches): ?><div class="card" id="mt" style="padding:10px 14px;margin-bottom:12px"><b>☐ Mes actions à faire (<?= count($mesTaches) ?>)</b>
@@ -74,6 +77,7 @@ main>h1{position:absolute;left:-9999px}
 <script>
 const EVS = <?= json_encode($donnees, JSON_UNESCAPED_UNICODE) ?>, TYPES = Object.assign(<?= json_encode(TYPES_EVT, JSON_UNESCAPED_UNICODE) ?>, {externe: ['Autre agenda', '#9aa5b1']}), JOUR = <?= json_encode($jour) ?>;
 const KLEYK = <?= json_encode(setting('lien_kleyk')) ?>, MOI = <?= json_encode($p ? trim($p['prenom'] . ' ' . $p['nom']) : '') ?>, ADMIN = <?= est_admin() ? 'true' : 'false' ?>;
+const ROUTES = <?= json_encode((object)$ROUTES) ?>;
 const FACT = <?= (float)setting('planning_facteur', '1.3') ?>, VIT = <?= (float)setting('planning_vitesse', '55') ?>, DEP = <?= json_encode(depot()) ?>;
 const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
 const p2 = n => String(n).padStart(2, '0'), hm = s => s.slice(11, 16), parse = s => new Date(s.replace(' ', 'T'));
@@ -94,16 +98,20 @@ function badge(e, prochain) {
 function rendre() {
   if (!EVS.length) return;
   const n = new Date(), proch = (EVS.find(e => parse(e.debut) > n && e.statut !== 'termine') || {}).id;
-  let prec = ICI || (DEP.lat ? {lat: DEP.lat, lng: DEP.lng} : null);
+  let prec = DEP.lat ? {lat: DEP.lat, lng: DEP.lng} : null, premier = true;
   $('#liste').innerHTML = EVS.map((e, i) => {
-    let dist = '';
-    if (e.lat && prec) { const k = km(prec.lat, prec.lng, e.lat, e.lng); dist = `<span>${ico('pin')} ${k < 10 ? k.toFixed(1) : Math.round(k)} km</span><span>${ico('clock')} ${Math.max(1, Math.round(k / VIT * 60))} min</span>`; }
-    if (e.lat && i === 0 && !ICI) dist += '<span class="muted" style="font-weight:400">depuis le dépôt</span>';
-    if (e.lat) prec = {lat: e.lat, lng: e.lng};
-    return `<div class="rdv${e.externe ? ' externe' : ''}" data-i="${i}"><div class="h">${anneau(e)}${e.journee ? 'Journée' : hm(e.debut) + ' – ' + hm(e.fin)}</div><div class="c">
+    let dist = '', route = '';
+    const r = ROUTES[e.id], f = n => String(n).replace('.', ',');
+    if (r && r.min >= 1) { // bande « route » avant le rendez-vous : temps réel, départ conseillé, alerte si l'écart ne suffit pas
+      const court = r.ecart !== null && r.ecart < r.min;
+      route = `<div class="route${court ? ' court' : ''}">${ico('car')} <b>${r.min} min</b> · ${f(r.km)} km${r.source === 'estim' ? ' (estimation)' : ''} · ${r.de === 'depot' ? 'départ du dépôt ' + r.depart : 'départ ' + r.depart}${court ? ` — il manque ${r.min - r.ecart} min : prévenir le client ou décaler` : ''}${e.lat ? ` <a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Itinéraire ›</a>` : ''}</div>`;
+    } else if (e.lat && prec && !e.journee) { const k = km(prec.lat, prec.lng, e.lat, e.lng); dist = `<span>${ico('pin')} ${k < 10 ? k.toFixed(1) : Math.round(k)} km</span><span>${ico('clock')} ${Math.max(1, Math.round(k / VIT * 60))} min</span>`; if (premier) dist += '<span class="muted" style="font-weight:400">depuis le dépôt</span>'; }
+    if (e.ici) dist = `<span class="ici">${ico('pin')} Depuis ta position : <b>${e.ici.min} min</b> · ${f(e.ici.km)} km</span>` + dist;
+    if (e.lat) { prec = {lat: e.lat, lng: e.lng}; premier = false; }
+    return route + `<div class="rdv${e.externe ? ' externe' : ''}" data-i="${i}"><div class="h">${anneau(e)}${e.journee ? 'Journée' : hm(e.debut) + ' – ' + hm(e.fin)}</div><div class="c">
       <div class="l1"><span class="hr">${e.journee ? (TYPES[e.type] || ['RDV'])[0] : hm(e.debut)}</span>${badge(e, proch)}</div>
       <div class="t">${e.pictos.length ? '<span class="pictos" title="' + esc(e.pictos.map(p => p.libelle).join('\n')) + '">' + e.pictos.map(p => p.html).join('') + '</span>' : ''}${esc(e.client || e.titre)}${e.taches.some(t => !t.fait_le) ? ' <span class="muted">☐' + e.taches.filter(t => !t.fait_le).length + '</span>' : ''}${e.client && e.titre !== e.client ? ' <span class="muted">· ' + esc(e.titre) + '</span>' : ''}</div><div class="v">${esc([e.cp, e.ville].filter(Boolean).join(' '))}${e.motif ? ' · <span style="text-transform:none">' + esc(e.motif) + '</span>' : ''}</div>
-      <div class="km">${dist}${e.rapport ? `<span title="Rapport">${ico('doc')}${e.rapport.nb ? ' ' + e.rapport.nb + ' ' + ico('camera') : ''}${e.rapport.signe_le ? ' ✓' : ''}</span>` : ''}${e.dict.length ? '<span style="color:#e6332a" title="' + esc(e.dict.join(' ')) + '">⚠ DT-DICT</span>' : ''}</div></div></div>`;
+      <div class="km">${dist}${e.rapport ? `<span title="Rapport">${ico('doc')}${e.rapport.nb ? ' ' + e.rapport.nb + ' ' + ico('camera') : ''}${e.rapport.signe_le ? ' ✓' : ''}</span>` : ''}${e.dict.length ? '<span style="color:#e6332a" title="' + esc(e.dict.join(' ')) + '"><svg class="pi"><use href="#pi-warning"/></svg> DT-DICT</span>' : ''}</div></div></div>`;
   }).join('');
   document.querySelectorAll('.rdv').forEach(d => d.onclick = () => ouvrir(EVS[+d.dataset.i]));
 }
@@ -174,6 +182,12 @@ window.addEventListener('popstate', () => { $('#ft').classList.remove('on'); doc
 rendre();
 const deep = (location.hash.match(/evt(\d+)/) || new URLSearchParams(location.search).get('evt') && [0, new URLSearchParams(location.search).get('evt')] || [])[1];
 if (deep) { const e = EVS.find(x => x.id === +deep); if (e) { history.replaceState(null, '', location.pathname + location.search.replace(/[?&]evt=\d+/, '')); ouvrir(e); } }
-if (navigator.geolocation && EVS.some(e => e.lat)) navigator.geolocation.getCurrentPosition(p => { ICI = {lat: p.coords.latitude, lng: p.coords.longitude}; rendre(); }, () => {}, {maximumAge: 300000, timeout: 8000});
+// Position du téléphone : temps de route réel jusqu'au prochain rendez-vous, recalculé à chaque ouverture de la page (et toutes les 5 min)
+async function depuisIci() {
+  if (!ICI) return; const n = new Date(), e = EVS.find(x => x.lat && !x.externe && parse(x.fin) > n && x.statut !== 'termine'); if (!e) return;
+  try { const r = await (await fetch(`planning_api.php?a=trajet_pos&lat=${ICI.lat}&lng=${ICI.lng}&vlat=${e.lat}&vlng=${e.lng}`)).json(); if (r.trajet) { EVS.forEach(x => delete x.ici); e.ici = r.trajet; rendre(); } } catch (err) {}
+}
+function localiser() { if (navigator.geolocation && EVS.some(e => e.lat)) navigator.geolocation.getCurrentPosition(p => { ICI = {lat: p.coords.latitude, lng: p.coords.longitude}; depuisIci(); }, () => {}, {maximumAge: 120000, timeout: 8000}); }
+localiser(); setInterval(localiser, 300000); document.addEventListener('visibilitychange', () => { if (!document.hidden) localiser(); });
 </script>
 <?php page_end(); ?>

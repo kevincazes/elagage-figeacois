@@ -390,7 +390,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <p>Sur le téléphone, <kbd>Mon planning</kbd> est l'écran du jour de chaque salarié. Ajoute l'espace pro à l'écran d'accueil (Safari › Partager › « Sur l'écran d'accueil ») : il s'ouvre comme une appli et peut recevoir les notifications.</p>
 <?php fig('terrain-jour', 'Les rendez-vous du jour', [
  'Le jour affiché ; ‹ › pour changer, « Aujourd\'hui » pour revenir.',
- '🔔 Activer les notifications : nouveaux chantiers, changements de date, réponses des clients arrivent sur le téléphone. « Lien agenda » ajoute tes chantiers à l\'agenda du téléphone.',
+ 'Activer les notifications : nouveaux chantiers, changements de date, réponses des clients arrivent sur le téléphone. « Lien agenda » ajoute tes chantiers à l\'agenda du téléphone.',
  'Chaque rendez-vous : horaire (cadran), client, commune, badge Prochain / À venir / En cours / Terminé.',
  'Kilomètres et minutes depuis ta position (ou depuis le dépôt pour le premier), et l\'état du rapport (📝 photos, ✓ signé).',
 ], 'tel'); ?>
@@ -486,7 +486,7 @@ function fig(string $img, string $titre, array $legende = [], string $classe = '
 <table><tr><th>Service</th><th>Ce qu'il faut</th></tr>
 <tr><td>SMS</td><td>Un compte SMS OVH (crédits) et ses clés d'API (application key, secret, consumer key, nom du compte sms-xxxx), un expéditeur validé chez OVH. Les SMS ne partent que vers des mobiles et si le client les accepte.</td></tr>
 <tr><td>Avis Google</td><td>Le lien d'avis de la fiche Google (« Demander des avis »), le délai après la fin du chantier, le canal. Un seul envoi par chantier.</td></tr>
-<tr><td>Notifications</td><td>Rien côté serveur ; chaque salarié active le 🔔 sur son téléphone (iPhone : espace pro ajouté à l'écran d'accueil).</td></tr>
+<tr><td>Notifications</td><td>Rien côté serveur ; chaque salarié active le bouton « Activer les notifications » sur son téléphone (iPhone : espace pro ajouté à l'écran d'accueil).</td></tr>
 <tr><td>Pennylane / GoCardless</td><td>Un jeton d'API Pennylane (Paramètres › Connectivité › Développeurs ; droits clients, factures clients, mandats) et GoCardless connecté dans Pennylane. Les factures sont créées en brouillon : tu les relis et les valides dans Pennylane.</td></tr>
 <tr><td>Urgence Élagage</td><td>Une clé d'API « lecture » créée dans Urgence Élagage › Administration › Entreprise › Intégrations. Dans l'autre sens, colle le lien agenda de chaque salarié dans son compte Urgence Élagage pour que ses chantiers comptent dans sa disponibilité d'astreinte.</td></tr></table>
 <p>Les rappels automatiques (veille), les passages de contrats, les avis et les synchronisations se font à l'ouverture des pages, au plus une fois par heure. Pour qu'ils tournent même sans ouverture, crée dans OVH une tâche planifiée (cron) qui appelle l'adresse indiquée dans Personnel, matériel, équipes › Réglages.</p>

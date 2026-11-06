@@ -10,7 +10,7 @@ $sortie = function ($d) { echo json_encode($d, JSON_UNESCAPED_UNICODE); exit; };
 $erreur = function (string $m, int $code = 400) use ($sortie) { http_response_code($code); $sortie(['erreur' => $m]); };
 
 // Lecture croisée : tout compte connecté consulte ; écriture selon les droits (peut_modifier_evt)
-$LECTURE = ['liste', 'fiche', 'verifier', 'creneaux', 'tournee', 'clients'];
+$LECTURE = ['liste', 'fiche', 'verifier', 'creneaux', 'tournee', 'clients', 'trajet_avant', 'trajet_pos'];
 if (!in_array($a, $LECTURE, true) && $_SERVER['REQUEST_METHOD'] !== 'POST') $erreur('Cette action demande un envoi (POST).', 405);
 if (!in_array($a, $LECTURE, true) && !in_array($a, ['tache', 'prestation'], true) && !peut_planifier()) $erreur("Ton compte peut consulter les agendas mais pas les modifier. Demande l'autorisation à un administrateur.", 403);
 $refus = fn(array $pers) => peut_modifier_evt($pers) ? null : "Tu n'as pas le droit de modifier l'agenda de toutes les personnes concernées.";
@@ -65,15 +65,27 @@ switch ($a) {
     case 'liste':
         $du = date('Y-m-d', strtotime((string)($_GET['du'] ?? '')) ?: strtotime('monday this week')); $au = date('Y-m-d', strtotime((string)($_GET['au'] ?? '')) ?: strtotime("$du +7 days"));
         try { urgence_sync(); } catch (Throwable $t) {}
+        $evsL = evt_periode($du, $au);
         $sortie([
+            'trajets' => (function () use ($evsL) { try { return trajets_periode($evsL); } catch (Throwable $t) { return []; } })(),
             'secteurs' => secteurs_liste(), 'astreinte' => (function () { try { return urgence_astreinte(); } catch (Throwable $t) { return null; } })(),
-            'evenements' => array_merge(array_map($masquer, $avecConflits($avecTaches(evt_periode($du, $au)))), (function () use ($du, $au) { try { return externes_periode($du, $au); } catch (Throwable $t) { return []; } })()),
+            'evenements' => array_merge(array_map($masquer, $avecConflits($avecTaches($evsL))), (function () use ($du, $au) { try { return externes_periode($du, $au); } catch (Throwable $t) { return []; } })()),
             'pictos' => array_values(pictos_liste()), 'mes_taches' => mes_taches(),
             'a_planifier' => planning_niveau() === 'tout' ? $avecTaches(q("SELECT * FROM evenements WHERE statut = 'a_planifier' ORDER BY priorite DESC, cree_le")->fetchAll()) : [],
             'personnel' => personnel_liste(), 'materiel' => materiel_liste(), 'equipes' => equipes_liste(), 'alertes' => planning_niveau() === 'tout' ? planning_alertes() : [],
             'droits' => ['niveau' => planning_niveau(), 'modifiables' => agendas_modifiables(), 'planifier' => peut_planifier()],
             'motifs' => motifs_rdv(), 'reglages' => ['debut' => setting('planning_debut', '08:00'), 'fin' => setting('planning_fin', '17:00'), 'vent' => (float)setting('planning_vent', '50'), 'depot' => depot(), 'feries' => array_merge(jours_feries((int)substr($du, 0, 4)), jours_feries((int)substr($au, 0, 4)))],
         ]);
+    case 'trajet_avant': // arrivée au plus tôt de chaque personne, d'après son rendez-vous précédent de la journée
+        $deb = (string)($_GET['debut'] ?? ''); $la = (float)($_GET['lat'] ?? 0); $lo = (float)($_GET['lng'] ?? 0);
+        if (!strtotime($deb) || !$la || !$lo) $sortie(['avant' => []]);
+        $res = []; $noms = []; foreach (personnel_liste(true) as $x) $noms[(int)$x['id']] = $x['prenom'];
+        foreach (array_filter(array_map('intval', explode(',', (string)($_GET['pers'] ?? '')))) as $pid) { $t = trajet_avant($pid, date('Y-m-d H:i:s', strtotime($deb)), $la, $lo, (int)($_GET['id'] ?? 0)); if ($t) $res[] = $t + ['pid' => $pid, 'prenom' => $noms[$pid] ?? ''];
+        }
+        $sortie(['avant' => $res]);
+    case 'trajet_pos': // depuis la position du téléphone jusqu'à un rendez-vous
+        $t = trajet((float)($_GET['lat'] ?? 0), (float)($_GET['lng'] ?? 0), (float)($_GET['vlat'] ?? 0), (float)($_GET['vlng'] ?? 0));
+        $sortie(['trajet' => $t]);
     case 'fiche':
         $e = evt_charger((int)($_GET['id'] ?? 0)); if (!$e) $erreur('Fiche introuvable.', 404);
         $e = $masquer($e); $e['modifiable'] = peut_modifier_evt($e['personnel']);

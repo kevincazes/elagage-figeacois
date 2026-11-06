@@ -49,7 +49,7 @@ main.large{max-width:none}
 .sem .heures{position:relative}.sem .heures div{height:var(--h);font-size:.72rem;color:var(--doux);text-align:right;padding-right:6px;border-top:1px solid #edf0e8}
 .sem .col{position:relative;border-left:1px solid #e6eadf;background:repeating-linear-gradient(#fff 0 calc(var(--h) - 1px),#edf0e8 calc(var(--h) - 1px) var(--h))}
 .carte-vue #carteG{height:calc(100vh - var(--bandeau,70px) - 260px);min-height:420px;border-radius:12px;border:1px solid #e1e5da}
-.sem .trajet{position:absolute;z-index:1;font-size:.66rem;line-height:1;padding:2px 4px;border-radius:4px;background:repeating-linear-gradient(135deg,#e3e6de 0 4px,#eef0ea 4px 8px);color:#4a5a4f;overflow:hidden;white-space:nowrap;pointer-events:auto}.sem .trajet.court{background:repeating-linear-gradient(135deg,#f9d3cf 0 4px,#fde8e6 4px 8px);color:#a12e28;font-weight:700}
+.trajet-av{margin-top:6px;padding:6px 10px;border-radius:8px;background:#eef3f8;color:#2c4a63;font-size:.86rem}.trajet-av.court{background:#fde8e5;color:#9b2c1f}.trajet-av .pi{width:14px;height:14px;vertical-align:-2px}.trajet-av .mini{margin-left:6px}.sem .trajet .pi{width:12px;height:12px;vertical-align:-2px}.sem .trajet.depart{opacity:.75}.sem .trajet{position:absolute;z-index:1;font-size:.66rem;line-height:1;padding:2px 4px;border-radius:4px;background:repeating-linear-gradient(135deg,#e3e6de 0 4px,#eef0ea 4px 8px);color:#4a5a4f;overflow:hidden;white-space:nowrap;pointer-events:auto}.sem .trajet.court{background:repeating-linear-gradient(135deg,#f9d3cf 0 4px,#fde8e6 4px 8px);color:#a12e28;font-weight:700}
 .sem .col.we{background:repeating-linear-gradient(#fafbf8 0 calc(var(--h) - 1px),#edf0e8 calc(var(--h) - 1px) var(--h))}
 .sem .col .horsh{position:absolute;left:0;right:0;background:rgba(28,59,43,.035);pointer-events:none}
 .sem .maintenant{position:absolute;left:0;right:0;height:2px;background:#d64545;z-index:3;pointer-events:none}
@@ -154,7 +154,7 @@ main.large{max-width:none}
     <section class="card gestion"><h3>À planifier <span class="muted" id="nbAp"></span></h3><p class="small muted" style="margin:0 0 8px">Glisse une fiche sur un jour (semaine, mois ou ressources), ou ouvre-la et clique « Trouver un créneau ».</p><div id="ap"></div></section>
     <section class="card" id="mt" hidden><h3>Mes actions à faire</h3><ul class="lst" id="mtL"></ul></section>
     <section class="card gestion"><h3>Alertes</h3><div id="alertes"></div></section>
-    <section class="card"><h3>Légende</h3><div class="legende" id="legende"></div><p class="small muted" style="margin:8px 0 0">Hachuré : date proposée, pas encore confirmée par le client. Pointillés : à planifier. <span class="alerte-ic">!</span> conflit à vérifier. 🌬 rafales fortes annoncées.</p></section>
+    <section class="card"><h3>Légende</h3><div class="legende" id="legende"></div><p class="small muted" style="margin:8px 0 0">Hachuré : date proposée, pas encore confirmée par le client. Pointillés : à planifier. <span class="alerte-ic">!</span> conflit à vérifier. <svg class="pi"><use href="#pi-vent"/></svg> rafales fortes annoncées.</p></section>
   </aside>
 </div>
 <div id="ficheHote"></div>
@@ -231,7 +231,7 @@ function rendre() {
   $('#nouveau').parentElement.style.display = S.data.droits.planifier ? '' : 'none';
   $('#lecture').hidden = S.data.droits.planifier;
   const ast = S.data.astreinte; $('#astreinte').hidden = !ast;
-  if (ast) { const n = l => (l || []).map(p => p.nom).join(', ') || '—'; $('#astreinte').innerHTML = `🚨 <strong>D'astreinte Urgence Élagage</strong> (${esc(ast.creneau || '')}) : équipe ${esc(n(ast.equipe_1))} · régulation ${esc(n(ast.regulation_1))}`; }
+  if (ast) { const n = l => (l || []).map(p => p.nom).join(', ') || '—'; $('#astreinte').innerHTML = `<svg class="pi"><use href="#pi-warning"/></svg> <strong>D'astreinte Urgence Élagage</strong> (${esc(ast.creneau || '')}) : équipe ${esc(n(ast.equipe_1))} · régulation ${esc(n(ast.regulation_1))}`; }
   // à planifier
   rendreMesTaches(S.data.mes_taches || []);
   const ap = S.data.a_planifier || []; $('#nbAp').textContent = ap.length ? '(' + ap.length + ')' : '';
@@ -301,14 +301,19 @@ function vueSemaine() {
       x.innerHTML = `<b>${titreEvt(e)}</b><span class="h">${hm(a)}–${hm(b)}${e.ville ? ' · ' + esc(e.ville) : ''}</span>${e.personnel.length ? '<span class="h"> · ' + e.personnel.map(persNom).join(', ') + '</span>' : ''}<div class="poignee"></div>`;
       x.title = infoBulle(e); col.appendChild(x); glisserHoraire(x, e, du);
     });
-    // temps de route entre deux rendez-vous consécutifs d'une même personne (bloc gris « 🚗 »), rouge si l'écart ne suffit pas
-    const geo = du2.filter(e => e.lat && e.lng); const vus = new Set();
-    geo.forEach(e => e.personnel.forEach(p => { const suiv = geo.filter(o => o !== e && o.personnel.includes(p) && parse(o.debut) >= parse(e.fin)).sort((a, b) => parse(a.debut) - parse(b.debut))[0]; if (!suiv) return;
-      const k = e.id + '-' + suiv.id; if (vus.has(k)) return; vus.add(k);
-      const km = kmVol(+e.lat, +e.lng, +suiv.lat, +suiv.lng), mn = Math.max(1, Math.round(km / VIT * 60)), ecart = (parse(suiv.debut) - parse(e.fin)) / 6e4; if (mn < 5) return;
-      const t = document.createElement('div'); t.className = 'trajet' + (ecart < mn ? ' court' : ''); const a = parse(e.fin);
-      t.style.cssText = `top:${(a.getHours() + a.getMinutes() / 60 - H0) * PXH}px;height:${Math.max(14, Math.min(ecart, mn) / 60 * PXH)}px;left:calc(${e._v} * 100% / ${Math.max(1, voies.length)} + 2px);width:calc(100% / ${Math.max(1, voies.length)} - 5px)`;
-      t.textContent = '🚗 ' + mn + ' min'; t.title = `${persNom(p)} : ${Math.round(km)} km ≈ ${mn} min de route jusqu'à « ${suiv.titre} »` + (ecart < mn ? ` — écart de ${Math.round(ecart)} min seulement` : ''); col.appendChild(t); }));
+    // Temps de route (calcul d'itinéraire réel côté serveur, estimation à défaut) : départ du dépôt avant le 1er rendez-vous, puis entre deux rendez-vous d'une même personne ; rouge si l'écart ne suffit pas
+    const parId = new Map(du2.map(e => [String(e.id), e])), vus = new Set(), pv = new Set(persVisibles().map(p => String(p.id))), nvL = Math.max(1, voies.length);
+    (S.data.trajets || []).forEach(t => {
+      const suiv = parId.get(String(t.vers)); if (!suiv || (pv && pv.size && !pv.has(String(t.pid)))) return;
+      const prec = t.de === 'depot' ? null : parId.get(String(t.de)); if (t.de !== 'depot' && !prec) return;
+      const k = t.de + '-' + t.vers; if (vus.has(k) || t.min < 5) return; vus.add(k);
+      const court = t.ecart !== null && t.ecart < t.min, ref = prec || suiv, a = prec ? parse(prec.fin) : new Date(parse(suiv.debut) - t.min * 6e4);
+      const haut = prec ? Math.min(t.ecart, t.min) : t.min, est = t.source === 'estim' ? ' (estimation)' : '';
+      const b = document.createElement('div'); b.className = 'trajet' + (court ? ' court' : '') + (prec ? '' : ' depart');
+      b.style.cssText = `top:${(a.getHours() + a.getMinutes() / 60 - H0) * PXH}px;height:${Math.max(14, haut / 60 * PXH)}px;left:calc(${ref._v} * 100% / ${nvL} + 2px);width:calc(100% / ${nvL} - 5px)`;
+      b.innerHTML = `<svg class="pi"><use href="#pi-car"/></svg> ${prec ? '' : 'départ ' + t.depart + ' · '}${t.min} min`;
+      b.title = `${persNom(t.pid)} : ${prec ? 'de « ' + prec.titre + ' »' : 'départ du dépôt à ' + t.depart} à « ${suiv.titre} » : ${String(t.km).replace('.', ',')} km, ${t.min} min de route${est}` + (court ? ` — écart de ${t.ecart} min seulement : décale « ${suiv.titre} » à ${hm(new Date(parse(prec.fin).getTime() + t.min * 6e4))} au plus tôt` : '');
+      col.appendChild(b); });
     if (ymd(d) === auj) { const n = new Date(); const m = document.createElement('div'); m.className = 'maintenant'; m.style.top = ((n.getHours() + n.getMinutes() / 60 - H0) * PXH) + 'px'; col.appendChild(m); }
     // clic sur un créneau vide : nouvelle visite à cette heure
     col.addEventListener('dblclick', ev2 => { if (ev2.target !== col && !ev2.target.classList.contains('horsh')) return; const mn = Math.round(((ev2.offsetY / PXH) + H0) * 4) / 4; const t = new Date(d); t.setHours(Math.floor(mn), (mn % 1) * 60, 0, 0); nouvelle('visite', {debut: dts(t), fin: dts(new Date(+t + 36e5))}); });
@@ -427,7 +432,7 @@ function vueListe() {
   const [du, au] = bornes(), ev = visibles(); let h = '';
   for (let d = new Date(du); d < au; d = plus(d, 1)) {
     const l = ev.filter(e => parse(e.debut) < plus(d, 1) && parse(e.fin) > d); if (!l.length && we(d)) continue;
-    h += `<div class="liste-j"><h4>${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}${ymd(d) === auj ? ' · aujourd\'hui' : ''}${ferie(d) ? ' · ' + esc(ferie(d)) : ''} <small class="mj" data-j="${ymd(d)}"></small></h4>` + (l.length ? l.map(e => `<div class="liste-e" data-id="${e.id}"><span class="bar" style="background:${couleur(e)}"></span><span class="h">${estBande(e) ? 'Journée' : hm(parse(e.debut)) + '–' + hm(parse(e.fin))}</span><span class="t"><strong>${titreEvt(e)}</strong><small>${esc(TYPES[e.type][0])} · ${esc(STATUTS[e.statut])}${e.ville ? ' · ' + esc([e.adresse, e.ville].filter(Boolean).join(', ')) : ''}</small><small>${e.personnel.map(persNom).join(', ')}${e.materiel.length ? ' · ' + e.materiel.map(matNom).join(', ') : ''}</small>${(e.alertes || []).map(a => '<small style="color:#e6332a">⚠ ' + esc(a) + '</small>').join('')}</span></div>`).join('') : '<p class="muted small" style="margin:0">—</p>') + '</div>';
+    h += `<div class="liste-j"><h4>${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}${ymd(d) === auj ? ' · aujourd\'hui' : ''}${ferie(d) ? ' · ' + esc(ferie(d)) : ''} <small class="mj" data-j="${ymd(d)}"></small></h4>` + (l.length ? l.map(e => `<div class="liste-e" data-id="${e.id}"><span class="bar" style="background:${couleur(e)}"></span><span class="h">${estBande(e) ? 'Journée' : hm(parse(e.debut)) + '–' + hm(parse(e.fin))}</span><span class="t"><strong>${titreEvt(e)}</strong><small>${esc(TYPES[e.type][0])} · ${esc(STATUTS[e.statut])}${e.ville ? ' · ' + esc([e.adresse, e.ville].filter(Boolean).join(', ')) : ''}</small><small>${e.personnel.map(persNom).join(', ')}${e.materiel.length ? ' · ' + e.materiel.map(matNom).join(', ') : ''}</small>${(e.alertes || []).map(a => '<small style="color:#e6332a"><svg class="pi"><use href="#pi-warning"/></svg> ' + esc(a) + '</small>').join('')}</span></div>`).join('') : '<p class="muted small" style="margin:0">—</p>') + '</div>';
   }
   $('#zone').innerHTML = h || '<p class="muted" style="padding:14px">Rien sur cette période.</p>';
   document.querySelectorAll('.liste-e').forEach(x => x.addEventListener('click', () => ouvrirFiche(+x.dataset.id)));
@@ -465,7 +470,7 @@ function fondsCarte(map) {
   let actif = 'Plan (OpenStreetMap)'; try { actif = localStorage.getItem('pl_fond') || actif; } catch (e) {} (choix[actif] || osm).addTo(map);
   L.control.layers(choix, {}, {position: 'topright'}).addTo(map); map.on('baselayerchange', ev => { try { localStorage.setItem('pl_fond', ev.name); } catch (e) {} });
   // bouton « ma position » : centre la carte sur la position du téléphone / de l'ordinateur
-  const Loc = L.Control.extend({onAdd() { const b = L.DomUtil.create('a', 'leaflet-bar leaflet-control-locate'); b.href = '#'; b.title = 'Me centrer sur ma position'; b.setAttribute('role', 'button'); b.innerHTML = '📍'; L.DomEvent.disableClickPropagation(b);
+  const Loc = L.Control.extend({onAdd() { const b = L.DomUtil.create('a', 'leaflet-bar leaflet-control-locate'); b.href = '#'; b.title = 'Me centrer sur ma position'; b.setAttribute('role', 'button'); b.innerHTML = '<svg class="pi"><use href="#pi-pin"/></svg>'; L.DomEvent.disableClickPropagation(b);
     L.DomEvent.on(b, 'click', ev => { L.DomEvent.preventDefault(ev); if (!navigator.geolocation) { toast('Géolocalisation indisponible sur cet appareil.', true); return; } b.classList.add('attente');
       navigator.geolocation.getCurrentPosition(p => { b.classList.remove('attente'); const ll = [p.coords.latitude, p.coords.longitude];
         if (!map._moi) { map._moi = L.circleMarker(ll, {radius: 9, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1}).addTo(map).bindPopup('Vous êtes ici'); map._moiP = L.circle(ll, {radius: p.coords.accuracy || 30, color: '#1a73e8', weight: 1, fillOpacity: .08}).addTo(map); }
@@ -489,7 +494,7 @@ function vueCarte() {
   const sorted = ev.slice().sort((a, b) => parse(a.debut) - parse(b.debut));
   sorted.forEach((e, i) => { pts.push([+e.lat, +e.lng]);
     L.marker([+e.lat, +e.lng], {icon: L.divIcon({className: '', html: `<div style="width:28px;height:28px;border-radius:50%;background:${couleur(e)};color:#fff;font-weight:900;font-size:.8rem;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);${e.statut === 'termine' ? 'opacity:.55' : ''}">${i + 1}</div>`, iconSize: [28, 28], iconAnchor: [14, 14]})}).addTo(carteG)
-      .bindPopup(`<strong>${esc(e.titre)}</strong><br>${esc(e.motif || TYPES[e.type][0])} · ${esc(STATUTS[e.statut])}<br>${esc(evtQuand(e))}${e.client_nom ? '<br>' + esc(e.client_nom) : ''}${e.personnel.length ? '<br>' + e.personnel.map(persNom).join(', ') : ''}${(e.alertes || []).length ? '<br><span style="color:#e6332a">⚠ ' + e.alertes.length + ' alerte(s)</span>' : ''}<br><a href="#" onclick="ouvrirFiche(${e.id});return false">Ouvrir la fiche</a> · ${liensCarte(e.lat, e.lng)}`); });
+      .bindPopup(`<strong>${esc(e.titre)}</strong><br>${esc(e.motif || TYPES[e.type][0])} · ${esc(STATUTS[e.statut])}<br>${esc(evtQuand(e))}${e.client_nom ? '<br>' + esc(e.client_nom) : ''}${e.personnel.length ? '<br>' + e.personnel.map(persNom).join(', ') : ''}${(e.alertes || []).length ? '<br><span style="color:#e6332a"><svg class="pi"><use href="#pi-warning"/></svg> ' + e.alertes.length + ' alerte(s)</span>' : ''}<br><a href="#" onclick="ouvrirFiche(${e.id});return false">Ouvrir la fiche</a> · ${liensCarte(e.lat, e.lng)}`); });
   (S.data.a_planifier || []).filter(e => e.lat).forEach(e => { pts.push([+e.lat, +e.lng]);
     L.circleMarker([+e.lat, +e.lng], {radius: 9, color: '#666', dashArray: '3 3', weight: 2, fillColor: '#fff', fillOpacity: .9}).addTo(carteG).bindPopup(`<strong>${esc(e.titre)}</strong><br>À planifier${e.devis_montant ? ' · ' + eur(e.devis_montant) : ''}<br><a href="#" onclick="ouvrirFiche(${e.id}, {creneaux: true});return false">Trouver un créneau</a>`); });
   carteG.fitBounds(L.latLngBounds(pts).pad(0.2));
@@ -505,14 +510,14 @@ async function prevision(lat, lng) {
 async function meteo() {
   if (!S.data) return; const seuil = S.data.reglages.vent, dep = S.data.reglages.depot;
   const pd = await prevision(dep.lat, dep.lng);
-  document.querySelectorAll('.mj').forEach(m => { const x = pd[m.dataset.j]; if (!x) return; m.textContent = '🌬 ' + Math.round(x.raf) + ' km/h' + (x.pluie >= 1 ? ' · 🌧 ' + Math.round(x.pluie) + ' mm' : ''); m.classList.add('meteo'); if (x.raf >= seuil) { m.classList.add('fort'); m.title = 'Rafales au-dessus du seuil (' + seuil + ' km/h)'; } });
+  document.querySelectorAll('.mj').forEach(m => { const x = pd[m.dataset.j]; if (!x) return; m.innerHTML = '<svg class="pi"><use href="#pi-vent"/></svg> ' + Math.round(x.raf) + ' km/h' + (x.pluie >= 1 ? ' · <svg class="pi"><use href="#pi-pluie"/></svg> ' + Math.round(x.pluie) + ' mm' : ''); m.classList.add('meteo'); if (x.raf >= seuil) { m.classList.add('fort'); m.title = 'Rafales au-dessus du seuil (' + seuil + ' km/h)'; } });
   let change = false;
   for (const e of (S.data.evenements || []).filter(e => e.type === 'chantier' && e.lat)) {
     const p = await prevision(e.lat, e.lng); let pire = null;
     for (let d = new Date(ymd(parse(e.debut)) + 'T12:00'); d < parse(e.fin); d = plus(d, 1)) { const x = p[ymd(d)]; if (x && (!pire || x.raf > pire.raf)) pire = x; }
-    if (pire && pire.raf >= seuil && !e._meteo) { e._meteo = {fort: true, txt: '🌬' + Math.round(pire.raf)}; e.alertes = (e.alertes || []).concat(['Rafales annoncées jusqu\'à ' + Math.round(pire.raf) + ' km/h (seuil ' + seuil + ')']); change = true; }
+    if (pire && pire.raf >= seuil && !e._meteo) { e._meteo = {fort: true, txt: '<svg class="pi"><use href="#pi-vent"/></svg>' + Math.round(pire.raf)}; e.alertes = (e.alertes || []).concat(['Rafales annoncées jusqu\'à ' + Math.round(pire.raf) + ' km/h (seuil ' + seuil + ')']); change = true; }
   }
-  if (change && S.vue !== 'tournee') { ({semaine: vueSemaine, mois: vueMois, ressources: vueRessources, liste: vueListe})[S.vue](); document.querySelectorAll('.mj').forEach(m => { const x = pd[m.dataset.j]; if (x) { m.textContent = '🌬 ' + Math.round(x.raf) + ' km/h' + (x.pluie >= 1 ? ' · 🌧 ' + Math.round(x.pluie) + ' mm' : ''); m.classList.add('meteo'); if (x.raf >= seuil) m.classList.add('fort'); } }); }
+  if (change && S.vue !== 'tournee') { ({semaine: vueSemaine, mois: vueMois, ressources: vueRessources, liste: vueListe})[S.vue](); document.querySelectorAll('.mj').forEach(m => { const x = pd[m.dataset.j]; if (x) { m.innerHTML = '<svg class="pi"><use href="#pi-vent"/></svg> ' + Math.round(x.raf) + ' km/h' + (x.pluie >= 1 ? ' · <svg class="pi"><use href="#pi-pluie"/></svg> ' + Math.round(x.pluie) + ' mm' : ''); m.classList.add('meteo'); if (x.raf >= seuil) m.classList.add('fort'); } }); }
 }
 
 // ---------- fiche (création / modification) ----------
@@ -583,7 +588,7 @@ async function ouvrirFiche(id, opts = {}) {
     <fieldset class="f-chantier"><legend>Platane – chancre coloré</legend>
      <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" name="phyto" style="width:auto;margin:0" ${+e.phyto ? 'checked' : ''}> Chantier sur platane (registre DRAAF, désinfection, passeport pour le bois)</label>
      <div id="fPhyto" ${+e.phyto ? '' : 'hidden'}>${(() => { const p = e.phyto_fiche || {}; const sv = ['', 'rien', 'suspicion', 'na'], svl = {'': '—', rien: 'Aucun symptôme observé', suspicion: 'Symptômes suspects (signalés)', na: 'Non concerné'}; const us = {'': '—', broyage: 'Broyage (plaquettes / paillage)', chauffage: 'Bois de chauffage', incineration: 'Incinération / destruction', laisse: 'Laissé sur place au propriétaire', decheterie: 'Déchèterie / plateforme verte'};
-       return `${e.phyto_verrou ? `<p class="small" style="margin:4px 0">🔒 Chantier terminé : fiche platane et passeport${p.passeport_num ? ' n° ' + esc(p.passeport_num) : ''} verrouillés (code C ${esc(p.pp_c || p.code_c)}).</p>` : ''}${e.phyto_zone ? '<p class="small" style="color:#e6332a;margin:4px 0">⚠ Commune en zone délimitée : déclaration préalable à la DRAAF (15 jours ouvrés avant), désinfection entre chaque arbre, bois non transportable sans dérogation.</p>' : ''}
+       return `${e.phyto_verrou ? `<p class="small" style="margin:4px 0"><svg class="pi"><use href="#pi-cadenas"/></svg> Chantier terminé : fiche platane et passeport${p.passeport_num ? ' n° ' + esc(p.passeport_num) : ''} verrouillés (code C ${esc(p.pp_c || p.code_c)}).</p>` : ''}${e.phyto_zone ? '<p class="small" style="color:#e6332a;margin:4px 0"><svg class="pi"><use href="#pi-warning"/></svg> Commune en zone délimitée : déclaration préalable à la DRAAF (15 jours ouvrés avant), désinfection entre chaque arbre, bois non transportable sans dérogation.</p>' : ''}
        <div class="g3"><label>Propriétaire des arbres (si différent du client) <input name="ph_proprietaire" value="${esc(p.proprietaire || '')}"></label><label>Coordonnées du propriétaire <input name="ph_coordonnees" value="${esc(p.coordonnees || '')}"></label><label>Localisation (si différente de l'adresse) <input name="ph_localisation" value="${esc(p.localisation || '')}" placeholder="parcelle, GPS…"></label></div>
        <div class="g3"><label>Type de travaux <input name="ph_travaux" value="${esc(p.travaux || '')}" placeholder="abattage, élagage, ramassage bois mort…"></label><label>Nombre de platanes <input name="ph_nb_arbres" type="number" min="0" value="${p.nb_arbres ?? ''}"></label><label>Code C (traçabilité) <input name="ph_code_c" value="${esc(p.code_c || '')}" placeholder="${esc(p.code_auto || 'n° de devis')}"></label></div>
        <div class="g3"><label>Surveillance avant chantier <select name="ph_surv_avant">${sv.map(k => `<option value="${k}" ${(p.surv_avant || '') === k ? 'selected' : ''}>${svl[k]}</option>`).join('')}</select></label><label>En cours de chantier <select name="ph_surv_pendant">${sv.map(k => `<option value="${k}" ${(p.surv_pendant || '') === k ? 'selected' : ''}>${svl[k]}</option>`).join('')}</select></label><label>Déclaration DRAAF le (zone délimitée) <input type="date" name="ph_declaration_le" value="${esc(p.declaration_le || '')}"></label></div>
@@ -627,7 +632,19 @@ async function ouvrirFiche(id, opts = {}) {
   // disponibilités et conflits en direct
   let tv; const verifier = () => { clearTimeout(tv); tv = setTimeout(async () => {
     const x = lire(); if (!x.debut) { $('#fAl').innerHTML = ''; return; }
-    try { const r = await api('verifier', {}, x); $('#fAl').innerHTML = r.alertes.length ? r.alertes.map(a => `<div>⚠ ${esc(a)}</div>`).join('') : '<div class="ok-vert">✓ Aucun conflit : équipe et matériel disponibles.</div>'; } catch (err) {}
+    try { const r = await api('verifier', {}, x); $('#fAl').innerHTML = r.alertes.length ? r.alertes.map(a => `<div><svg class="pi"><use href="#pi-warning"/></svg> ${esc(a)}</div>`).join('') : '<div class="ok-vert">✓ Aucun conflit : équipe et matériel disponibles.</div>'; } catch (err) {}
+    // Route depuis le rendez-vous précédent de chaque personne : arrivée au plus tôt, et bouton pour caler l'horaire après le trajet
+    if (x.lat && x.lng && !x.journee && x.personnel && x.personnel.length && !['absence', 'entretien'].includes(x.type)) try {
+      const r = await api('trajet_avant', {debut: x.debut, lat: x.lat, lng: x.lng, pers: x.personnel.join(','), id: id || 0});
+      const tard = r.avant.reduce((m, t) => !m || t.arrivee > m.arrivee ? t : m, null);
+      if (r.avant.length) { const d = document.createElement('div'); const trop = tard.arrivee > x.debut; d.className = trop ? 'trajet-av court' : 'trajet-av';
+        d.innerHTML = `<svg class="pi"><use href="#pi-car"/></svg> ` + r.avant.map(t => `${esc(t.prenom)} : fin de « ${esc(t.de)} » à ${t.fin} + ${t.min} min de route (${String(t.km).replace('.', ',')} km${t.source === 'estim' ? ', estimation' : ''}) → sur place à ${t.arrivee.slice(11, 16)} au plus tôt`).join('<br>')
+          + (trop ? ` <button type="button" class="mini" id="fCaler">Caler à ${tard.arrivee.slice(11, 16)}</button>` : '');
+        $('#fAl').appendChild(d);
+        const bc = d.querySelector('#fCaler'); if (bc) bc.onclick = () => { const a = parse(x.debut), b = parse(x.fin), n = parse(tard.arrivee), m = Math.ceil((n.getHours() * 60 + n.getMinutes()) / 5) * 5; const nd = new Date(n); nd.setHours(Math.floor(m / 60), m % 60, 0, 0);
+          const nf = new Date(+nd + (b - a)); F.h_deb.value = hm(nd); F.h_fin.value = hm(nf); if (F.d_fin && ymd(nf) !== ymd(nd)) F.d_fin.value = ymd(nf); verifier(); };
+      }
+    } catch (err) {}
     // occupés ce(s) jour(s) : repère les personnes et machines déjà prises
     const d0x = parse(x.debut), d1x = parse(x.fin), occP = new Set(), occM = new Set();
     (S.data.evenements || []).forEach(o => { if (+o.id === +id || o.statut === 'annule') return; if (parse(o.debut) < d1x && parse(o.fin) > d0x) { o.personnel.forEach(p => occP.add(+p)); o.materiel.forEach(m => S.data.materiel.forEach(x => { if (racineMat(x.id) === racineMat(m)) occM.add(+x.id); })); } });

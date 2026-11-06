@@ -2,6 +2,13 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.8', '2026-11-06', [
+        'Temps de trajet réels : le temps de route entre deux rendez-vous est calculé sur l\'itinéraire routier (service gratuit OpenStreetMap, mémorisé), majoré pour les véhicules de chantier (10 % par défaut, réglable) ; estimation à vol d\'oiseau si le service ne répond pas',
+        'Planning (semaine) : bloc de route avant chaque rendez-vous, y compris le départ du dépôt avec l\'heure de départ conseillée ; en rouge si l\'écart ne suffit pas',
+        'Fiche d\'un rendez-vous : « sur place au plus tôt à … » d\'après le rendez-vous précédent de chaque personne, et bouton « Caler » qui décale l\'horaire juste après le trajet',
+        'Mon planning (téléphone) : bande « route » entre les rendez-vous (temps, km, départ conseillé, itinéraire), en rouge s\'il manque du temps ; temps réel depuis la position du téléphone jusqu\'au prochain rendez-vous, recalculé à chaque ouverture et toutes les 5 minutes',
+        'Pictogrammes à la place des derniers emojis (météo, astreinte, cloche, agenda, alertes)',
+    ]],
     ['2.7.9', '2026-11-05', [
         'Rester connecté : chaque appareil garde sa propre connexion (se connecter sur le téléphone ne déconnecte plus l\'ordinateur), 60 jours renouvelés à chaque visite ; liste des appareils connectés dans Mon compte, avec « Déconnecter »',
         'Sur téléphone, la première page ouverte est « Mon planning » (chantiers et rendez-vous attribués) ; le tableau de bord reste dans le menu',
