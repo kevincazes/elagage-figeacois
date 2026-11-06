@@ -12,7 +12,7 @@ $erreur = function (string $m, int $code = 400) use ($sortie) { http_response_co
 // Lecture croisée : tout compte connecté consulte ; écriture selon les droits (peut_modifier_evt)
 $LECTURE = ['liste', 'fiche', 'verifier', 'creneaux', 'tournee', 'clients', 'trajet_avant', 'trajet_pos'];
 if (!in_array($a, $LECTURE, true) && $_SERVER['REQUEST_METHOD'] !== 'POST') $erreur('Cette action demande un envoi (POST).', 405);
-if (!in_array($a, $LECTURE, true) && !in_array($a, ['tache', 'prestation'], true) && !peut_planifier()) $erreur("Ton compte peut consulter les agendas mais pas les modifier. Demande l'autorisation à un administrateur.", 403);
+if (!in_array($a, $LECTURE, true) && !in_array($a, ['tache', 'prestation', 'externe_maj'], true) && !peut_planifier()) $erreur("Ton compte peut consulter les agendas mais pas les modifier. Demande l'autorisation à un administrateur.", 403);
 $refus = fn(array $pers) => peut_modifier_evt($pers) ? null : "Tu n'as pas le droit de modifier l'agenda de toutes les personnes concernées.";
 $avecTaches = function (array $evs): array { // nombre d'actions restantes / prestations par événement (badges)
     if (!$evs) return $evs; $ids = implode(',', array_map(fn($e) => (int)$e['id'], $evs)); $t = []; $pr = [];
@@ -224,6 +224,11 @@ switch ($a) {
     case 'facturer':
         if (planning_niveau() !== 'tout') $erreur('Réservé à l\'administration.', 403);
         [$ok, $m] = pl_facturer((int)($in['id'] ?? 0)); if (!$ok) $erreur($m); $sortie(['ok' => 1]);
+    case 'externe_maj': // rendez-vous d'un agenda externe protégé (Extrabat…) : modifié directement sur son serveur (droits vérifiés dans externe_modifier)
+        $xid = (int)ltrim((string)($in['id'] ?? ''), 'x');
+        $err = externe_modifier($xid, (string)($in['debut'] ?? ''), (string)($in['fin'] ?? ''), (int)!empty($in['journee']), (string)($in['titre'] ?? ''));
+        if ($err) $erreur($err);
+        $sortie(['ok' => true]);
     case 'tache': // actions à faire avant le chantier : op = ajouter / fait / defait / supprimer / attribuer
         $op = (string)($in['op'] ?? ''); $eid = (int)($in['evenement_id'] ?? 0); $tid = (int)($in['id'] ?? 0);
         if ($tid) { $t = q("SELECT * FROM evt_taches WHERE id = ?", [$tid])->fetch(); if (!$t) $erreur('Action introuvable.', 404); $eid = (int)$t['evenement_id']; } else $t = ['personnel_id' => null];

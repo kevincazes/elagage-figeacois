@@ -64,7 +64,7 @@ main.large{max-width:none}
 .alerte-ic{display:inline-block;background:#fff;color:#c0392b;border-radius:50%;width:15px;height:15px;font-size:.7rem;line-height:15px;text-align:center;font-weight:900;margin-right:3px}
 .meteo{font-size:.72rem;opacity:.95}.meteo.fort{color:#ffd43b;font-weight:900}
 .leaflet-control-locate{width:34px;height:34px;line-height:34px;text-align:center;font-size:1.15rem;background:#fff;text-decoration:none;display:block}.leaflet-control-locate.attente{opacity:.5;animation:clig 1s infinite}@keyframes clig{50%{opacity:1}}
-.evt.externe,.puce.externe{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 5px,transparent 5px 10px);cursor:default}
+.evt.externe,.puce.externe{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0 5px,transparent 5px 10px);cursor:default}.evt.externe.modif,.puce.externe.modif{cursor:pointer}
 .pictos{display:inline-flex;gap:3px;margin-right:5px;vertical-align:-3px}.pictos .pi{width:15px;height:15px;stroke-width:2.4}.chips .pi{width:20px;height:20px;color:var(--brun)}.lst .pi{width:16px;height:16px;color:var(--brun)}.badge-t{display:inline-block;font-size:.68rem;font-weight:800;background:rgba(255,255,255,.9);color:#444;border-radius:9px;padding:0 5px;margin-left:3px;vertical-align:middle}.badge-t.retard{background:#e6332a;color:#fff}.badge-t.ok{color:#5a7a1e}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;align-items:center;gap:4px;border:1px solid #d9dfd2;border-radius:16px;padding:3px 9px 3px 6px;font-size:.82rem;cursor:pointer;background:#fff}.chips label:has(input:checked){background:#eef3e4;border-color:var(--vert,#8caa31);font-weight:700}.chips input{width:auto!important;margin:0!important}
 .lst{list-style:none;margin:0;padding:0}.lst li{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed #e4e8de;font-size:.88rem}.lst li.fait span.l{text-decoration:line-through;opacity:.6}.lst li .l{flex:1;min-width:0}.lst li .qui{font-size:.75rem;color:var(--doux);white-space:nowrap}.lst li.retard .qui{color:#e6332a;font-weight:700}.lst input[type=checkbox]{width:18px!important;height:18px;margin:0!important}.lst .x{background:none;border:0;color:#999;cursor:pointer;font-size:1rem;padding:0 4px}.lst .x:hover{color:#e6332a}
@@ -296,7 +296,7 @@ function vueSemaine() {
     const voies = []; du2.forEach(e => { let v = 0; while ((voies[v] || 0) > parse(e.debut)) v++; voies[v] = parse(e.fin); e._v = v; });
     du2.forEach(e => {
       const a = parse(e.debut), b = parse(e.fin), top = Math.max(0, (a.getHours() + a.getMinutes() / 60 - H0) * PXH), ht = Math.max(20, (b - a) / 36e5 * PXH - 2), nv = Math.max(1, voies.length);
-      const x = document.createElement('div'); x.className = 'evt ' + e.statut + (e.externe ? ' externe' : ''); x.dataset.id = e.id;
+      const x = document.createElement('div'); x.className = 'evt ' + e.statut + (e.externe ? ' externe' + (+e.modifiable ? ' modif' : '') : ''); x.dataset.id = e.id;
       x.style.cssText = `top:${top}px;height:${ht}px;background:${couleur(e)};left:calc(${e._v} * 100% / ${nv} + 2px);width:calc(100% / ${nv} - 5px);right:auto`;
       x.innerHTML = `<b>${titreEvt(e)}</b><span class="h">${hm(a)}–${hm(b)}${e.ville ? ' · ' + esc(e.ville) : ''}</span>${e.personnel.length ? '<span class="h"> · ' + e.personnel.map(persNom).join(', ') + '</span>' : ''}<div class="poignee"></div>`;
       x.title = infoBulle(e); col.appendChild(x); glisserHoraire(x, e, du);
@@ -530,9 +530,25 @@ function rendreMesTaches(l) {
   $('#mtL').querySelectorAll('a[data-evt]').forEach(a => a.onclick = ev => { ev.preventDefault(); ouvrirFiche(+a.dataset.evt); });
 }
 const aujourdhui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+// Rendez-vous d'un agenda externe modifiable (Extrabat…) : petite fiche, l'enregistrement part directement sur le serveur de l'agenda
+function ficheExterne(x) {
+  const d0 = parse(x.debut), d1 = parse(x.fin);
+  $('#ficheHote').innerHTML = `<div class="fiche-fond"></div><div class="fiche" role="dialog" aria-label="Rendez-vous ${esc(x.agenda_nom || '')}">
+   <header><h2>${esc(x.titre)}</h2><button class="mini" id="fFerm" title="Fermer (Échap)">✕</button></header>
+   <div class="corps"><form id="fx" autocomplete="off"><p class="small muted" style="margin-top:0"><i class="conf" style="background:${esc(x.couleur || '#9aa5b1')}"></i> Agenda <b>${esc(x.agenda_nom || '')}</b> : la modification est enregistrée directement dans cet agenda (et sur les téléphones qui l'affichent).</p>
+    <label>Titre <input name="titre" value="${esc(x.titre)}"></label>
+    <div class="cols"><label>Date <input type="date" name="d" value="${ymd(d0)}"></label><label>Début <input type="time" name="h1" value="${hm(d0)}" step="300"></label><label>Fin <input type="time" name="h2" value="${hm(d1)}" step="300"></label></div>
+    ${x.adresse ? `<p class="small">${esc(x.adresse)}</p>` : ''}</form></div>
+   <footer><button class="btn" id="fxEnr">Enregistrer dans ${esc(x.agenda_nom || "l'agenda")}</button><span class="muted small" id="fxEtat"></span></footer></div>`;
+  const fermer = () => { $('#ficheHote').innerHTML = ''; }; $('.fiche-fond').onclick = fermer; $('#fFerm').onclick = fermer;
+  $('#fxEnr').onclick = async () => { const F = $('#fx'); if (!F.d.value || !F.h1.value || !F.h2.value || F.h2.value <= F.h1.value) { $('#fxEtat').textContent = 'Vérifie la date et les heures.'; return; }
+    $('#fxEnr').disabled = true; $('#fxEtat').textContent = 'Enregistrement dans l\'agenda…';
+    try { await api('externe_maj', {}, {id: x.id, titre: F.titre.value, debut: F.d.value + ' ' + F.h1.value + ':00', fin: F.d.value + ' ' + F.h2.value + ':00'}); fermer(); toast('Rendez-vous modifié dans ' + (x.agenda_nom || "l'agenda") + '.'); charger(); }
+    catch (err) { $('#fxEtat').textContent = err.message; $('#fxEnr').disabled = false; } };
+}
 async function ouvrirFiche(id, opts = {}) {
   if (!S.data) { setTimeout(() => ouvrirFiche(id, opts), 300); return; }
-  if (typeof id === 'string' && id[0] === 'x') { const x = (S.data.evenements || []).find(e => e.id === id); if (x) toast((x.agenda ? x.agenda + ' · ' : '') + x.titre + ' – ' + evtQuand(x) + (x.adresse ? ' · ' + x.adresse : '') + ' (agenda externe, lecture seule : se modifie dans l\'application d\'origine)'); return; }
+  if (typeof id === 'string' && id[0] === 'x') { const x = (S.data.evenements || []).find(e => e.id === id); if (x && +x.modifiable) { ficheExterne(x); return; } if (x) toast((x.agenda ? x.agenda + ' · ' : '') + x.titre + ' – ' + evtQuand(x) + (x.adresse ? ' · ' + x.adresse : '') + ' (agenda externe, lecture seule : se modifie dans l\'application d\'origine)'); return; }
   if (!id && !S.data.droits.planifier) return;
   let e;
   if (id) { try { e = await api('fiche', {id}); } catch (err) { toast(err.message, true); return; } } else e = opts.neuf;

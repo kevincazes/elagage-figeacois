@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.9.1', '2026-11-06', [
+        'Rendez-vous Extrabat (agenda protégé) modifiables depuis le planning : clic sur le rendez-vous, titre / date / heures, « Enregistrer dans Extrabat » : la modification part directement dans Extrabat (et donc sur les téléphones qui l\'affichent)',
+        'Agenda externe « Bureau seulement » : visible uniquement par le secrétariat, l\'administrateur et son propriétaire, qui peuvent le modifier ; « Visible par tous » sinon (réglable dans la liste des agendas)',
+    ]],
     ['2.9', '2026-11-06', [
         'Agenda du téléphone modifiable dans les deux sens (CalDAV) : Mon compte › « Agenda du téléphone, modifiable » donne le serveur, l\'identifiant et un mot de passe agenda ; sur l\'iPhone (compte CalDAV) ou Android (DAVx⁵), déplacer ou renommer un rendez-vous ou une visite met à jour le planning ; un rendez-vous créé sur le téléphone arrive dans le planning ; les chantiers restent fixes',
         'Agendas externes (Extrabat…) : couleur modifiable directement dans la liste des agendas',
