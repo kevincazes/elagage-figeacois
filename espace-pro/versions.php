@@ -2,6 +2,11 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.11', '2026-11-06', [
+        'Téléphone : nouveau menu plein écran, avec 4 gros raccourcis (Tableau de bord, Mon planning, Planning, Clients), puis toutes les pages rangées par famille avec un pictogramme, les notifications et la déconnexion',
+        'Ordinateur : les menus du bandeau s\'ouvrent au survol de la souris, sans clic',
+        'Planning sur téléphone : grosses flèches de chaque côté de la période pour passer à la semaine ou au mois précédent / suivant, vues sur deux lignes (plus rien de coupé), « Aujourd\'hui » et le filtre personnel côte à côte, « Plus d\'options » en liste',
+    ]],
     ['2.10.2', '2026-11-06', [
         'Mise en forme des notes : nouveau style « Fidèle » par défaut, qui remet au propre uniquement ce qui a été dit (pas de questions systématiques sur la hauteur, le diamètre, les contraintes…), à la longueur des notes, et s\'adapte aux consignes données dans la dictée',
         'Administration › Réglages › Mise en forme des notes : choix du style (Fidèle ou Détaillé, l\'ancien rapport complet) et consigne modifiable avec tes mots',

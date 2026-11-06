@@ -516,7 +516,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
        . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body' . (isset($_GET['panneau']) || ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') === 'iframe' ? ' class="panneau"' : '') . '>' . (function_exists('pictos_sprite') ? pictos_sprite() : '');
     echo '<header class="top"><a class="logo" href="index.php"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois"></a><span class="apptitle">Espace pro <small class="version">v' . e(app_version()) . '</small></span>';
     if ($u) { $nn0 = nouveautes_non_lues(); echo '<a class="bell mob' . ($nn0 ? ' has' : '') . '" href="nouveautes.php"><svg class="pi"><use href="#pi-bell"/></svg>' . ($nn0 ? '<b>' . $nn0 . '</b>' : '') . '</a>'; }
-    echo '<button class="burger" type="button" aria-label="Menu" onclick="document.body.classList.toggle(\'nav-open\')"><span></span><span></span><span></span></button><nav>';
+    echo '<button class="burger" type="button" aria-label="Menu" onclick="mnavOuvrir(true)"><span></span><span></span><span></span></button><nav>';
     if ($u) {
         if ($active === 'securite.php') $active = 'compte.php';
         if ($active === 'bordereau.php') $active = 'bordereaux.php';
@@ -538,9 +538,29 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
         echo '<a class="out" href="logout.php">Déconnexion (' . e($u['prenom']) . ')</a>';
     }
     echo '</nav></header>';
+    // Menu téléphone : plein écran, gros boutons, raccourcis en haut et familles dépliées
+    if ($u) {
+        $ico = ['index.php' => 'house', 'planning.php' => 'calendar', 'mon-planning.php' => 'clock', 'charge.php' => 'graphe', 'phyto.php' => 'tree', 'planning-ressources.php' => 'users', 'clients.php' => 'users', 'contrats.php' => 'doc', 'materiel.php' => 'machine', 'livret.php' => 'livre', 'conges.php' => 'calendar', 'bordereaux.php' => 'clipboard', 'bpu.php' => 'livre', 'packs.php' => 'box', 'actions.php' => 'saw', 'historique.php' => 'clock', 'utilisateurs.php' => 'personne', 'droits-agendas.php' => 'eye', 'reglages-planning.php' => 'reglage', 'liens.php' => 'lien', 'parametres.php' => 'euro', 'compte.php' => 'personne', 'nouveautes.php' => 'bell', 'guide.php' => 'aide'];
+        $pi = fn($f) => '<svg class="pi"><use href="#pi-' . ($ico[$f] ?? 'doc') . '"/></svg>';
+        $rac = array_filter(['index.php' => 'Tableau de bord', 'mon-planning.php' => 'Mon planning', 'planning.php' => 'Planning', 'clients.php' => 'Clients'], fn($l, $f) => $f === 'index.php' || $f === 'mon-planning.php' || isset($planning[$f]) || isset($clients[$f]), ARRAY_FILTER_USE_BOTH);
+        $nNotifM = 0; try { $nNotifM = (int)q("SELECT COUNT(*) c FROM notifications WHERE utilisateur_id = ? AND lu_le IS NULL", [$u['id']])->fetch()['c']; } catch (Throwable $t) {}
+        echo '<div class="mnav" id="mnav" role="dialog" aria-modal="true" aria-label="Menu" hidden><div class="mnav-tete"><span><strong>Menu</strong><small>' . e(trim($u['prenom'] . ' ' . $u['nom'])) . '</small></span><button type="button" class="mnav-x" aria-label="Fermer le menu"><svg class="pi"><use href="#pi-fermer"/></svg></button></div><div class="mnav-corps">';
+        echo '<div class="mnav-rac">'; foreach ($rac as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="on"' : '') . '>' . $pi($f) . '<span>' . e($l) . '</span></a>'; echo '</div>';
+        foreach ($nav as $g) {
+            if (!isset($g[1])) { foreach ($g as $f => $l) if (!isset($rac[$f])) echo '<section><a class="mnav-l' . ($active === $f ? ' on' : '') . '" href="' . $f . '">' . $pi($f) . '<span>' . e($l) . '</span><svg class="pi ch"><use href="#pi-chevron"/></svg></a></section>'; continue; }
+            [$titre, $liens] = $g; $liens = array_diff_key($liens, $rac); if (!$liens) continue;
+            echo '<section><h3>' . e($titre) . '</h3>';
+            foreach ($liens as $f => $l) echo '<a class="mnav-l' . ($active === $f ? ' on' : '') . '" href="' . $f . '">' . $pi($f) . '<span>' . e($l) . '</span>' . ($f === 'nouveautes.php' && ($nnM = nouveautes_non_lues()) ? '<b>' . $nnM . '</b>' : '') . '<svg class="pi ch"><use href="#pi-chevron"/></svg></a>';
+            echo '</section>';
+        }
+        echo '<section><a class="mnav-l" href="notifications.php"><svg class="pi"><use href="#pi-megaphone"/></svg><span>Mes notifications</span>' . ($nNotifM ? '<b>' . $nNotifM . '</b>' : '') . '<svg class="pi ch"><use href="#pi-chevron"/></svg></a><a class="mnav-l" href="../index.html"><svg class="pi"><use href="#pi-globe"/></svg><span>Site elagage-figeacois.com</span><svg class="pi ch"><use href="#pi-chevron"/></svg></a><a class="mnav-l sortie" href="logout.php"><svg class="pi"><use href="#pi-sortie"/></svg><span>Déconnexion</span></a></section>';
+        echo '</div></div>';
+    }
     // Sous-menu fixe (ordinateur) : les pages de la famille en cours, toujours visibles sous le bandeau
     if ($u && !empty($sousNav)) { echo '<nav class="sousnav" aria-label="' . e($sousNav[0]) . '"><span class="sn-titre">' . e($sousNav[0]) . '</span>'; foreach ($sousNav[1] as $f => $l) echo '<a href="' . $f . '"' . ($active === $f ? ' class="on"' : '') . '>' . $l . '</a>'; echo '</nav>'; }
     // un seul menu déroulant ouvert à la fois ; fermeture au clic ailleurs (grand écran)
+    echo '<script>(function(){const m=document.getElementById("mnav");window.mnavOuvrir=function(o){if(!m)return;m.hidden=!o;document.body.classList.toggle("mnav-open",o);const on=o&&m.querySelector(".mnav-l.on");if(on)on.scrollIntoView({block:"center"});};if(m){m.querySelector(".mnav-x").onclick=()=>mnavOuvrir(false);m.addEventListener("click",e=>{if(e.target.closest("a"))mnavOuvrir(false);});document.addEventListener("keydown",e=>{if(e.key==="Escape")mnavOuvrir(false);});}
+const survol=matchMedia("(hover:hover) and (min-width:901px)");document.querySelectorAll(".top nav details.menu").forEach(d=>{let t;d.addEventListener("mouseenter",()=>{if(!survol.matches)return;clearTimeout(t);document.querySelectorAll(".top nav details.menu[open]").forEach(x=>{if(x!==d)x.open=false;});d.open=true;});d.addEventListener("mouseleave",()=>{if(!survol.matches)return;t=setTimeout(()=>d.open=false,250);});d.querySelector("summary").addEventListener("click",e=>{if(survol.matches&&d.open){e.preventDefault();}});});})();</script>';
     echo '<script>document.addEventListener("click",e=>{const d=e.target.closest("details.menu");document.querySelectorAll("details.menu[open]").forEach(x=>{if(x!==d&&!matchMedia("(max-width:900px)").matches)x.open=false;});});if(matchMedia("(max-width:900px)").matches)document.querySelectorAll("details.menu.active").forEach(x=>x.open=true);document.querySelectorAll(".top nav details.menu").forEach(d=>d.addEventListener("toggle",()=>{if(d.open&&matchMedia("(max-width:900px)").matches)document.querySelectorAll(".top nav details.menu[open]").forEach(x=>{if(x!==d)x.open=false;});}));</script>';
     // Fil d'Ariane
     if ($u) {

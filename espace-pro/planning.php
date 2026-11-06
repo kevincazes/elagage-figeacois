@@ -25,11 +25,27 @@ main.large{max-width:none}
 .plus{display:contents}.plus summary{display:none;list-style:none;cursor:pointer}.plus summary::-webkit-details-marker{display:none}.plus-l{display:contents}
 .filtres{margin:-4px 0 12px}.filtres summary{display:none;list-style:none;cursor:pointer}.filtres summary::-webkit-details-marker{display:none}
 @media(max-width:700px){
-  .pl-barre{gap:6px}.pl-barre #vues{flex:1 0 100%;overflow-x:auto;scrollbar-width:none;border-radius:12px}.pl-barre #vues button{flex:1 0 auto;padding:9px 11px;font-size:.92rem}
-  .pl-barre .grp.principal{order:5;flex:1 0 62%}.pl-barre .grp.principal button{width:100%;padding:10px}.pl-barre #fPers{flex:1 1 0;min-width:0}.pl-barre .grp button{padding:8px 11px}
-  .plus{display:block;order:6;position:relative}.plus summary{display:inline-block;padding:9px 14px}.plus[open] summary{background:var(--sapin);color:#fff;border-color:var(--sapin)}
-  .plus-l{display:flex;flex-wrap:wrap;gap:6px;position:absolute;right:0;top:calc(100% + 6px);z-index:30;background:var(--blanc);border:1px solid #d5dccd;border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);min-width:260px}
-  .filtres summary{display:inline-block;font-size:.8rem;padding:4px 10px}.filtres{margin:0 0 10px}.filtres .pl-filtres{margin-top:6px}
+  .pl-barre{display:grid;grid-template-columns:1fr auto;gap:8px}
+  .pl-barre .per-nav{grid-column:1/-1;order:-2}
+  .pl-barre #vues{grid-column:1/-1;order:-1;display:grid;grid-template-columns:repeat(3,1fr);border-radius:14px;gap:1px;background:#d5dccd;border:1px solid #d5dccd}
+  .pl-barre #vues button{background:var(--blanc);padding:10px 4px;font-size:.92rem;border-radius:0}.pl-barre #vues button.on{background:var(--sapin);color:#fff}
+  .pl-barre .grp.nav-j{order:0}.pl-barre .grp.nav-j #prec,.pl-barre .grp.nav-j #suiv{display:none}.pl-barre .grp.nav-j #auj{padding:10px 16px}
+  .pl-barre #fPers{order:0;min-width:0;width:100%;padding:10px 12px}
+  .pl-barre .grp.nav-j{justify-self:start}.pl-barre{grid-template-columns:auto 1fr}
+  .pl-barre .grp.principal{order:5;grid-column:1/2;display:block}.pl-barre .grp.principal{grid-column:1/-1}
+  .pl-barre .grp.principal{display:grid;grid-template-columns:1fr}.pl-barre .grp.principal button{width:100%;padding:12px;font-size:1rem}
+  .plus{display:block;order:6;position:relative;grid-column:1/-1}.plus summary{display:block;text-align:center;padding:10px 14px}.plus[open] summary{background:var(--sapin);color:#fff;border-color:var(--sapin)}
+  .plus-l{display:grid;grid-template-columns:1fr;gap:0;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;background:var(--blanc);border:1px solid #d5dccd;border-radius:14px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+  .plus-l a.mini{display:block;border:0;border-radius:10px;padding:12px 14px;font-size:1rem;margin:0}.plus-l a.mini+a.mini{border-top:1px solid #f0f2ec;border-radius:0}
+  .filtres summary{display:inline-block;font-size:.85rem;padding:6px 12px}.filtres{margin:0 0 10px}.filtres .pl-filtres{margin-top:6px}
+}
+.per-nav{display:contents}.per-nav .fl{display:none}
+@media(max-width:700px){
+  .pl-barre .per-nav{display:flex;align-items:center;gap:10px}
+  .per-nav .fl{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;border:1px solid #d5dccd;background:var(--blanc);color:var(--sapin);cursor:pointer;padding:0}
+  .per-nav .fl:active{background:var(--clair)}.per-nav .fl .pi{width:22px;height:22px}.per-nav .fl.g .pi{transform:rotate(180deg)}
+  .pl-barre .per-nav .periode{flex:1;min-width:0;font-size:1.15rem;text-align:center;order:0}
+}
 }
 .pl-filtres{display:flex;gap:6px;flex-wrap:wrap}
 .pl-filtres label{display:inline-flex;gap:5px;align-items:center;margin:0;font-weight:700;font-size:.82rem;padding:4px 10px;border-radius:999px;border:1px solid #d5dccd;background:var(--blanc);cursor:pointer}
@@ -128,17 +144,17 @@ main.large{max-width:none}
 <?= pictos_sprite() ?>
 <div class="pl-barre">
   <div class="grp" id="vues"><button data-v="semaine">Semaine</button><button data-v="mois">Mois</button><button data-v="ressources">Ressources</button><button data-v="liste">Liste</button><button data-v="carte">Carte</button><button data-v="tournee">Tournée</button></div>
-  <div class="grp"><button id="prec" title="Précédent">‹</button><button id="auj">Aujourd'hui</button><button id="suiv" title="Suivant">›</button></div>
-  <span class="periode" id="periode"></span>
+  <div class="grp nav-j"><button id="prec" title="Précédent">‹</button><button id="auj">Aujourd'hui</button><button id="suiv" title="Suivant">›</button></div>
+  <div class="per-nav"><button type="button" class="fl g" aria-label="Période précédente" onclick="document.getElementById('prec').click()"><svg class="pi"><use href="#pi-chevron"/></svg></button><span class="periode" id="periode"></span><button type="button" class="fl" aria-label="Période suivante" onclick="document.getElementById('suiv').click()"><svg class="pi"><use href="#pi-chevron"/></svg></button></div>
   <select id="fPers" title="N'afficher qu'une personne"><option value="">Tout le personnel</option></select>
   <div class="grp principal"><button id="nouveau" title="Créer">+ Nouveau</button></div>
-  <details class="plus"><summary class="mini">Plus ▾</summary><div class="plus-l">
+  <details class="plus"><summary class="mini">Plus d'options ▾</summary><div class="plus-l">
   <a class="mini" href="planning-ressources.php" id="lienRes">Personnel, matériel, équipes</a>
   <a class="mini" href="mon-planning.php">Mon planning</a>
   <a class="mini" href="clients.php">Clients</a><a class="mini" href="conges.php">Congés</a>
   <a class="mini" href="materiel.php">Matériel</a>
   <?php if (planning_niveau() === 'tout'): ?><a class="mini" href="contrats.php">Contrats</a><a class="mini" href="charge.php">Tableau de charge</a><a class="mini" href="phyto.php">Platanes</a><?php endif; ?>
-  <?php if (est_admin()): ?><a class="mini" href="reglages-planning.php" title="SMS, avis Google, notifications, Pennylane, Urgence Élagage">⚙ Réglages</a><?php endif; ?>
+  <?php if (est_admin()): ?><a class="mini" href="reglages-planning.php" title="SMS, avis Google, notifications, Pennylane, Urgence Élagage">Réglages</a><?php endif; ?>
   </div></details>
 </div>
 <p class="flash" id="astreinte" hidden style="margin:0 0 10px;background:#fdecea;border-color:#f3b4ae"></p>
