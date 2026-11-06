@@ -41,6 +41,8 @@ main.large{max-width:none}
 }
 .per-nav{display:contents}.per-nav .fl{display:none}
 @media(max-width:700px){
+  .feuille-type{position:fixed!important;left:0;right:0;bottom:0;top:auto!important;z-index:120!important;border-radius:20px 20px 0 0!important;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))!important;box-shadow:0 -10px 30px rgba(0,0,0,.25);max-height:80vh;overflow-y:auto}
+  .feuille-type .ft-titre{display:block;font-size:1.1rem;color:var(--sapin);margin:0 0 8px}.feuille-type button.mini{padding:14px 14px!important;font-size:1rem!important;margin:6px 0!important;border-radius:12px!important}
   .pl-barre .per-nav{display:flex;align-items:center;gap:10px}
   .per-nav .fl{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;border:1px solid #d5dccd;background:var(--blanc);color:var(--sapin);cursor:pointer;padding:0}
   .per-nav .fl:active{background:var(--clair)}.per-nav .fl .pi{width:22px;height:22px}.per-nav .fl.g .pi{transform:rotate(180deg)}
@@ -783,11 +785,13 @@ $('#prec').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref
 $('#suiv').onclick = () => { const p = pas(); S.ref = p === 'm' ? new Date(S.ref.getFullYear(), S.ref.getMonth() + 1, 15) : plus(S.ref, p); charger(); };
 $('#auj').onclick = () => { S.ref = new Date(); charger(); };
 $('#fPers').onchange = ev => { S.pers = ev.target.value ? [+ev.target.value] : []; try { localStorage.setItem('pl_pers', JSON.stringify(S.pers)); } catch (e) {} S.vue === 'tournee' ? vueTournee() : rendre(); };
-$('#nouveau').onclick = ev => { const m = document.createElement('div'); m.className = 'card'; Object.assign(m.style, {position: 'absolute', zIndex: 60, padding: '8px', margin: 0}); const r = ev.currentTarget.getBoundingClientRect(); m.style.left = (r.left + scrollX) + 'px'; m.style.top = (r.bottom + scrollY + 4) + 'px';
-  m.innerHTML = Object.entries(TYPES).filter(([k]) => !['urgence', 'externe'].includes(k)).map(([k, [l, c]]) => `<button class="mini" style="display:block;width:100%;text-align:left;margin:3px 0;border-left:4px solid ${c}" data-t="${k}">${l}</button>`).join(''); document.body.appendChild(m);
+$('#nouveau').onclick = ev => { const m = document.createElement('div'); m.className = 'card'; Object.assign(m.style, {position: 'absolute', zIndex: 60, padding: '8px', margin: 0}); const tel = matchMedia('(max-width:700px)').matches;
+  if (tel) { m.classList.add('feuille-type'); } else { const r = $('#nouveau').getBoundingClientRect(); m.style.left = (r.left + scrollX) + 'px'; m.style.top = (r.bottom + scrollY + 4) + 'px'; }
+  m.innerHTML = (tel ? '<strong class="ft-titre">Que veux-tu créer ?</strong>' : '') + Object.entries(TYPES).filter(([k]) => !['urgence', 'externe'].includes(k)).map(([k, [l, c]]) => `<button class="mini" style="display:block;width:100%;text-align:left;margin:3px 0;border-left:4px solid ${c}" data-t="${k}">${l}</button>`).join(''); document.body.appendChild(m);
   const f = e2 => { if (!m.contains(e2.target)) { m.remove(); document.removeEventListener('click', f, true); } }; setTimeout(() => document.addEventListener('click', f, true));
   m.querySelectorAll('button').forEach(b => b.onclick = () => { m.remove(); nouvelle(b.dataset.t); }); };
 filtresTypes(); charger();
+try { if (new URLSearchParams(location.search).get('nouveau')) setTimeout(() => $('#nouveau').click(), 400); } catch (e) {}
 <?php if (!empty($_GET['fiche'])): ?>setTimeout(() => ouvrirFiche(<?= (int)$_GET['fiche'] ?>), 400);<?php endif; ?>
 if (NOUV_CLIENT) setTimeout(() => nouvelle('visite', NOUV_CLIENT), 500);
 </script>

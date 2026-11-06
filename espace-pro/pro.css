@@ -347,3 +347,24 @@ body.fiche-une .tbl.bpu tbody td.pu{font-size:1.5rem;font-weight:900;color:var(-
 body.mnav-open{overflow:hidden}
 @media(max-width:900px){.top nav{display:none!important}}
 @media(min-width:901px){.mnav{display:none!important}}
+
+/* Mode appli (téléphone) : barre d'onglets en bas, en-tête réduit */
+.tabbar{display:none}
+@media(max-width:900px){
+  :root{--tab:calc(62px + env(safe-area-inset-bottom,0px))}
+  body:not(.panneau){padding-bottom:var(--tab)}
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--blanc);border-top:1px solid #e0e5da;box-shadow:0 -4px 16px rgba(28,59,43,.08);padding:4px max(4px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(4px,env(safe-area-inset-left,0px))}
+  .tabbar a,.tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:56px;border:0;background:none;font:inherit;font-size:.7rem;font-weight:700;color:var(--doux);text-decoration:none;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+  .tabbar .pi{width:24px;height:24px}
+  .tabbar a.on{color:var(--sapin)}.tabbar a.on .pi{color:var(--anis)}
+  .tabbar a.tb-plus .pi{width:46px;height:46px;padding:11px;border-radius:50%;background:var(--anis);color:#fff;margin-top:-18px;box-shadow:0 4px 12px rgba(140,170,49,.45)}
+  .tabbar a.tb-plus{color:var(--sapin)}
+  body.mnav-open .tabbar{display:none}
+  .burger{display:none!important}
+  .top{padding:6px 14px;min-height:52px}.top .logo img{height:34px}
+  .fil{display:none}
+  main{padding-top:10px}
+  .bulle-ia{bottom:calc(var(--tab) + 12px)!important}
+  .defil{bottom:var(--tab)}
+  .rp .bas{bottom:var(--tab)}
+}

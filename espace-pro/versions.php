@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.12', '2026-11-07', [
+        'Mode appli sur téléphone (1re étape) : barre fixe en bas de l\'écran avec Accueil, Mon planning, Nouveau (bouton vert central), Planning et Menu ; en-tête réduit, sans fil d\'Ariane',
+        'Planning sur téléphone : « Nouveau » ouvre le choix du type de rendez-vous dans un volet en bas de l\'écran, avec de gros boutons',
+    ]],
     ['2.11', '2026-11-06', [
         'Téléphone : nouveau menu plein écran, avec 4 gros raccourcis (Tableau de bord, Mon planning, Planning, Clients), puis toutes les pages rangées par famille avec un pictogramme, les notifications et la déconnexion',
         'Ordinateur : les menus du bandeau s\'ouvrent au survol de la souris, sans clic',
