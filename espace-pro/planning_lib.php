@@ -18,7 +18,7 @@ const STATUTS_EVT = [
 const COMPETENCES = ['grimpeur' => 'Grimpeur', 'nacelle' => 'CACES nacelle', 'pl' => 'Permis poids lourd', 'abattage' => 'Abattage', 'broyeur' => 'Broyeur', 'rogneuse' => 'Rogneuse', 'chef' => "Chef d'équipe"];
 const TYPES_MAT = ['nacelle' => 'Nacelle', 'broyeur' => 'Broyeur', 'camion' => 'Camion', 'rogneuse' => 'Rogneuse', 'grue' => 'Grue', 'vehicule' => 'Véhicule léger', 'autre' => 'Autre'];
 
-function planning_alters(): array { return ["ALTER TABLE evenements ADD COLUMN xb_agenda_id INT NULL", "ALTER TABLE evenements ADD COLUMN xb_uid VARCHAR(190) NULL", "ALTER TABLE evenements_externes ADD COLUMN href VARCHAR(500) NULL", "ALTER TABLE evenements_externes ADD COLUMN etag VARCHAR(200) NULL", "ALTER TABLE evenements_externes ADD COLUMN ics MEDIUMTEXT NULL", "ALTER TABLE evenements_externes ADD COLUMN recur TINYINT NOT NULL DEFAULT 0", "ALTER TABLE agendas_externes ADD COLUMN visibilite VARCHAR(10) NOT NULL DEFAULT 'tous'", "ALTER TABLE personnel ADD COLUMN caldav_mdp VARCHAR(255) NULL", "ALTER TABLE evenements ADD COLUMN caldav_nom VARCHAR(190) NULL", "ALTER TABLE evenements ADD COLUMN caldav_uid VARCHAR(190) NULL", "ALTER TABLE agendas_externes ADD COLUMN identifiant VARCHAR(120) NOT NULL DEFAULT ''", "ALTER TABLE agendas_externes ADD COLUMN mdp TEXT NULL", "ALTER TABLE evenements ADD COLUMN kleyk_init TINYINT NOT NULL DEFAULT 0", "ALTER TABLE materiel ADD COLUMN porteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN equipe_id INT NULL", "ALTER TABLE utilisateurs ADD COLUMN planning_droit VARCHAR(10) NOT NULL DEFAULT 'lecture'",
+function planning_alters(): array { return ["ALTER TABLE droits_agenda ADD COLUMN niveau VARCHAR(10) NOT NULL DEFAULT 'modifier'", "ALTER TABLE utilisateurs ADD COLUMN planning_vue VARCHAR(10) NOT NULL DEFAULT 'tous'", "ALTER TABLE evenements ADD COLUMN xb_agenda_id INT NULL", "ALTER TABLE evenements ADD COLUMN xb_uid VARCHAR(190) NULL", "ALTER TABLE evenements_externes ADD COLUMN href VARCHAR(500) NULL", "ALTER TABLE evenements_externes ADD COLUMN etag VARCHAR(200) NULL", "ALTER TABLE evenements_externes ADD COLUMN ics MEDIUMTEXT NULL", "ALTER TABLE evenements_externes ADD COLUMN recur TINYINT NOT NULL DEFAULT 0", "ALTER TABLE agendas_externes ADD COLUMN visibilite VARCHAR(10) NOT NULL DEFAULT 'tous'", "ALTER TABLE personnel ADD COLUMN caldav_mdp VARCHAR(255) NULL", "ALTER TABLE evenements ADD COLUMN caldav_nom VARCHAR(190) NULL", "ALTER TABLE evenements ADD COLUMN caldav_uid VARCHAR(190) NULL", "ALTER TABLE agendas_externes ADD COLUMN identifiant VARCHAR(120) NOT NULL DEFAULT ''", "ALTER TABLE agendas_externes ADD COLUMN mdp TEXT NULL", "ALTER TABLE evenements ADD COLUMN kleyk_init TINYINT NOT NULL DEFAULT 0", "ALTER TABLE materiel ADD COLUMN porteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN equipe_id INT NULL", "ALTER TABLE utilisateurs ADD COLUMN planning_droit VARCHAR(10) NOT NULL DEFAULT 'lecture'",
               "ALTER TABLE evenements ADD COLUMN dict_requise TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN dict_ref VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN dict_envoi DATE NULL", "ALTER TABLE evenements ADD COLUMN dict_retour DATE NULL",
               "ALTER TABLE evenements ADD COLUMN contrat_id INT NULL", "ALTER TABLE evenements ADD COLUMN urgence_ref VARCHAR(40) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN termine_le DATETIME NULL", "ALTER TABLE evenements ADD COLUMN avis_le DATETIME NULL",
               "ALTER TABLE evenements ADD COLUMN secteur_id INT NULL", "ALTER TABLE evenements ADD COLUMN contrat_mois VARCHAR(7) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN phyto TINYINT NOT NULL DEFAULT 0", "ALTER TABLE evenements ADD COLUMN motif VARCHAR(60) NOT NULL DEFAULT ''", "ALTER TABLE evenements ADD COLUMN client_id INT NULL", "ALTER TABLE evenements ADD COLUMN pictos VARCHAR(200) NOT NULL DEFAULT ''",
@@ -121,10 +121,24 @@ function acces_planning(): bool { return planning_niveau() === 'tout'; }
 function agendas_modifiables(): ?array {
     if (planning_niveau() === 'tout') return null;
     static $ids = null; if ($ids !== null) return $ids;
-    $ids = array_map('intval', array_column(q("SELECT personnel_id FROM droits_agenda WHERE utilisateur_id = ?", [user()['id']])->fetchAll(), 'personnel_id'));
+    $ids = array_map('intval', array_column(q("SELECT personnel_id FROM droits_agenda WHERE utilisateur_id = ? AND niveau = 'modifier'", [user()['id']])->fetchAll(), 'personnel_id'));
     if (planning_niveau() === 'perso') foreach (q("SELECT id FROM personnel WHERE utilisateur_id = ?", [user()['id']]) as $p) $ids[] = (int)$p['id'];
     return $ids = array_values(array_unique($ids));
 }
+/** Personnes dont l'agenda est VISIBLE par le compte connecté (null = toutes). Réglé par l'administrateur dans « Qui voit qui » :
+ *  administrateurs et secrétariat voient tout ; sinon « voit tout le monde » ou seulement son agenda + les agendas cochés (voir ou modifier). */
+function agendas_visibles(): ?array {
+    if (acces_chiffrage() || !user()) return null;
+    static $ids = false; if ($ids !== false) return $ids;
+    $vue = q("SELECT planning_vue FROM utilisateurs WHERE id = ?", [user()['id']])->fetch()['planning_vue'] ?? 'tous';
+    if ($vue !== 'liste') return $ids = null;
+    $l = array_map('intval', array_column(q("SELECT personnel_id FROM droits_agenda WHERE utilisateur_id = ?", [user()['id']])->fetchAll(), 'personnel_id'));
+    foreach (q("SELECT id FROM personnel WHERE utilisateur_id = ?", [user()['id']]) as $p) $l[] = (int)$p['id'];
+    $m = agendas_modifiables(); if ($m) $l = array_merge($l, $m);
+    return $ids = array_values(array_unique($l));
+}
+/** Un événement est visible s'il concerne au moins une personne dont l'agenda est visible (les rendez-vous sans personne : seulement pour qui voit tout) */
+function evt_visible(array $personnel): bool { $v = agendas_visibles(); if ($v === null) return true; return (bool)array_intersect(array_map('intval', $personnel), $v); }
 /** Un événement est modifiable si l'on a tout, ou si toutes les personnes concernées font partie des agendas autorisés */
 function peut_modifier_evt(array $personnel): bool { $m = agendas_modifiables(); if ($m === null) return true; return $personnel && !array_diff(array_map('intval', $personnel), $m); }
 function peut_planifier(): bool { $m = agendas_modifiables(); return $m === null || count($m) > 0; }

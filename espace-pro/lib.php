@@ -77,6 +77,7 @@ function migrate(): void {
         ['ressources', 'role', "ALTER TABLE ressources ADD COLUMN role VARCHAR(10) NOT NULL DEFAULT ''"],
         ['bordereaux', 'equipe_id', "ALTER TABLE bordereaux ADD COLUMN equipe_id INT NULL"],
         ['bordereaux', 'ajust', "ALTER TABLE bordereaux ADD COLUMN ajust DECIMAL(6,2) NOT NULL DEFAULT 0"],
+        ['utilisateurs', 'gere_droits', "ALTER TABLE utilisateurs ADD COLUMN gere_droits TINYINT NOT NULL DEFAULT 0"],
         ['bordereaux', 'archive', "ALTER TABLE bordereaux ADD COLUMN archive TINYINT(1) NOT NULL DEFAULT 0"],
         ['bpu_lignes', 'base_id', "ALTER TABLE bpu_lignes ADD COLUMN base_id INT NULL"],
         ['bordereau_lignes', 'numero', "ALTER TABLE bordereau_lignes ADD COLUMN numero VARCHAR(12) NOT NULL DEFAULT '' AFTER ordre"],
@@ -404,6 +405,8 @@ function require_login(): void { if (!user()) redirect('login.php'); migrate(); 
 const ROLES = ['admin' => 'Administrateur', 'secretaire' => 'Secrétaire', 'user' => 'Utilisateur'];
 function role_libelle(string $r): string { return ROLES[$r] ?? 'Utilisateur'; }
 function est_admin(): bool { return (user()['role'] ?? '') === 'admin'; }
+/** Peut régler « Qui voit qui » (droits sur les agendas) : administrateurs, et comptes à qui l'administrateur l'a confié */
+function peut_gerer_droits(): bool { static $r = null; if ($r !== null) return $r; if (!user()) return false; if (est_admin()) return $r = true; try { return $r = (bool)(q("SELECT gere_droits FROM utilisateurs WHERE id = ?", [user()['id']])->fetch()['gere_droits'] ?? 0); } catch (Throwable $t) { return $r = false; } }
 function acces_chiffrage(): bool { return in_array(user()['role'] ?? '', ['admin', 'secretaire'], true); }
 /** Pages du calculateur (catalogue, bordereaux, import, assistant…) : administrateurs et secrétariat */
 function require_chiffrage(): void {
@@ -499,12 +502,14 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     $u = user();
     $admin = $u && $u['role'] === 'admin'; $gestion = $u && in_array($u['role'], ['admin', 'secretaire'], true);
     // Menu principal en groupes déroulants : chantiers & agenda / chiffrage / compte
-    $planning = ['planning.php' => 'Planning', 'mon-planning.php' => 'Mon planning'] + ($gestion ? ['charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes'] : []);
+    $planning = ['planning.php' => 'Planning', 'mon-planning.php' => 'Mon planning'] + ($gestion ? ['charge.php' => 'Tableau de charge', 'phyto.php' => 'Platanes', 'planning-ressources.php' => 'Personnel, matériel, équipes'] : []) ;
     $clients = ['clients.php' => 'Clients'] + ($gestion ? ['contrats.php' => "Contrats d'entretien"] : []);
     $personnel = ($gestion ? ['livret.php' => 'Livrets du personnel'] : ['livret.php' => 'Mon livret']) + ['conges.php' => 'Congés'];
-    $chiffrage = $gestion ? ['bordereaux.php' => 'Bordereaux', 'bpu.php' => 'Catalogue', 'packs.php' => 'Packs', 'actions.php' => 'Actions', 'historique.php' => 'Historique'] + ($admin ? ['parametres.php' => 'Paramètres de prix'] : []) : [];
-    $compte = ($admin ? ['utilisateurs.php' => 'Comptes', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)', 'liens.php' => 'Liens des outils'] : []) + ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
-    $nav = [['index.php' => 'Tableau de bord'], ['Planning', $planning], ['Clients', $clients], ['materiel.php' => 'Matériel'], ['Personnel', $personnel], ['Chiffrage', $chiffrage], ['Compte', $compte]];
+    $chiffrage = $gestion ? ['bordereaux.php' => 'Bordereaux', 'bpu.php' => 'Catalogue', 'packs.php' => 'Packs', 'actions.php' => 'Actions', 'historique.php' => 'Historique'] : [];
+    $compte = ['compte.php' => 'Mon compte', 'nouveautes.php' => 'Nouveautés', 'guide.php' => 'Guide'];
+    // Administration : comptes, droits sur les agendas, réglages ; « Qui voit qui » peut être confié à un compte non administrateur
+    $administration = $admin ? ['utilisateurs.php' => 'Comptes', 'droits-agendas.php' => 'Qui voit qui', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)', 'liens.php' => 'Liens des outils', 'parametres.php' => 'Paramètres de prix'] : (peut_gerer_droits() ? ['droits-agendas.php' => 'Qui voit qui'] : []);
+    $nav = [['index.php' => 'Tableau de bord'], ['Planning', $planning], ['Clients', $clients], ['materiel.php' => 'Matériel'], ['Personnel', $personnel], ['Chiffrage', $chiffrage], ['Administration', $administration], ['Compte', $compte]];
     echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '">'
        . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'

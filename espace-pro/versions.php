@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.10', '2026-11-06', [
+        'Nouveau menu Administration : Comptes, Qui voit qui, Réglages (SMS, Pennylane…), Liens des outils, Paramètres de prix',
+        'Qui voit qui : tableau compte par compte et agenda par agenda (Modifier / Voir / masqué), boutons « Tout modifier », « Tout voir », « Son agenda seul » ; un agenda masqué n\'apparaît plus du tout pour ce compte (planning, Mon planning, fiches) ; l\'administrateur peut confier ce réglage à un autre compte (qui ne peut pas changer ses propres droits)',
+    ]],
     ['2.9.2', '2026-11-06', [
         'Fiche d\'un rendez-vous : heures de début et de fin au quart d\'heure (liste 09:00, 09:15, 09:30…) au lieu de la minute ; une heure existante hors quart d\'heure est conservée',
         'Bascule Extrabat → espace pro : « Reprendre dans le planning » (liste des agendas, ou fiche d\'un rendez-vous Extrabat) fait des rendez-vous à venir de vrais rendez-vous du planning, affectés au propriétaire de l\'agenda ; ils restent liés à Extrabat : un déplacement dans le planning ou sur le téléphone part dans Extrabat, et un changement fait dans Extrabat revient dans le planning',

@@ -65,14 +65,14 @@ switch ($a) {
     case 'liste':
         $du = date('Y-m-d', strtotime((string)($_GET['du'] ?? '')) ?: strtotime('monday this week')); $au = date('Y-m-d', strtotime((string)($_GET['au'] ?? '')) ?: strtotime("$du +7 days"));
         try { urgence_sync(); } catch (Throwable $t) {}
-        $evsL = evt_periode($du, $au);
+        $evsL = array_values(array_filter(evt_periode($du, $au), fn($e) => evt_visible($e['personnel'] ?? []))); $visL = agendas_visibles();
         $sortie([
-            'trajets' => (function () use ($evsL) { try { return trajets_periode($evsL); } catch (Throwable $t) { return []; } })(),
+            'trajets' => (function () use ($evsL, $visL) { try { return array_values(array_filter(trajets_periode($evsL), fn($t) => $visL === null || in_array((int)$t['pid'], $visL, true))); } catch (Throwable $t) { return []; } })(),
             'secteurs' => secteurs_liste(), 'astreinte' => (function () { try { return urgence_astreinte(); } catch (Throwable $t) { return null; } })(),
-            'evenements' => array_merge(array_map($masquer, $avecConflits($avecTaches($evsL))), (function () use ($du, $au) { try { return externes_periode($du, $au); } catch (Throwable $t) { return []; } })()),
+            'evenements' => array_merge(array_map($masquer, $avecConflits($avecTaches($evsL))), (function () use ($du, $au, $visL) { try { return array_values(array_filter(externes_periode($du, $au), fn($x) => $visL === null || array_intersect($x['personnel'], $visL))); } catch (Throwable $t) { return []; } })()),
             'pictos' => array_values(pictos_liste()), 'mes_taches' => mes_taches(),
             'a_planifier' => planning_niveau() === 'tout' ? $avecTaches(q("SELECT * FROM evenements WHERE statut = 'a_planifier' ORDER BY priorite DESC, cree_le")->fetchAll()) : [],
-            'personnel' => personnel_liste(), 'materiel' => materiel_liste(), 'equipes' => equipes_liste(), 'alertes' => planning_niveau() === 'tout' ? planning_alertes() : [],
+            'personnel' => array_values(array_filter(personnel_liste(), fn($x) => $visL === null || in_array((int)$x['id'], $visL, true))), 'materiel' => materiel_liste(), 'equipes' => equipes_liste(), 'alertes' => planning_niveau() === 'tout' ? planning_alertes() : [],
             'droits' => ['niveau' => planning_niveau(), 'modifiables' => agendas_modifiables(), 'planifier' => peut_planifier()],
             'motifs' => motifs_rdv(), 'reglages' => ['debut' => setting('planning_debut', '08:00'), 'fin' => setting('planning_fin', '17:00'), 'vent' => (float)setting('planning_vent', '50'), 'depot' => depot(), 'feries' => array_merge(jours_feries((int)substr($du, 0, 4)), jours_feries((int)substr($au, 0, 4)))],
         ]);
@@ -87,7 +87,7 @@ switch ($a) {
         $t = trajet((float)($_GET['lat'] ?? 0), (float)($_GET['lng'] ?? 0), (float)($_GET['vlat'] ?? 0), (float)($_GET['vlng'] ?? 0));
         $sortie(['trajet' => $t]);
     case 'fiche':
-        $e = evt_charger((int)($_GET['id'] ?? 0)); if (!$e) $erreur('Fiche introuvable.', 404);
+        $e = evt_charger((int)($_GET['id'] ?? 0)); if (!$e || !evt_visible($e['personnel'])) $erreur('Fiche introuvable.', 404);
         $e = $masquer($e); $e['modifiable'] = peut_modifier_evt($e['personnel']);
         if ((int)$e['phyto']) { $e['phyto_fiche'] = phyto_charger((int)$e['id']); $e['phyto_fiche']['code_auto'] = phyto_code($e); $e['phyto_zone'] = phyto_zone_delimitee($e['ville'], $e['cp']); $e['phyto_verrou'] = (bool)$e['phyto_fiche']['verrou_le']; }
         $e['alertes'] = evt_conflits($e); $e['pictos_l'] = pictos_evt($e); $e['taches'] = taches_liste((int)$e['id']); $e['prestations'] = prestations_liste((int)$e['id']); $e['personnel_lie'] = mon_personnel_id();

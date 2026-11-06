@@ -6,6 +6,7 @@ require_planning();
 $moi = q("SELECT * FROM personnel WHERE utilisateur_id = ? AND actif = 1 ORDER BY id LIMIT 1", [user()['id']])->fetch();
 $persL = personnel_liste();
 $pid = (int)($_GET['p'] ?? ($moi['id'] ?? 0));
+$visM = agendas_visibles(); if ($visM !== null) { $persL = array_values(array_filter($persL, fn($x) => in_array((int)$x['id'], $visM, true))); if (!in_array($pid, $visM, true)) $pid = (int)($moi['id'] ?? 0); }
 $p = null; foreach ($persL as $x) if ((int)$x['id'] === $pid) $p = $x;
 $jour = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['jour'] ?? '')) ? $_GET['jour'] : date('Y-m-d');
 $evs = [];

@@ -29,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($a === 'planning') {
         $id = (int)$_POST['id']; $d = array_key_exists($_POST['planning_droit'] ?? '', DROITS_PLANNING) ? $_POST['planning_droit'] : 'lecture';
         q("UPDATE utilisateurs SET planning_droit = ? WHERE id = ?", [$d, $id]);
-        q("DELETE FROM droits_agenda WHERE utilisateur_id = ?", [$id]);
-        foreach ((array)($_POST['agendas'] ?? []) as $p) q("INSERT IGNORE INTO droits_agenda (utilisateur_id, personnel_id) VALUES (?,?)", [$id, (int)$p]);
+        q("DELETE FROM droits_agenda WHERE utilisateur_id = ? AND niveau = 'modifier'", [$id]);
+        foreach ((array)($_POST['agendas'] ?? []) as $p) q("INSERT INTO droits_agenda (utilisateur_id, personnel_id, niveau) VALUES (?,?,'modifier') ON DUPLICATE KEY UPDATE niveau = 'modifier'", [$id, (int)$p]);
         flash('Droits sur le planning enregistrés.');
     } elseif ($a === 'mfa_reset') {
         q("UPDATE utilisateurs SET mfa_type = 'none', mfa_secret = NULL WHERE id = ?", [(int)$_POST['id']]);
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 $users = q("SELECT * FROM utilisateurs ORDER BY nom, prenom")->fetchAll();
 $persPl = personnel_liste();
-$deleg = []; foreach (q("SELECT * FROM droits_agenda") as $x) $deleg[(int)$x['utilisateur_id']][] = (int)$x['personnel_id'];
+$deleg = []; foreach (q("SELECT * FROM droits_agenda WHERE niveau = 'modifier'") as $x) $deleg[(int)$x['utilisateur_id']][] = (int)$x['personnel_id'];
 $fiche = []; foreach (q("SELECT id, prenom, utilisateur_id FROM personnel WHERE utilisateur_id IS NOT NULL") as $x) $fiche[(int)$x['utilisateur_id']] = $x['prenom'];
 $dernierLien = $_SESSION['dernier_lien'] ?? null; unset($_SESSION['dernier_lien']);
 page_start('Comptes', 'utilisateurs.php');
@@ -70,6 +70,7 @@ page_start('Comptes', 'utilisateurs.php');
   <tr><td><strong>Administrateur</strong></td><td>Tout : calculateur, Paramètres (taux, coefficient, TVA, ressources, liens), comptes, suppression de bordereaux, forçage d'un verrou.</td></tr>
   <tr><td><strong>Secrétaire</strong></td><td>Tout le calculateur (bordereaux, import, export, catalogue, actions, packs, historique, assistant, guide), sans Paramètres ni comptes.</td></tr>
   <tr><td><strong>Utilisateur</strong></td><td>Tableau de bord (liens Drive, Extrabat, Urgence Élagage, Arbogestion), planning et son compte. Pas d'accès aux prix.</td></tr></table>
+  <p class="muted">Le réglage complet, personne par personne (qui voit qui, qui modifie qui), est dans <a href="droits-agendas.php">Administration › Qui voit qui</a>.</p>
   <p class="muted"><strong>Planning :</strong> tout le monde consulte les agendas de toute l'équipe. Administrateurs et secrétariat modifient tout. Pour un utilisateur, la colonne « Planning » règle ce qu'il peut modifier : rien, son propre agenda (sa fiche du personnel doit être reliée à son compte), ou tous les agendas ; tu peux aussi lui confier l'agenda de personnes précises (ex. le chef d'équipe gère celui de son équipe).</p>
 </section>
 
