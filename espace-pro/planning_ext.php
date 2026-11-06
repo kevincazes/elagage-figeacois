@@ -739,6 +739,13 @@ function externe_modifier(int $xid, string $debut, string $fin, int $journee, st
     $x = q("SELECT x.*, a.identifiant, a.mdp, a.personnel_id, a.visibilite, p.utilisateur_id AS proprio FROM evenements_externes x JOIN agendas_externes a ON a.id = x.agenda_id LEFT JOIN personnel p ON p.id = a.personnel_id WHERE x.id = ?", [$xid])->fetch();
     if (!$x) return 'Rendez-vous introuvable (agenda relu entre-temps) : actualise la page.';
     $u = user(); if (!in_array($u['role'] ?? '', ['admin', 'secretaire'], true) && (int)$x['proprio'] !== (int)($u['id'] ?? 0)) return "Seuls le propriétaire de l'agenda et le bureau peuvent le modifier.";
+    $err = externe_ecrire($x, $debut, $fin, $journee, $titre);
+    if ($err === null) { $n = q("SELECT id FROM evenements WHERE xb_agenda_id = ? AND xb_uid = ?", [$x['agenda_id'], $x['uid']])->fetch(); if ($n) q("UPDATE evenements SET debut = ?, fin = ?, journee = ?, titre = ?, maj_le = NOW() WHERE id = ?", [$debut, $fin, $journee, mb_substr($titre ?: $x['titre'], 0, 200), $n['id']]); }
+    return $err;
+}
+/** Écrit un rendez-vous sur le serveur de son agenda (sans contrôle des droits : appelé après vérification) */
+function externe_ecrire(array $x, string $debut, string $fin, int $journee, string $titre): ?string {
+    $xid = (int)$x['id'];
     if ($x['identifiant'] === '' || !$x['href'] || !$x['ics']) return "Cet agenda n'est pas modifiable depuis le planning (lien en lecture seule).";
     if ((int)$x['recur']) return 'Rendez-vous répétitif : modifie-le dans son application.';
     if (!strtotime($debut) || !strtotime($fin) || strtotime($fin) <= strtotime($debut)) return 'Horaires invalides.';
@@ -761,6 +768,30 @@ function externe_modifier(int $xid, string $debut, string $fin, int $journee, st
     if (!$etag) try { agenda_sync((int)$x['agenda_id']); } catch (Throwable $t) {}
     return null;
 }
+/** Reprend des rendez-vous d'un agenda externe protégé (Extrabat…) comme vrais rendez-vous du planning (propriétaire de l'agenda affecté).
+ *  Le lien est gardé : modifier le rendez-vous dans le planning (ou sur le téléphone) le modifie aussi dans l'agenda d'origine, et inversement. Renvoie le nombre repris. */
+function externes_reprendre(int $agendaId, ?int $xid = null): int {
+    $a = q("SELECT * FROM agendas_externes WHERE id = ?", [$agendaId])->fetch(); if (!$a) return 0; $n = 0;
+    $sql = "SELECT * FROM evenements_externes WHERE agenda_id = ? AND recur = 0 AND " . ($xid ? 'id = ' . (int)$xid : 'fin >= NOW()') . " ORDER BY debut";
+    foreach (q($sql, [$agendaId]) as $x) {
+        if (q("SELECT id FROM evenements WHERE xb_agenda_id = ? AND xb_uid = ?", [$agendaId, $x['uid']])->fetch()) continue;
+        $type = preg_match('/visite|devis|chiffrage|estimation/i', $x['titre']) ? 'visite' : 'rdv';
+        q("INSERT INTO evenements (type, titre, statut, debut, fin, journee, adresse, notes, cree_par, cree_le, maj_le, xb_agenda_id, xb_uid, kleyk_init) VALUES (?,?,?,?,?,?,?,?,?,NOW(),NOW(),?,?,1)",
+          [$type, mb_substr($x['titre'] ?: 'Rendez-vous', 0, 200), 'confirme', $x['debut'], $x['fin'], (int)$x['journee'], mb_substr($x['lieu'], 0, 255), 'Repris de l\'agenda « ' . $a['nom'] . ' » : les changements sont répercutés des deux côtés.', user()['id'] ?? null, $agendaId, $x['uid']]);
+        $id = (int)db()->lastInsertId(); q("INSERT INTO evenement_personnel (evenement_id, personnel_id) VALUES (?,?)", [$id, (int)$a['personnel_id']]);
+        evt_journal($id, 'Repris de l\'agenda « ' . $a['nom'] . ' »'); $n++;
+    }
+    return $n;
+}
+/** Un rendez-vous du planning repris d'un agenda externe vient d'être modifié (planning, téléphone) : même changement dans l'agenda d'origine. Renvoie null ou le message d'erreur. */
+function externes_repercuter(int $evtId): ?string {
+    $e = q("SELECT * FROM evenements WHERE id = ?", [$evtId])->fetch(); if (!$e || !$e['xb_agenda_id'] || !$e['xb_uid']) return null;
+    $x = q("SELECT x.*, a.identifiant, a.mdp FROM evenements_externes x JOIN agendas_externes a ON a.id = x.agenda_id WHERE x.agenda_id = ? AND x.uid = ? LIMIT 1", [$e['xb_agenda_id'], $e['xb_uid']])->fetch();
+    if (!$x) return null;
+    if ($x['debut'] === $e['debut'] && $x['fin'] === $e['fin'] && $x['titre'] === mb_substr($e['titre'], 0, 190)) return null;
+    if ($e['statut'] === 'annule') return null; // une annulation ne supprime rien dans l'agenda d'origine
+    return externe_ecrire($x, $e['debut'], $e['fin'], (int)$e['journee'], $e['titre']);
+}
 /** Télécharge et relit un agenda ; renvoie le nombre d'événements (ou false + message d'erreur enregistré) */
 function agenda_sync(int $id): int|false {
     $a = q("SELECT * FROM agendas_externes WHERE id = ?", [$id])->fetch(); if (!$a) return false;
@@ -775,6 +806,11 @@ function agenda_sync(int $id): int|false {
     if ($txt === false) { q("UPDATE agendas_externes SET erreur = ?, maj_le = NOW() WHERE id = ?", [mb_substr($err, 0, 255), $id]); return false; }
     $evs = ics_lire($txt, date('Y-m-d', strtotime('-30 days')), date('Y-m-d', strtotime('+365 days')));
     db()->beginTransaction();
+    $anciens = []; foreach (q("SELECT uid, debut, fin, titre FROM evenements_externes WHERE agenda_id = ?", [$id]) as $o) $anciens[$o['uid']] = $o;
+    foreach ($evs as $e) { $o = $anciens[$e['uid']] ?? null; // modifié dans l'agenda d'origine depuis la dernière lecture : le rendez-vous repris suit
+        if ($o && ($o['debut'] !== $e['debut'] || $o['fin'] !== $e['fin'] || $o['titre'] !== mb_substr($e['titre'], 0, 190))) {
+            $nv = q("SELECT id FROM evenements WHERE xb_agenda_id = ? AND xb_uid = ?", [$id, $e['uid']])->fetch();
+            if ($nv) { q("UPDATE evenements SET debut = ?, fin = ?, journee = ?, titre = ?, maj_le = NOW() WHERE id = ?", [$e['debut'], $e['fin'], $e['journee'], mb_substr($e['titre'], 0, 200), $nv['id']]); evt_journal((int)$nv['id'], 'Modifié dans l\'agenda « ' . $a['nom'] . ' » : repris dans le planning'); } } }
     q("DELETE FROM evenements_externes WHERE agenda_id = ?", [$id]);
     $meta = ($a['identifiant'] ?? '') !== '' ? ($GLOBALS['caldav_meta'] ?? []) : []; $nbUid = array_count_values(array_column($evs, 'uid'));
     foreach ($evs as $e) { $mt = $meta[$e['uid']] ?? null;
@@ -788,9 +824,11 @@ function agendas_sync_tous(): void { foreach (q("SELECT id FROM agendas_externes
 function externes_periode(string $du, string $au, ?int $pid = null): array {
     $l = [];
     $u = user(); $bureau = in_array($u['role'] ?? '', ['admin', 'secretaire'], true);
+    $repris = []; try { foreach (q("SELECT xb_agenda_id, xb_uid FROM evenements WHERE xb_agenda_id IS NOT NULL AND statut <> 'annule'") as $r) $repris[$r['xb_agenda_id'] . '|' . $r['xb_uid']] = 1; } catch (Throwable $t) {}
     foreach (q("SELECT x.*, a.personnel_id, a.nom AS agenda, a.couleur, a.prive, a.visibilite, a.identifiant, p.utilisateur_id AS proprio FROM evenements_externes x JOIN agendas_externes a ON a.id = x.agenda_id LEFT JOIN personnel p ON p.id = a.personnel_id WHERE a.actif = 1 AND x.debut < ? AND x.fin > ?" . ($pid ? " AND a.personnel_id = ?" : '') . " ORDER BY x.debut", $pid ? [$au, $du, $pid] : [$au, $du]) as $x) {
         $moi = $u && (int)$x['proprio'] === (int)$u['id'];
-        if ($x['visibilite'] === 'bureau' && !$bureau && !$moi) continue; // agenda réservé au bureau (secrétariat, administrateur) et à son propriétaire
+        if ($x['visibilite'] === 'bureau' && !$bureau && !$moi) continue;
+        if (isset($repris[$x['agenda_id'] . '|' . $x['uid']])) continue; // déjà repris comme vrai rendez-vous du planning // agenda réservé au bureau (secrétariat, administrateur) et à son propriétaire
         $l[] = ['id' => 'x' . $x['id'], 'externe' => 1, 'modifiable' => ($bureau || $moi) && $x['identifiant'] !== '' && $x['href'] && !(int)$x['recur'] && !((int)$x['prive'] && !$moi && !$bureau) ? 1 : 0, 'agenda_nom' => $x['agenda'], 'agenda' => $x['agenda'], 'couleur' => $x['couleur'], 'type' => 'externe', 'titre' => (int)$x['prive'] ? 'Occupé (' . $x['agenda'] . ')' : $x['titre'], 'statut' => 'confirme', 'debut' => $x['debut'], 'fin' => $x['fin'], 'journee' => (int)$x['journee'],
                 'client_nom' => '', 'client_tel' => '', 'client_email' => '', 'adresse' => (int)$x['prive'] ? '' : $x['lieu'], 'cp' => '', 'ville' => '', 'lat' => null, 'lng' => null, 'personnel' => [(int)$x['personnel_id']], 'materiel' => [], 'equipe_id' => null, 'devis_montant' => null, 'notes' => '', 'consignes' => '', 'motif' => '', 'pictos' => '', 'phyto' => 0, 'priorite' => 2, 'alertes' => []];
     }
@@ -858,6 +896,7 @@ function agendas_post(?array $pids): ?string {
     }
     if ($op === 'actualiser' && $id) { q("UPDATE agendas_externes SET maj_le = NULL WHERE id = ?", [$id]); $n = agenda_sync($id); $a = q("SELECT erreur FROM agendas_externes WHERE id = ?", [$id])->fetch(); return $n === false ? 'Lecture impossible : ' . $a['erreur'] : "Agenda actualisé : $n événement(s)."; }
     if ($op === 'supprimer' && $id) { q("DELETE FROM evenements_externes WHERE agenda_id = ?", [$id]); q("DELETE FROM agendas_externes WHERE id = ?", [$id]); return 'Agenda retiré.'; }
+    if ($op === 'reprendre' && $id) { if (($a['identifiant'] ?? '') === '') return "Seuls les agendas protégés (Extrabat…) peuvent être repris : un lien .ics est en lecture seule."; $n = externes_reprendre($id); return $n ? "$n rendez-vous à venir repris dans le planning : modifiables ici et sur les téléphones, les changements repartent dans « {$a['nom']} »." : 'Rien de nouveau à reprendre.'; }
     if ($op === 'visibilite' && $id) { q("UPDATE agendas_externes SET visibilite = ? WHERE id = ?", [($_POST['visibilite'] ?? '') === 'bureau' ? 'bureau' : 'tous', $id]); return 'Visibilité de l\'agenda enregistrée.'; }
     if ($op === 'couleur' && $id) { $c = (string)($_POST['couleur'] ?? ''); if (!preg_match('/^#[0-9a-f]{6}$/i', $c)) return 'Couleur invalide.'; q("UPDATE agendas_externes SET couleur = ? WHERE id = ?", [$c, $id]); return 'Couleur de l\'agenda enregistrée.'; }
     if ($op === 'actif' && $id) { q("UPDATE agendas_externes SET actif = 1 - actif WHERE id = ?", [$id]); return 'Agenda mis à jour.'; }
@@ -873,7 +912,7 @@ function agendas_bloc(array $personnes, bool $choixPersonne): string {
     $ids = array_map(fn($p) => (int)$p['id'], $personnes); $liste = array_filter(agendas_liste(), fn($a) => in_array((int)$a['personnel_id'], $ids, true));
     if ($liste) { $h .= '<div style="overflow-x:auto"><table class="tbl"><tr>' . ($choixPersonne ? '<th>Personne</th>' : '') . '<th>Calendrier</th><th>Événements</th><th>Dernière lecture</th><th></th></tr>';
         foreach ($liste as $a) $h .= '<tr' . ((int)$a['actif'] ? '' : ' style="opacity:.55"') . '>' . ($choixPersonne ? '<td>' . e($a['prenom'] ?? '') . '</td>' : '') . '<td><i class="conf" style="background:' . e($a['couleur']) . '"></i>' . e($a['nom']) . ((int)$a['prive'] ? ' <span class="small muted">(titres masqués)</span>' : '') . (($a['identifiant'] ?? '') !== '' ? ' <span class="small muted">(protégé : ' . e($a['identifiant']) . ')</span>' : '') . '<br><span class="small muted" style="word-break:break-all">' . e(mb_strimwidth($a['url'], 0, 70, '…')) . '</span></td><td>' . (int)$a['nb'] . '</td><td class="small">' . ($a['maj_le'] ? date('d/m H:i', strtotime($a['maj_le'])) : '—') . ($a['erreur'] ? '<br><span style="color:#e6332a">' . e($a['erreur']) . '</span>' : '') . '</td>'
-            . '<td style="white-space:nowrap"><form method="post" style="display:inline">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="id" value="' . (int)$a['id'] . '"><select name="visibilite" title="Qui voit cet agenda dans le planning" style="width:auto;margin:0;padding:4px 6px;vertical-align:middle" onchange="const b=document.createElement(\'input\');b.type=\'hidden\';b.name=\'op\';b.value=\'visibilite\';this.form.appendChild(b);this.form.submit()"><option value="tous"' . (($a['visibilite'] ?? 'tous') === 'tous' ? ' selected' : '') . '>Visible par tous</option><option value="bureau"' . (($a['visibilite'] ?? '') === 'bureau' ? ' selected' : '') . '>Bureau seulement</option></select> <input type="color" name="couleur" value="' . e($a['couleur']) . '" title="Changer la couleur de cet agenda dans le planning" style="width:40px;height:30px;padding:2px;vertical-align:middle;margin:0" onchange="const b=document.createElement(\'input\');b.type=\'hidden\';b.name=\'op\';b.value=\'couleur\';this.form.appendChild(b);this.form.submit()"> <button class="mini" name="op" value="actualiser">Actualiser</button> <button class="mini" name="op" value="actif">' . ((int)$a['actif'] ? 'Masquer' : 'Afficher') . '</button> <button class="mini danger" name="op" value="supprimer" onclick="return confirm(\'Retirer ce calendrier du planning ?\')">Retirer</button></form></td></tr>';
+            . '<td style="white-space:nowrap"><form method="post" style="display:inline">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="id" value="' . (int)$a['id'] . '"><select name="visibilite" title="Qui voit cet agenda dans le planning" style="width:auto;margin:0;padding:4px 6px;vertical-align:middle" onchange="const b=document.createElement(\'input\');b.type=\'hidden\';b.name=\'op\';b.value=\'visibilite\';this.form.appendChild(b);this.form.submit()"><option value="tous"' . (($a['visibilite'] ?? 'tous') === 'tous' ? ' selected' : '') . '>Visible par tous</option><option value="bureau"' . (($a['visibilite'] ?? '') === 'bureau' ? ' selected' : '') . '>Bureau seulement</option></select> <input type="color" name="couleur" value="' . e($a['couleur']) . '" title="Changer la couleur de cet agenda dans le planning" style="width:40px;height:30px;padding:2px;vertical-align:middle;margin:0" onchange="const b=document.createElement(\'input\');b.type=\'hidden\';b.name=\'op\';b.value=\'couleur\';this.form.appendChild(b);this.form.submit()"> <button class="mini" name="op" value="actualiser">Actualiser</button>' . (($a['identifiant'] ?? '') !== '' ? ' <button class="mini" name="op" value="reprendre" title="Crée de vrais rendez-vous du planning à partir des rendez-vous à venir de cet agenda ; les changements sont répercutés des deux côtés">Reprendre dans le planning</button>' : '') . ' <button class="mini" name="op" value="actif">' . ((int)$a['actif'] ? 'Masquer' : 'Afficher') . '</button> <button class="mini danger" name="op" value="supprimer" onclick="return confirm(\'Retirer ce calendrier du planning ?\')">Retirer</button></form></td></tr>';
         $h .= '</table></div>'; }
     $h .= '<form method="post" class="inline" style="margin-top:8px">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="op" value="ajouter">';
     $h .= $choixPersonne ? '<select name="personnel_id" required><option value="">Personne…</option>' . implode('', array_map(fn($p) => '<option value="' . (int)$p['id'] . '">' . e($p['prenom'] . ' ' . $p['nom']) . '</option>', $personnes)) . '</select>' : '<input type="hidden" name="personnel_id" value="' . (int)$personnes[0]['id'] . '">';

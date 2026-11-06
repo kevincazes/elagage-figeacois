@@ -2,6 +2,9 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.9.2', '2026-11-06', [
+        'Bascule Extrabat → espace pro : « Reprendre dans le planning » (liste des agendas, ou fiche d\'un rendez-vous Extrabat) fait des rendez-vous à venir de vrais rendez-vous du planning, affectés au propriétaire de l\'agenda ; ils restent liés à Extrabat : un déplacement dans le planning ou sur le téléphone part dans Extrabat, et un changement fait dans Extrabat revient dans le planning',
+    ]],
     ['2.9.1', '2026-11-06', [
         'Rendez-vous Extrabat (agenda protégé) modifiables depuis le planning : clic sur le rendez-vous, titre / date / heures, « Enregistrer dans Extrabat » : la modification part directement dans Extrabat (et donc sur les téléphones qui l\'affichent)',
         'Agenda externe « Bureau seulement » : visible uniquement par le secrétariat, l\'administrateur et son propriétaire, qui peuvent le modifier ; « Visible par tous » sinon (réglable dans la liste des agendas)',

@@ -361,7 +361,7 @@ function glisserJour(el, e, _f, opts = {}) {
   });
 }
 async function deplacer(e, a, b, de, vers) {
-  try { const r = await api('deplacer', {}, {id: e.id, debut: dts(a), fin: dts(b), de, vers});
+  try { const r = await api('deplacer', {}, {id: e.id, debut: dts(a), fin: dts(b), de, vers}); if (r && r.xb) toast("Déplacé dans le planning, mais pas dans l'agenda d'origine : " + r.xb, true);
     toast('Déplacé : ' + e.titre + ' → ' + jourCourt(a) + (estBande(e) ? '' : ' ' + hm(a)) + (r.reconfirmer ? ' — à reconfirmer par le client (statut repassé en « proposé »)' : '') + (r.alertes.length ? ' — ⚠ ' + r.alertes[0] : ''), r.alertes.length > 0); }
   catch (err) { toast(err.message, true); }
   charger();
@@ -376,7 +376,7 @@ function deposerAP(zone, heureDe, jourFixe, res) {
     let deb, fin; const t = heureDe(ev);
     if (t && e.type !== 'chantier') { deb = t; fin = new Date(+t + (+e.duree_h || 1) * 36e5); }
     else { const j = jourFixe || ymd(t || new Date()); const r = jourEntier(j, +e.nb_jours || Math.ceil((+e.duree_h || 0) / 8) || 1); deb = parse(r.debut); fin = parse(r.fin); }
-    try { await api('deplacer', {}, {id, debut: dts(deb), fin: dts(fin), vers: res || null, de: null}); if (e.type === 'chantier' && !res) toast('Date posée. Complète l\'équipe et le matériel dans la fiche.'); } catch (err) { toast(err.message, true); }
+    try { const r2 = await api('deplacer', {}, {id, debut: dts(deb), fin: dts(fin), vers: res || null, de: null}); if (r2 && r2.xb) toast("Déplacé dans le planning, mais pas dans l'agenda d'origine : " + r2.xb, true); if (e.type === 'chantier' && !res) toast('Date posée. Complète l\'équipe et le matériel dans la fiche.'); } catch (err) { toast(err.message, true); }
     await charger(); ouvrirFiche(id);
   });
 }
@@ -539,8 +539,9 @@ function ficheExterne(x) {
     <label>Titre <input name="titre" value="${esc(x.titre)}"></label>
     <div class="cols"><label>Date <input type="date" name="d" value="${ymd(d0)}"></label><label>Début <input type="time" name="h1" value="${hm(d0)}" step="300"></label><label>Fin <input type="time" name="h2" value="${hm(d1)}" step="300"></label></div>
     ${x.adresse ? `<p class="small">${esc(x.adresse)}</p>` : ''}</form></div>
-   <footer><button class="btn" id="fxEnr">Enregistrer dans ${esc(x.agenda_nom || "l'agenda")}</button><span class="muted small" id="fxEtat"></span></footer></div>`;
+   <footer><button class="btn" id="fxEnr">Enregistrer dans ${esc(x.agenda_nom || "l'agenda")}</button><button class="btn secondary" id="fxRep" title="En fait un vrai rendez-vous du planning (fiche complète, téléphones, trajets) ; les changements continuent d'aller dans ${esc(x.agenda_nom || "l'agenda")}">Reprendre dans le planning</button><span class="muted small" id="fxEtat"></span></footer></div>`;
   const fermer = () => { $('#ficheHote').innerHTML = ''; }; $('.fiche-fond').onclick = fermer; $('#fFerm').onclick = fermer;
+  $('#fxRep').onclick = async () => { $('#fxRep').disabled = true; try { const r = await api('externe_reprendre', {}, {id: x.id}); toast('Rendez-vous repris dans le planning.'); await charger(); if (r.id) ouvrirFiche(r.id); } catch (err) { $('#fxEtat').textContent = err.message; $('#fxRep').disabled = false; } };
   $('#fxEnr').onclick = async () => { const F = $('#fx'); if (!F.d.value || !F.h1.value || !F.h2.value || F.h2.value <= F.h1.value) { $('#fxEtat').textContent = 'Vérifie la date et les heures.'; return; }
     $('#fxEnr').disabled = true; $('#fxEtat').textContent = 'Enregistrement dans l\'agenda…';
     try { await api('externe_maj', {}, {id: x.id, titre: F.titre.value, debut: F.d.value + ' ' + F.h1.value + ':00', fin: F.d.value + ' ' + F.h2.value + ':00'}); fermer(); toast('Rendez-vous modifié dans ' + (x.agenda_nom || "l'agenda") + '.'); charger(); }
@@ -558,6 +559,7 @@ async function ouvrirFiche(id, opts = {}) {
   $('#ficheHote').innerHTML = `<div class="fiche-fond"></div><div class="fiche" role="dialog" aria-label="Fiche">
    <header><h2>${id ? esc(e.titre) : 'Nouveau : ' + esc(TYPES[e.type][0])}</h2><button class="mini" id="fFerm" title="Fermer (Échap)">✕</button></header>
    <div class="corps"><form id="ff" autocomplete="off">
+    ${e.xb_agenda_id ? `<div class="reponse ok small"><svg class="pi"><use href="#pi-calendar"/></svg> Repris d'un agenda externe (Extrabat…) : les changements de date et de titre y sont répercutés.</div>` : ''}
     ${e.client_reponse === 'confirme' ? `<div class="reponse ok">✓ Le client a confirmé la date le ${esc((e.client_repondu_le || '').slice(0, 16).split(' ')[0].split('-').reverse().join('/'))}.${e.client_message ? '<br>« ' + esc(e.client_message) + ' »' : ''}</div>` : ''}
     ${e.client_reponse === 'autre' ? `<div class="reponse autre">Le client demande une autre date${e.client_message ? ' : « ' + esc(e.client_message) + ' »' : '.'} <button class="mini" type="button" id="fVu">Marquer comme traité</button></div>` : ''}
     <div class="alertes" id="fAl"></div>
@@ -720,7 +722,7 @@ async function ouvrirFiche(id, opts = {}) {
   };
   if ($('#fCren')) { $('#fCren').onclick = creneaux; if (opts.creneaux) creneaux(); }
   const enregistrer = async () => { const x = lire(); if (x.debut && x.statut === 'a_planifier') x.statut = 'propose';
-    try { const r = await api('enregistrer', {}, x); id = r.id; return r; } catch (err) { toast(err.message, true); return null; } };
+    try { const r = await api('enregistrer', {}, x); id = r.id; if (r.xb) toast('Enregistré dans le planning, mais pas dans l\'agenda d\'origine : ' + r.xb, true); return r; } catch (err) { toast(err.message, true); return null; } };
   if ($('#fEnr')) $('#fEnr').onclick = async () => { const r = await enregistrer(); if (!r) return; toast('Enregistré.' + (r.alertes.length ? ' ⚠ ' + r.alertes.length + ' point(s) à vérifier.' : ''), r.alertes.length > 0); fermer(); charger(); };
   if ($('#fEnv')) $('#fEnv').onclick = async () => { const x = lire(); if (!x.client_email) { toast('Renseigne l\'e-mail du client.', true); return; } if (!x.debut) { toast('Pose d\'abord une date.', true); return; }
     const r = await enregistrer(); if (!r) return; try { await api('proposer', {}, {id: r.id}); toast('Date envoyée au client (' + x.client_email + '). Tu seras alerté de sa réponse.'); fermer(); charger(); } catch (err) { toast(err.message, true); } };

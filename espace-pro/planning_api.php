@@ -12,7 +12,7 @@ $erreur = function (string $m, int $code = 400) use ($sortie) { http_response_co
 // Lecture croisée : tout compte connecté consulte ; écriture selon les droits (peut_modifier_evt)
 $LECTURE = ['liste', 'fiche', 'verifier', 'creneaux', 'tournee', 'clients', 'trajet_avant', 'trajet_pos'];
 if (!in_array($a, $LECTURE, true) && $_SERVER['REQUEST_METHOD'] !== 'POST') $erreur('Cette action demande un envoi (POST).', 405);
-if (!in_array($a, $LECTURE, true) && !in_array($a, ['tache', 'prestation', 'externe_maj'], true) && !peut_planifier()) $erreur("Ton compte peut consulter les agendas mais pas les modifier. Demande l'autorisation à un administrateur.", 403);
+if (!in_array($a, $LECTURE, true) && !in_array($a, ['tache', 'prestation', 'externe_maj', 'externe_reprendre'], true) && !peut_planifier()) $erreur("Ton compte peut consulter les agendas mais pas les modifier. Demande l'autorisation à un administrateur.", 403);
 $refus = fn(array $pers) => peut_modifier_evt($pers) ? null : "Tu n'as pas le droit de modifier l'agenda de toutes les personnes concernées.";
 $avecTaches = function (array $evs): array { // nombre d'actions restantes / prestations par événement (badges)
     if (!$evs) return $evs; $ids = implode(',', array_map(fn($e) => (int)$e['id'], $evs)); $t = []; $pr = [];
@@ -124,6 +124,7 @@ switch ($a) {
         $affecter($id, $r['personnel'], $r['materiel']);
         if ($r['phyto'] && is_array($in['phyto_fiche'] ?? null)) phyto_enregistrer($id, $in['phyto_fiche']);
         try { kleyk_init($id); } catch (Throwable $t) {}
+        $xbErr = null; try { $xbErr = externes_repercuter($id); } catch (Throwable $t) { $xbErr = $t->getMessage(); }
         $e = evt_charger($id);
         try { taches_depuis_pictos($e); if ($avant && $avant['debut'] !== $e['debut']) taches_recaler($e);
               if ($e['bordereau_id'] && (!$avant || (int)$avant['bordereau_id'] !== (int)$e['bordereau_id']) && !prestations_liste($id)) prestations_depuis_bordereau($id, (int)$e['bordereau_id']); } catch (Throwable $t) {}
@@ -135,7 +136,7 @@ switch ($a) {
             if ($nouveaux) notifier_evt(['personnel' => array_values($nouveaux)] + $e, 'Nouveau : ' . $e['titre'], ucfirst(evt_quand($e)) . ($e['ville'] ? ' – ' . $e['ville'] : ''));
             if ($dateCh) notifier_evt(['personnel' => array_values(array_intersect($e['personnel'], $avant['personnel']))] + $e, 'Changement : ' . $e['titre'], 'Nouvelle date : ' . evt_quand($e));
         }
-        $sortie(['id' => $id, 'statut' => $e['statut'], 'alertes' => evt_conflits($e), 'client_id' => $e['client_id']]);
+        $sortie(['id' => $id, 'statut' => $e['statut'], 'alertes' => evt_conflits($e), 'client_id' => $e['client_id'], 'xb' => $xbErr]);
     case 'deplacer':
         // Glisser-déposer : nouvelle date et, en vue Ressources, changement de personne ou de machine
         $e = evt_charger((int)($in['id'] ?? 0)); if (!$e) $erreur('Fiche introuvable.', 404);
@@ -163,7 +164,8 @@ switch ($a) {
         if ($neufs) notifier_evt(['personnel' => array_values($neufs)] + $n, 'Nouveau : ' . $n['titre'], ucfirst(evt_quand($n)));
         if ($e['debut'] !== $n['debut'] || $e['fin'] !== $n['fin']) notifier_evt(['personnel' => array_values(array_intersect($n['personnel'], $e['personnel']))] + $n, 'Changement : ' . $n['titre'], 'Nouvelle date : ' . evt_quand($n));
         evt_journal((int)$e['id'], 'Déplacé : ' . ($e['debut'] ? evt_quand($e) : 'à planifier') . ' → ' . evt_quand($n) . ($reconf ? ' (à reconfirmer par le client)' : ''));
-        $sortie(['ok' => 1, 'alertes' => evt_conflits($n), 'reconfirmer' => $reconf]);
+        $xbErr = null; try { $xbErr = externes_repercuter((int)$e['id']); } catch (Throwable $t) { $xbErr = $t->getMessage(); }
+        $sortie(['ok' => 1, 'alertes' => evt_conflits($n), 'reconfirmer' => $reconf, 'xb' => $xbErr]);
     case 'supprimer':
         $id = (int)($in['id'] ?? 0); $e = evt_charger($id); if (!$e) $erreur('Fiche introuvable.', 404); if ($m = $refus($e['personnel'])) $erreur($m, 403);
         if ($e['contrat_id'] || $e['urgence_ref'] !== '' || q("SELECT 1 FROM rapports WHERE evenement_id = ? AND signe_le IS NOT NULL", [$id])->fetch()) { // passage de contrat, urgence ou bon signé : on annule, on ne supprime pas
@@ -224,6 +226,12 @@ switch ($a) {
     case 'facturer':
         if (planning_niveau() !== 'tout') $erreur('Réservé à l\'administration.', 403);
         [$ok, $m] = pl_facturer((int)($in['id'] ?? 0)); if (!$ok) $erreur($m); $sortie(['ok' => 1]);
+    case 'externe_reprendre':
+        $xid = (int)ltrim((string)($in['id'] ?? ''), 'x'); $x = q("SELECT x.agenda_id, p.utilisateur_id FROM evenements_externes x JOIN agendas_externes a ON a.id = x.agenda_id LEFT JOIN personnel p ON p.id = a.personnel_id WHERE x.id = ?", [$xid])->fetch();
+        if (!$x) $erreur('Rendez-vous introuvable : actualise la page.');
+        if (!in_array(user()['role'] ?? '', ['admin', 'secretaire'], true) && (int)$x['utilisateur_id'] !== (int)user()['id']) $erreur("Seuls le propriétaire de l'agenda et le bureau peuvent le reprendre.", 403);
+        externes_reprendre((int)$x['agenda_id'], $xid); $n = q("SELECT e.id FROM evenements e JOIN evenements_externes x ON x.agenda_id = e.xb_agenda_id AND x.uid = e.xb_uid WHERE x.id = ?", [$xid])->fetch();
+        $sortie(['ok' => true, 'id' => $n ? (int)$n['id'] : null]);
     case 'externe_maj': // rendez-vous d'un agenda externe protégé (Extrabat…) : modifié directement sur son serveur (droits vérifiés dans externe_modifier)
         $xid = (int)ltrim((string)($in['id'] ?? ''), 'x');
         $err = externe_modifier($xid, (string)($in['debut'] ?? ''), (string)($in['fin'] ?? ''), (int)!empty($in['journee']), (string)($in['titre'] ?? ''));

@@ -102,6 +102,7 @@ if (preg_match('#^/c/' . $pid . '/planning/([^/]+\.ics)$#i', $chemin, $m)) {
             if ($e['titre'] !== $titre) $chg[] = "titre « $titre »";
             q("UPDATE evenements SET debut = ?, fin = ?, journee = ?, titre = ?, maj_le = NOW() WHERE id = ?", [$v['debut'], $fin, (int)$v['journee'], $titre, $e['id']]);
             if ($chg) evt_journal((int)$e['id'], 'Modifié depuis le téléphone (agenda de ' . $P['prenom'] . ') : ' . implode(', ', $chg));
+            try { externes_repercuter((int)$e['id']); } catch (Throwable $t) {} // rendez-vous repris d'Extrabat : même changement là-bas
             $id = (int)$e['id']; $code = 204;
         } else { // créé sur le téléphone : nouveau rendez-vous de la personne
             q("INSERT INTO evenements (type, titre, statut, debut, fin, journee, adresse, notes, cree_le, maj_le, caldav_nom, caldav_uid) VALUES ('rdv', ?, 'planifie', ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)", [$titre, $v['debut'], $fin, (int)$v['journee'], mb_substr((string)$v['lieu'], 0, 255), 'Créé depuis le téléphone (' . $P['prenom'] . ')', mb_substr($nom, 0, 190), mb_substr($uid, 0, 190)]);
