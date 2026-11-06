@@ -2,6 +2,7 @@
 // Réglages du planning (administrateur) : entreprise (PDF), SMS, avis Google, notifications, Pennylane / GoCardless, Urgence Élagage
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
+require_once __DIR__ . '/assistant_lib.php';
 require_admin();
 planning_migrate();
 const SECRETS = ['ovh_app_secret', 'ovh_consumer_key', 'pl_token', 'urgence_cle', 'xb_cle'];
@@ -11,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                'sms' => ['ovh_app_key', 'ovh_app_secret', 'ovh_consumer_key', 'ovh_sms_service', 'sms_expediteur'],
                'avis' => ['avis_lien', 'avis_delai', 'avis_canal'],
                'pennylane' => ['pl_token', 'pl_echeance', 'pl_tva'],
-               'urgence' => ['urgence_api', 'urgence_cle'], 'extrabat' => ['xb_api', 'xb_cle', 'xb_auth', 'xb_entete', 'xb_third', 'xb_login_chemin', 'xb_login_corps']][$a] ?? [];
+               'urgence' => ['urgence_api', 'urgence_cle'], 'assistant' => ['assistant_notes_style', 'assistant_notes_consigne'], 'extrabat' => ['xb_api', 'xb_cle', 'xb_auth', 'xb_entete', 'xb_third', 'xb_login_chemin', 'xb_login_corps']][$a] ?? [];
     foreach ($champs as $k) { if (!isset($_POST[$k])) continue; $v = trim((string)$_POST[$k]); if (in_array($k, SECRETS, true) && $v === '') continue; set_setting($k, $v); }
     $cases = ['sms' => ['sms_actif', 'sms_proposition', 'sms_rappel', 'sms_avis', 'sms_contrat'], 'avis' => ['avis_actif'], 'notifications' => ['push_actif'], 'pennylane' => ['pl_mandat_auto']][$a] ?? [];
     foreach ($cases as $k) set_setting($k, !empty($_POST[$k]) ? '1' : '0');
@@ -45,7 +46,7 @@ $chk = fn(string $k) => '<input type="checkbox" name="' . $k . '" value="1" styl
 page_start('Réglages du planning', 'reglages-planning.php', ['planning.php', 'Planning']);
 ?>
 <p class="lead">Tout ce qui part vers l'extérieur (SMS, avis, factures) est désactivé tant que tu ne l'actives pas ici.</p>
-<p><a class="mini" href="#entreprise">Entreprise</a> <a class="mini" href="#sms">SMS</a> <a class="mini" href="#avis">Avis Google</a> <a class="mini" href="#notifications">Notifications</a> <a class="mini" href="#pennylane">Pennylane / GoCardless</a> <a class="mini" href="#urgence">Urgence Élagage</a> <a class="mini" href="#extrabat">Extrabat</a></p>
+<p><a class="mini" href="#entreprise">Entreprise</a> <a class="mini" href="#sms">SMS</a> <a class="mini" href="#avis">Avis Google</a> <a class="mini" href="#notifications">Notifications</a> <a class="mini" href="#pennylane">Pennylane / GoCardless</a> <a class="mini" href="#urgence">Urgence Élagage</a> <a class="mini" href="#assistant">Mise en forme des notes</a> <a class="mini" href="#extrabat">Extrabat</a></p>
 
 <form method="post" class="card" id="entreprise"><?= csrf_field() ?><input type="hidden" name="action" value="entreprise"><h2 style="margin-top:0">Entreprise (en-tête et pied des PDF, e-mails)</h2>
   <div class="cols"><label>Nom <input name="ent_nom" value="<?= $s('ent_nom') ?>"></label><label>Téléphone <input name="ent_tel" value="<?= $s('ent_tel') ?>"></label><label>E-mail (copie des rapports et contrats) <input name="ent_email" value="<?= $s('ent_email') ?>"></label></div>
@@ -86,6 +87,13 @@ page_start('Réglages du planning', 'reglages-planning.php', ['planning.php', 'P
   <p class="muted small">Clé à créer dans Urgence Élagage › Administration › Entreprise › Intégrations (droit « lecture »). Les interventions d'urgence prises en charge ou programmées apparaissent au planning et bloquent l'équipe concernée ; le planning affiche qui est d'astreinte. Dans l'autre sens, colle le « lien agenda » de chaque salarié (Planning › Personnel) dans son compte Urgence Élagage (agenda externe) : ses chantiers comptent alors dans sa disponibilité d'astreinte.<br>État : <?= $s('urgence_etat', 'jamais synchronisé') ?></p>
   <button class="btn">Enregistrer</button></form>
 <form method="post" style="margin:-6px 0 18px"><?= csrf_field() ?><input type="hidden" name="action" value="urgence_test"><button class="mini">Synchroniser maintenant</button></form>
+
+<form method="post" class="card" id="assistant"><?= csrf_field() ?><input type="hidden" name="action" value="assistant"><h2 style="margin-top:0">Mise en forme des notes (rapport de visite)</h2>
+  <p class="muted small">Ce que fait le bouton « Mettre en forme » de l'appli de terrain.</p>
+  <label>Style <select name="assistant_notes_style"><option value="fidele" <?= setting('assistant_notes_style', 'fidele') === 'fidele' ? 'selected' : '' ?>>Fidèle aux notes : remet au propre ce qui a été dit, sans rien ajouter (conseillé)</option><option value="detaille" <?= setting('assistant_notes_style') === 'detaille' ? 'selected' : '' ?>>Détaillé : rapport complet selon la compétence « rapport de visite » et la doctrine, avec les points à confirmer</option></select></label>
+  <label>Consigne du style « Fidèle » (laisser vide pour la consigne d'origine)<textarea name="assistant_notes_consigne" rows="10" placeholder="<?= e(ASSISTANT_CONSIGNE_NOTES) ?>"><?= $s('assistant_notes_consigne') ?></textarea></label>
+  <p class="muted small">Tu peux réécrire cette consigne avec tes mots (par exemple « toujours finir par la liste des travaux », « vouvoyer le client »). Elle s'applique dès l'enregistrement.</p>
+  <button class="btn">Enregistrer</button></form>
 
 <form method="post" class="card" id="extrabat"><?= csrf_field() ?><input type="hidden" name="action" value="extrabat"><h2 style="margin-top:0">Extrabat (exploration de l'API)</h2>
   <div class="cols"><label>Adresse de l'API <input name="xb_api" value="<?= $s('xb_api', 'https://api.extrabat.com/v1') ?>"></label><label>Clé d'API (User API Key) <?= $secret('xb_cle') ?><input name="xb_cle" type="password" autocomplete="new-password"></label></div>

@@ -20,7 +20,11 @@ if (isset($_GET['api'])) {
         if ($action === 'rediger') { // mise en forme de notes de terrain en rapport de visite (appel unique, sans conversation)
             $notes = trim((string)($in['texte'] ?? '')); if ($notes === '') throw new RuntimeException('Notes vides.');
             $ctx = trim((string)($in['contexte'] ?? ''));
-            $rep = assistant_appel([['role' => 'user', 'content' => [['type' => 'text', 'text' => "Mets en forme ces notes de terrain en « Rapport de visite – préparation devis » (version courte si la visite est simple), selon la compétence rapport de visite et la doctrine. Réponds uniquement par le rapport, en texte simple sans mise en forme Markdown (titres en majuscules, tirets), prêt à être enregistré tel quel. N'invente rien : ce qui manque va dans « À confirmer ».\n\n" . ($ctx ? "Contexte du rendez-vous : $ctx\n\n" : '') . "Notes :\n$notes"]]]], null);
+            $fin = ($in['modele'] ?? '') === 'fin';
+            if (setting('assistant_notes_style', 'fidele') === 'detaille' && !$fin)
+                $rep = assistant_appel([['role' => 'user', 'content' => [['type' => 'text', 'text' => "Mets en forme ces notes de terrain en « Rapport de visite – préparation devis » (version courte si la visite est simple), selon la compétence rapport de visite et la doctrine. Réponds uniquement par le rapport, en texte simple sans mise en forme Markdown (titres en majuscules, tirets), prêt à être enregistré tel quel. N'invente rien : ce qui manque va dans « À confirmer ».\n\n" . ($ctx ? "Contexte du rendez-vous : $ctx\n\n" : '') . "Notes :\n$notes"]]]], null);
+            else
+                $rep = assistant_appel([['role' => 'user', 'content' => [['type' => 'text', 'text' => ($fin ? "Il s'agit d'un bon de fin d'intervention : rubriques possibles TRAVAUX RÉALISÉS puis REMARQUES, uniquement avec ce qui est dans les notes.\n\n" : "Il s'agit d'un compte rendu de visite avant devis.\n\n") . ($ctx ? "Contexte du rendez-vous : $ctx\n\n" : '') . "Notes :\n$notes"]]]], null, assistant_consigne_notes());
             $texte = ''; foreach ($rep['content'] ?? [] as $bloc) if ($bloc['type'] === 'text') $texte .= $bloc['text'];
             echo json_encode(['texte' => trim($texte)], JSON_UNESCAPED_UNICODE); exit;
         }

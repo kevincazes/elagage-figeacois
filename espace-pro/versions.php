@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.10.2', '2026-11-06', [
+        'Mise en forme des notes : nouveau style « Fidèle » par défaut, qui remet au propre uniquement ce qui a été dit (pas de questions systématiques sur la hauteur, le diamètre, les contraintes…), à la longueur des notes, et s\'adapte aux consignes données dans la dictée',
+        'Administration › Réglages › Mise en forme des notes : choix du style (Fidèle ou Détaillé, l\'ancien rapport complet) et consigne modifiable avec tes mots',
+    ]],
     ['2.10.1', '2026-11-06', [
         'Rapport de visite sur téléphone : le menu « Rapport PDF » ne déborde plus à droite de l\'écran',
         'Dictée : bouton « Dicter » toujours visible, en rouge pendant l\'écoute, avec un message clair si le micro ou la dictée sont bloqués sur le téléphone (sinon, le micro du clavier prend le relais) ; la zone de texte s\'agrandit avec les notes',

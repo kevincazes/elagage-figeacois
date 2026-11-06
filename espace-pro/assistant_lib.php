@@ -59,6 +59,19 @@ function assistant_contexte(?int $bordereauId): string {
 /** Doctrine arboricole V3 (fichier lib/doctrine-ef-v3.md, hors accès web) */
 /** Compétence « rapport de visite de devis » (lib/rapport-visite-devis.md) */
 function assistant_skill_rapport(): string { $f = __DIR__ . '/lib/rapport-visite-devis.md'; return is_file($f) ? preg_replace('/^---.*?---\s*/s', '', (string)file_get_contents($f)) : ''; }
+/** Consigne de la mise en forme « fidèle » des notes de terrain (modifiable dans Administration › Réglages › Assistant) */
+const ASSISTANT_CONSIGNE_NOTES = "Tu mets en forme des notes prises sur le terrain par un arboriste d'Élagage Figeacois (dictées ou tapées au téléphone), pour en faire un compte rendu propre et lisible.
+
+Règles :
+- Utilise uniquement ce qui est dans les notes et dans le contexte du rendez-vous. N'ajoute aucune observation, justification technique, moyen, contrainte, préconisation ou précaution qui n'y figure pas.
+- Ne cherche pas ce qui manque : ne demande pas la hauteur, le diamètre, l'essence, l'accès, les réseaux, les contraintes du chantier, etc. Pas de rubrique « À confirmer » sauf si les notes signalent elles-mêmes un doute ou une chose à vérifier (« à voir », « ? », « à vérifier », « demander », « peut-être »…), et seulement pour ces points-là.
+- Reste court : à peu près la longueur des notes. Reformule en phrases claires, regroupe ce qui va ensemble, retire les répétitions et les hésitations de l'oral.
+- Corrige l'orthographe, les mots mal reconnus par la dictée et les termes arboricoles approximatifs quand le sens est évident, sans changer le sens ni la décision prise.
+- Adapte-toi à ce qui est dit : si les notes parlent surtout d'accès, le compte rendu parle surtout d'accès ; si elles contiennent une consigne de rédaction (« fais court », « mets ça en premier », « pas besoin de détailler »), suis-la sans la recopier.
+- Garde les chiffres, quantités, noms et lieux exactement comme donnés.
+- Rubriques possibles, dans cet ordre et seulement si les notes contiennent de quoi les remplir : CONTEXTE, OBSERVATIONS, TRAVAUX PRÉVUS, ACCÈS ET CONTRAINTES, RÉMANENTS, À CONFIRMER. Pour des notes courtes, deux ou trois rubriques suffisent ; pour une ou deux phrases, une seule phrase propre sans rubrique.
+- Texte simple, sans Markdown : titres en majuscules, tirets pour les listes. Réponds uniquement par le compte rendu.";
+function assistant_consigne_notes(): string { $c = trim(setting('assistant_notes_consigne')); return $c !== '' ? $c : ASSISTANT_CONSIGNE_NOTES; }
 function assistant_doctrine(): string { $f = __DIR__ . '/lib/doctrine-ef-v3.md'; return is_file($f) ? (string)file_get_contents($f) : '(doctrine absente)'; }
 function assistant_system(): string {
     return "Tu es l'assistant intégré à l'espace pro d'Élagage Figeacois, entreprise d'arboristes grimpeurs à Figeac (Lot). Tu aides l'équipe à chiffrer les marchés d'élagage : temps à passer par action dans l'arbre, prix unitaires des bordereaux (BPU), comparaison avec les prix déjà remis, règles de calcul, et toute question sur l'application ou le métier, y compris le planning, l'appli de terrain, les clients et contrats, le suivi du matériel et la procédure chancre coloré du platane (passeport phytosanitaire, registre, désinfection) décrite dans tes connaissances.
@@ -142,13 +155,14 @@ function assistant_appliquer(string $nom, array $in, ?int $bordereauId): string 
 }
 
 /** Appel API. $messages : [['role'=>'user'|'assistant','content'=>string|array]] */
-function assistant_appel(array $messages, ?int $bordereauId): array {
+function assistant_appel(array $messages, ?int $bordereauId, ?string $systeme = null): array {
     $mois = date('Y-m');
     $u = q("SELECT * FROM assistant_usage WHERE mois = ?", [$mois])->fetch();
     if ($u && (int)$u['echanges'] >= ASSISTANT_PLAFOND_MOIS) throw new RuntimeException("Plafond mensuel de l'assistant atteint (" . ASSISTANT_PLAFOND_MOIS . " échanges). Un administrateur peut l'augmenter.");
     $body = ['model' => assistant_modele(), 'max_tokens' => 1500, 'system' => [['type' => 'text', 'text' => assistant_system()], ['type' => 'text', 'text' => "Fonctionnement de l'espace pro et procédures de l'entreprise (planning, terrain, clients, contrats, matériel, chancre coloré du platane) :\n\n" . assistant_connaissances()],
         ['type' => 'text', 'text' => "COMPÉTENCE « RAPPORT DE VISITE DE DEVIS » — quand on te demande un rapport de visite, de mettre en forme des notes de terrain ou de préparer un devis, applique cette méthode :\n\n" . assistant_skill_rapport()],
         ['type' => 'text', 'text' => "DOCTRINE ARBORICOLE D'ÉLAGAGE FIGEACOIS (V3, 15 septembre 2026) — source de vérité pour tout raisonnement, préconisation, devis, rapport, diagnostic, consolidation (distinguer haubanage et brochage), travaux, biodiversité, avifaune et espèces protégées. Applique-la telle qu'elle est écrite : ne la résume pas, ne la réinterprète pas, ne la complète pas en la présentant comme doctrine ; si une information en est absente, dis-le et présente-la comme complément éventuel. En cas de conflit avec une habitude de rédaction, la doctrine prévaut. Pour les devis, rapports de visite, diagnostics, préparations de chantier et échanges clients, utilise-la comme cadre de décision avant de rédiger.\n\n" . assistant_doctrine(), 'cache_control' => ['type' => 'ephemeral']], ['type' => 'text', 'text' => "Contexte de l'application :\n\n" . assistant_contexte($bordereauId), 'cache_control' => ['type' => 'ephemeral']]], 'tools' => assistant_outils(), 'messages' => $messages];
+    if ($systeme !== null) $body = ['model' => assistant_modele(), 'max_tokens' => 1500, 'system' => $systeme, 'messages' => $messages]; // appel court dédié (sans outils ni base documentaire)
     $ch = curl_init('https://api.anthropic.com/v1/messages');
     curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 90, CURLOPT_HTTPHEADER => ['content-type: application/json', 'anthropic-version: 2023-06-01', 'x-api-key: ' . CLAUDE_API_KEY], CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE)]);
     $res = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
