@@ -3,6 +3,7 @@
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
     ['2.9.2', '2026-11-06', [
+        'Fiche d\'un rendez-vous : heures de début et de fin au quart d\'heure (liste 09:00, 09:15, 09:30…) au lieu de la minute ; une heure existante hors quart d\'heure est conservée',
         'Bascule Extrabat → espace pro : « Reprendre dans le planning » (liste des agendas, ou fiche d\'un rendez-vous Extrabat) fait des rendez-vous à venir de vrais rendez-vous du planning, affectés au propriétaire de l\'agenda ; ils restent liés à Extrabat : un déplacement dans le planning ou sur le téléphone part dans Extrabat, et un changement fait dans Extrabat revient dans le planning',
     ]],
     ['2.9.1', '2026-11-06', [

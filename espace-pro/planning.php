@@ -530,6 +530,10 @@ function rendreMesTaches(l) {
   $('#mtL').querySelectorAll('a[data-evt]').forEach(a => a.onclick = ev => { ev.preventDefault(); ouvrirFiche(+a.dataset.evt); });
 }
 const aujourdhui = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+// Heures de quart d'heure en quart d'heure (une heure existante hors quart d'heure est gardée telle quelle)
+const QUARTS = Array.from({length: 96}, (_, i) => String(Math.floor(i / 4)).padStart(2, '0') + ':' + String(i % 4 * 15).padStart(2, '0'));
+const heuresOpt = v => (QUARTS.includes(v) ? QUARTS : [...QUARTS, v].sort()).map(h => `<option${h === v ? ' selected' : ''}>${h}</option>`).join('');
+const setH = (sel, v) => { if (![...sel.options].some(o => o.value === v)) { const o = new Option(v, v); const apres = [...sel.options].find(x => x.value > v); sel.add(o, apres || null); } sel.value = v; };
 // Rendez-vous d'un agenda externe modifiable (Extrabat…) : petite fiche, l'enregistrement part directement sur le serveur de l'agenda
 function ficheExterne(x) {
   const d0 = parse(x.debut), d1 = parse(x.fin);
@@ -537,7 +541,7 @@ function ficheExterne(x) {
    <header><h2>${esc(x.titre)}</h2><button class="mini" id="fFerm" title="Fermer (Échap)">✕</button></header>
    <div class="corps"><form id="fx" autocomplete="off"><p class="small muted" style="margin-top:0"><i class="conf" style="background:${esc(x.couleur || '#9aa5b1')}"></i> Agenda <b>${esc(x.agenda_nom || '')}</b> : la modification est enregistrée directement dans cet agenda (et sur les téléphones qui l'affichent).</p>
     <label>Titre <input name="titre" value="${esc(x.titre)}"></label>
-    <div class="cols"><label>Date <input type="date" name="d" value="${ymd(d0)}"></label><label>Début <input type="time" name="h1" value="${hm(d0)}" step="300"></label><label>Fin <input type="time" name="h2" value="${hm(d1)}" step="300"></label></div>
+    <div class="cols"><label>Date <input type="date" name="d" value="${ymd(d0)}"></label><label>Début <select name="h1">${heuresOpt(hm(d0))}</select></label><label>Fin <select name="h2">${heuresOpt(hm(d1))}</select></label></div>
     ${x.adresse ? `<p class="small">${esc(x.adresse)}</p>` : ''}</form></div>
    <footer><button class="btn" id="fxEnr">Enregistrer dans ${esc(x.agenda_nom || "l'agenda")}</button><button class="btn secondary" id="fxRep" title="En fait un vrai rendez-vous du planning (fiche complète, téléphones, trajets) ; les changements continuent d'aller dans ${esc(x.agenda_nom || "l'agenda")}">Reprendre dans le planning</button><span class="muted small" id="fxEtat"></span></footer></div>`;
   const fermer = () => { $('#ficheHote').innerHTML = ''; }; $('.fiche-fond').onclick = fermer; $('#fFerm').onclick = fermer;
@@ -586,8 +590,8 @@ async function ouvrirFiche(id, opts = {}) {
      <p class="small" id="fGps" style="margin:2px 0 0">${e.lat ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank">Itinéraire Google Maps ↗</a> · <a href="https://waze.com/ul?ll=${e.lat},${e.lng}&navigate=yes" target="_blank">Waze ↗</a> · <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${e.lat},${e.lng}" target="_blank">Street View ↗</a>` : ''}</p>
     </fieldset>
     <fieldset><legend>Date</legend>
-     <div class="g2"><label>Début <input type="date" name="d_deb" value="${d0 ? ymd(d0) : ''}"></label><label class="hrs">Heure <input type="time" name="h_deb" step="900" value="${d0 ? hm(d0) : '09:00'}"></label>
-     <label>Fin <input type="date" name="d_fin" value="${dFin ? ymd(dFin) : ''}"></label><label class="hrs">Heure <input type="time" name="h_fin" step="900" value="${d1 ? hm(d1) : '10:00'}"></label></div>
+     <div class="g2"><label>Début <input type="date" name="d_deb" value="${d0 ? ymd(d0) : ''}"></label><label class="hrs">Heure <select name="h_deb">${heuresOpt(d0 ? hm(d0) : '09:00')}</select></label>
+     <label>Fin <input type="date" name="d_fin" value="${dFin ? ymd(dFin) : ''}"></label><label class="hrs">Heure <select name="h_fin">${heuresOpt(d1 ? hm(d1) : '10:00')}</select></label></div>
      <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" name="journee" style="width:auto;margin:0" ${+e.journee ? 'checked' : ''}> Journée(s) entière(s) (horaires de l'équipe : ${S.data.reglages.debut}–${S.data.reglages.fin})</label>
      <div class="g3"><label>Durée estimée (h) <input name="duree_h" inputmode="decimal" value="${e.duree_h ?? ''}" placeholder="ex. 6"></label><label>Nombre de jours <input name="nb_jours" inputmode="decimal" value="${e.nb_jours ?? ''}" placeholder="ex. 2"></label><label>Priorité <select name="priorite">${opt({1: 'Basse', 2: 'Normale', 3: 'Urgente'}, String(e.priorite))}</select></label></div>
      <label>Souhait du client (dates, contraintes) <input name="souhait_client" value="${esc(e.souhait_client)}" placeholder="Ex. pas avant le 15, plutôt le matin, portail fermé le lundi"></label>
@@ -663,10 +667,10 @@ async function ouvrirFiche(id, opts = {}) {
       const tard = r.avant.reduce((m, t) => !m || t.arrivee > m.arrivee ? t : m, null);
       if (r.avant.length) { const d = document.createElement('div'); const trop = tard.arrivee > x.debut; d.className = trop ? 'trajet-av court' : 'trajet-av';
         d.innerHTML = `<svg class="pi"><use href="#pi-car"/></svg> ` + r.avant.map(t => `${esc(t.prenom)} : fin de « ${esc(t.de)} » à ${t.fin} + ${t.min} min de route (${String(t.km).replace('.', ',')} km${t.source === 'estim' ? ', estimation' : ''}) → sur place à ${t.arrivee.slice(11, 16)} au plus tôt`).join('<br>')
-          + (trop ? ` <button type="button" class="mini" id="fCaler">Caler à ${tard.arrivee.slice(11, 16)}</button>` : '');
+          + (trop ? ` <button type="button" class="mini" id="fCaler">Caler à ${(m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'))(Math.ceil((+tard.arrivee.slice(11, 13) * 60 + +tard.arrivee.slice(14, 16)) / 15) * 15)}</button>` : '');
         $('#fAl').appendChild(d);
         const bc = d.querySelector('#fCaler'); if (bc) bc.onclick = () => { const a = parse(x.debut), b = parse(x.fin), n = parse(tard.arrivee), m = Math.ceil((n.getHours() * 60 + n.getMinutes()) / 5) * 5; const nd = new Date(n); nd.setHours(Math.floor(m / 60), m % 60, 0, 0);
-          const nf = new Date(+nd + (b - a)); F.h_deb.value = hm(nd); F.h_fin.value = hm(nf); if (F.d_fin && ymd(nf) !== ymd(nd)) F.d_fin.value = ymd(nf); verifier(); };
+          const nf = new Date(+nd + (b - a)); setH(F.h_deb, hm(nd)); setH(F.h_fin, hm(nf)); if (F.d_fin && ymd(nf) !== ymd(nd)) F.d_fin.value = ymd(nf); verifier(); };
       }
     } catch (err) {}
     // occupés ce(s) jour(s) : repère les personnes et machines déjà prises
@@ -716,7 +720,7 @@ async function ouvrirFiche(id, opts = {}) {
           : `<button type="button" data-i="${i}"><strong>${c.jour.split('-').reverse().join('/')} à ${c.heure}</strong> · détour ${c.detour_km} km<br><small>${c.nb_visites ? c.nb_visites + ' autre(s) visite(s) ce jour-là · tournée ' + c.km_total + ' km' : 'journée sans autre visite · aller-retour ' + c.km_total + ' km'}</small></button>`).join('');
       $('#fCrenL').querySelectorAll('button').forEach(b => b.onclick = () => { const c = l[+b.dataset.i];
         if (r.type === 'chantier') { F.d_deb.value = c.debut; F.d_fin.value = c.fin; F.journee.checked = true; F.querySelectorAll('[name=personnel]').forEach(i => i.checked = c.personnel.includes(+i.value)); F.querySelectorAll('[name=materiel]').forEach(i => i.checked = c.materiel.includes(+i.value)); }
-        else { F.d_deb.value = c.jour; F.d_fin.value = c.jour; F.journee.checked = false; const dur = (+F.duree_h.value || 1) * 60; F.h_deb.value = c.heure; const t = new Date(c.jour + 'T' + c.heure); t.setMinutes(t.getMinutes() + dur); F.h_fin.value = hm(t); }
+        else { F.d_deb.value = c.jour; F.d_fin.value = c.jour; F.journee.checked = false; const dur = (+F.duree_h.value || 1) * 60; setH(F.h_deb, c.heure); const t = new Date(c.jour + 'T' + c.heure); t.setMinutes(t.getMinutes() + dur); setH(F.h_fin, hm(t)); }
         if (F.statut.value === 'a_planifier') F.statut.value = 'propose'; majHeures(); verifier(); $('#fCrenL').innerHTML = '<p class="ok-vert">Créneau posé dans la fiche : vérifie puis « Enregistrer » ou « Envoyer la date au client ».</p>'; });
     } catch (err) { $('#fCrenL').innerHTML = '<p class="flash err small">' + esc(err.message) + '</p>'; }
   };
