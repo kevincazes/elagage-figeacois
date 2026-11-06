@@ -2,6 +2,11 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.10.1', '2026-11-06', [
+        'Rapport de visite sur téléphone : le menu « Rapport PDF » ne déborde plus à droite de l\'écran',
+        'Dictée : bouton « Dicter » toujours visible, en rouge pendant l\'écoute, avec un message clair si le micro ou la dictée sont bloqués sur le téléphone (sinon, le micro du clavier prend le relais) ; la zone de texte s\'agrandit avec les notes',
+        'Rapport : pictogrammes à la place des emojis (photo, micro, annotation)',
+    ]],
     ['2.10', '2026-11-06', [
         'Nouveau menu Administration : Comptes, Qui voit qui, Réglages (SMS, Pennylane…), Liens des outils, Paramètres de prix',
         'Qui voit qui : tableau compte par compte et agenda par agenda (Modifier / Voir / masqué), boutons « Tout modifier », « Tout voir », « Son agenda seul » ; un agenda masqué n\'apparaît plus du tout pour ce compte (planning, Mon planning, fiches) ; l\'administrateur peut confier ce réglage à un autre compte (qui ne peut pas changer ses propres droits)',

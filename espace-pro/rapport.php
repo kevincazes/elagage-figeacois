@@ -103,7 +103,11 @@ page_start($fin ? "Bon de fin d'intervention" : 'Rapport de visite', 'mon-planni
 .ajout{aspect-ratio:3/4;border:2px dashed #c9d2bd;border-radius:10px;display:grid;place-items:center;text-align:center;color:var(--doux);font-weight:700;cursor:pointer;font-size:.85rem}
 .sig{width:100%;height:180px;border:1px solid #c9d2bd;border-radius:10px;background:#fff;display:block}
 .bas{position:sticky;bottom:0;z-index:5;background:var(--creme);box-shadow:0 -8px 12px -8px rgba(0,0,0,.15);padding:10px 0 max(10px,env(safe-area-inset-bottom));display:flex;gap:8px;flex-wrap:wrap}
-.menu-ph{position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}.menu-ph>div{background:#fff;width:100%;border-radius:18px 18px 0 0;padding:14px 16px max(16px,env(safe-area-inset-bottom));display:grid;gap:8px}
+.menu-ph{position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}.menu-ph>div{background:#fff;width:100%;max-height:92vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:14px 16px max(16px,env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.menu-ph .btn,.menu-ph .mini{margin:0;width:100%;text-align:center}.menu-ph .ligne{display:flex;gap:8px;align-items:center;min-width:0}.menu-ph .ligne input{margin:0;flex:1;min-width:0;width:auto}.menu-ph .ligne .btn{width:auto;flex:0 0 auto}
+.rp .pi{width:1.1em;height:1.1em;vertical-align:-.18em;margin-right:4px}.ajout .pi{width:28px;height:28px;margin:0 0 4px}
+.dictee{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}.dictee .mini{margin:0}#dicter.on{background:#e6332a;color:#fff;border-color:#e6332a}
+#texte{min-height:9em;resize:vertical}
 </style>
 <div class="rp">
   <div class="tete"><h2><?= e($e['titre']) ?></h2><small><?= e(ucfirst(evt_quand($e))) ?><?= $e['ville'] ? ' · ' . e($e['ville']) : '' ?><?= $noms ? ' · ' . e(implode(', ', $noms)) : '' ?></small></div>
@@ -115,7 +119,7 @@ page_start($fin ? "Bon de fin d'intervention" : 'Rapport de visite', 'mon-planni
     <div class="ress"><?php foreach (RESSENTIS as $k => [$l, $c]): ?><button type="button" data-r="<?= $k ?>" class="<?= $r['ressenti'] === $k ? 'on' : '' ?>"><i style="background:<?= $c ?>"><?= $k === 'bien' ? '✓' : '' ?></i><?= e($l) ?></button><?php endforeach; ?></div>
     <p class="muted small" style="margin:0;text-align:center">Pour toi seulement : n'apparaît pas sur le PDF.</p></div>
   <div class="carte"><strong id="lTexte"><?= $fin ? 'Travaux réalisés' : 'Compte rendu' ?></strong>
-    <?php if ($peut && !$r['signe_le'] && acces_chiffrage() && assistant_ok()): ?><p class="small muted" style="margin:0 0 6px">Dicte ou tape tes notes en vrac, puis <button type="button" class="mini" id="rediger">✦ Mettre en forme en rapport de visite</button> <button type="button" class="mini" id="dicter" hidden>🎤 Dicter</button></p><?php endif; ?>
+    <?php if ($peut && !$r['signe_le']): ?><div class="dictee"><button type="button" class="mini" id="dicter"><?= picto_html('mic') ?><span>Dicter</span></button><?php if (acces_chiffrage() && assistant_ok()): ?><button type="button" class="mini" id="rediger"><?= picto_html('magie') ?>Mettre en forme en rapport de visite</button><?php endif; ?></div><p class="small muted" style="margin:0 0 6px" id="aideDictee">Dicte ou tape tes notes en vrac<?= acces_chiffrage() && assistant_ok() ? ', puis fais-les mettre en forme' : '' ?>.</p><?php endif; ?>
     <textarea id="texte" rows="6" placeholder="<?= $fin ? 'Ex. Taille douce de 3 tilleuls, abattage d\'un frêne mort, rognage de 2 souches…' : 'Ex. 4 chênes à élaguer, accès nacelle par le chemin, prévoir broyeur…' ?>"><?= e($r['texte']) ?></textarea></div>
   <div class="carte f-fin"><strong>Déchets verts</strong><select id="dechets"><option value="">—</option><option value="evacues" <?= $r['dechets'] === 'evacues' ? 'selected' : '' ?>>Évacués par nos soins</option><option value="sur_place" <?= $r['dechets'] === 'sur_place' ? 'selected' : '' ?>>Laissés sur place à la demande du client</option><option value="broyes" <?= $r['dechets'] === 'broyes' ? 'selected' : '' ?>>Broyés et laissés en paillage</option></select>
     <label style="margin-top:8px">Remarques ou réserves du client<textarea id="reserves" rows="2"><?= e($r['reserves']) ?></textarea></label></div>
@@ -150,7 +154,7 @@ if (!PEUT || SIGNE) document.querySelectorAll('.rp textarea,.rp select,.rp input
 // photos
 const src = p => 'rapport.php?evt=' + ID + '&photo=' + p.id + '&v=' + (p.v || 0);
 function rendrePhotos() {
-  $('#phs').innerHTML = PH.map((p, i) => `<div class="ph ${p.dans_pdf ? '' : 'hors'}" data-i="${i}"><img src="${src(p)}" alt="" loading="lazy">${p.dans_pdf ? '' : '<span class="hb">hors PDF</span>'}${p.legende ? `<span class="lg">${esc(p.legende)}</span>` : ''}</div>`).join('') + (PEUT && !SIGNE ? '<div class="ajout" id="aj">📷<br>Prendre ou choisir des photos</div>' : '');
+  $('#phs').innerHTML = PH.map((p, i) => `<div class="ph ${p.dans_pdf ? '' : 'hors'}" data-i="${i}"><img src="${src(p)}" alt="" loading="lazy">${p.dans_pdf ? '' : '<span class="hb">hors PDF</span>'}${p.legende ? `<span class="lg">${esc(p.legende)}</span>` : ''}</div>`).join('') + (PEUT && !SIGNE ? '<div class="ajout" id="aj"><span><svg class="pi"><use href="#pi-camera"/></svg><br>Prendre ou choisir des photos</span></div>' : '');
   if ($('#aj')) $('#aj').onclick = () => $('#fic').click();
   document.querySelectorAll('.ph').forEach(d => d.onclick = () => menuPhoto(PH[+d.dataset.i]));
 }
@@ -161,7 +165,7 @@ function menuPhoto(p) {
   const m = document.createElement('div'); m.className = 'menu-ph';
   m.innerHTML = `<div><img src="${src(p)}" style="max-height:38vh;object-fit:contain;border-radius:10px;width:100%;background:#eee">
     ${PEUT && !SIGNE ? `<label>Légende <input id="mLg" value="${esc(p.legende)}"></label>
-    <button class="btn" data-a="annoter">✏️ Annoter au doigt</button>${p.annotee ? '<button class="mini" data-a="retablir">Revenir à la photo d\'origine</button>' : ''}
+    <button class="btn" data-a="annoter"><svg class="pi"><use href="#pi-crayon"/></svg>Annoter au doigt</button>${p.annotee ? '<button class="mini" data-a="retablir">Revenir à la photo d\'origine</button>' : ''}
     <button class="mini" data-a="pdf">${p.dans_pdf ? 'Retirer du PDF' : 'Remettre dans le PDF'}</button><button class="mini danger" data-a="suppr">Supprimer la photo</button>` : ''}
     <button class="btn secondary" data-a="fermer">Fermer</button></div>`;
   document.body.appendChild(m);
@@ -181,16 +185,30 @@ if ($('#sig')) { let zs = null; const init = () => { if (!zs && $('#sig').offset
   $('#sigEff').onclick = () => zs && zs.effacer();
   $('#sigOk').onclick = async () => { if (!zs || zs.vide()) { etat('Le client doit signer dans le cadre.', true); return; }
     try { await post(lire()); await post({a: 'signer', signataire: $('#signataire').value, signature: zs.image()}); location.reload(); } catch (e) { etat(e.message, true); } }; }
-if ($('#rediger')) { const R = $('#rediger'), T = $('#texte'), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if ($('#rediger')) { const R = $('#rediger'), T = $('#texte');
   R.onclick = async () => { if (!T.value.trim()) { etat('Écris ou dicte d\'abord quelques notes.', true); return; } R.disabled = true; etat('Mise en forme en cours…');
     try { const r = await fetch('assistant.php?api=1', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': CSRF}, body: JSON.stringify({csrf: CSRF, action: 'rediger', texte: T.value, contexte: <?= json_encode(($e['titre'] ?: '') . ($e['client_nom'] ? ' – ' . $e['client_nom'] : '') . ($e['ville'] ? ' – ' . $e['ville'] : '') . ($e['debut'] ? ' – ' . date('d/m/Y', strtotime($e['debut'])) : ''), JSON_UNESCAPED_UNICODE) ?>})});
       const j = await r.json(); if (j.erreur) throw new Error(j.erreur); T.dataset.brut = T.value; T.value = j.texte; sauver(); etat('Rapport mis en forme (tes notes d\'origine sont conservées : bouton « Revenir aux notes »).'); if (!$('#retourNotes')) { const b = document.createElement('button'); b.type = 'button'; b.className = 'mini'; b.id = 'retourNotes'; b.textContent = 'Revenir aux notes'; b.onclick = () => { T.value = T.dataset.brut || ''; sauver(); b.remove(); }; R.after(' ', b); } }
     catch (err) { etat(err.message, true); } R.disabled = false; };
-  if (SR) { const D = $('#dicter'); D.hidden = false; let rec = null, on = false;
-    D.onclick = () => { if (on) { rec.stop(); return; } rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = true; const base = T.value ? T.value.replace(/\s+$/, '') + '\n' : '';
-      rec.onresult = ev => { let f = '', c = ''; for (const x of ev.results) (x.isFinal ? (f += x[0].transcript + ' ') : (c += x[0].transcript)); T.value = base + f + c; };
-      rec.onend = () => { on = false; D.textContent = '🎤 Dicter'; sauver(); }; rec.onerror = () => { on = false; D.textContent = '🎤 Dicter'; };
-      try { rec.start(); on = true; D.textContent = '⏹ Arrêter'; } catch (e) {} }; } }
+}
+// dictée : reconnaissance vocale du navigateur si elle est disponible, sinon le micro du clavier du téléphone
+const T0 = $('#texte'), grandir = () => { T0.style.height = 'auto'; T0.style.height = Math.min(T0.scrollHeight + 4, window.innerHeight * .7) + 'px'; };
+T0.addEventListener('input', grandir); setTimeout(grandir, 0);
+if ($('#dicter')) { const D = $('#dicter'), L = D.querySelector('span'), SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null, on = false, base = '', fin = '';
+  const clavier = msg => { etat(msg, true); T0.focus(); const n = T0.value.length; try { T0.setSelectionRange(n, n); } catch (e) {} };
+  const arret = () => { on = false; D.classList.remove('on'); L.textContent = 'Dicter'; sauver(); grandir(); };
+  D.onclick = () => {
+    if (on) { try { rec.stop(); } catch (e) {} return arret(); }
+    if (!SR) return clavier('Dictée vocale non disponible ici : touche le micro du clavier de ton téléphone pour dicter dans la zone de texte.');
+    rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+    base = T0.value ? T0.value.replace(/\s+$/, '') + '\n' : ''; fin = '';
+    rec.onresult = ev => { let c = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) { const t = ev.results[i][0].transcript; if (ev.results[i].isFinal) fin += t.trim() + ' '; else c += t; } T0.value = base + fin + c; grandir(); };
+    rec.onerror = ev => { const m = {'not-allowed': 'Micro refusé : autorise le micro pour ce site (Réglages › Safari › Micro, ou l\'icône « aA » de la barre d\'adresse).', 'service-not-allowed': 'Dictée indisponible : active Siri ou la Dictée (Réglages › Général › Clavier › Activer la dictée), ou utilise le micro du clavier.', 'no-speech': 'Rien entendu : touche Dicter et parle tout de suite.', 'audio-capture': 'Aucun micro détecté.', 'network': 'Dictée impossible sans connexion : utilise le micro du clavier.'}[ev.error];
+      arret(); if (m) (ev.error === 'no-speech' ? etat(m, true) : clavier(m)); };
+    rec.onend = () => { if (on) arret(); etat(T0.value.trim() ? 'Dictée terminée, notes enregistrées.' : ''); };
+    try { rec.start(); on = true; D.classList.add('on'); L.textContent = 'Arrêter la dictée'; etat('Je t\'écoute… parle, puis touche « Arrêter la dictée ».'); }
+    catch (e) { clavier('Dictée impossible ici : touche le micro du clavier de ton téléphone.'); } };
+}
 if ($('#term')) $('#term').onclick = async () => { await post({a: 'terminer'}); etat('Rendez-vous marqué terminé.'); $('#term').remove(); };
 const URLPDF = 'rapport.php?evt=' + ID + '&pdf=1', MAIL = <?= json_encode($e['client_email']) ?>;
 $('#pdfMenu').onclick = async () => {
@@ -198,7 +216,7 @@ $('#pdfMenu').onclick = async () => {
   const m = document.createElement('div'); m.className = 'menu-ph';
   m.innerHTML = `<div><a class="btn secondary" href="${URLPDF}" target="_blank" style="text-align:center">Voir le PDF</a>
     ${PEUT ? `<button class="btn secondary" data-a="porte">Envoyer sur le porte-document</button>
-    <div style="display:flex;gap:6px"><input type="email" id="mMail" value="${esc(MAIL)}" placeholder="E-mail du destinataire" style="margin:0;flex:1"><button class="btn" data-a="mail">${MAIL ? 'Email' : 'Envoyer'}</button></div>` : ''}
+    <div class="ligne"><input type="email" id="mMail" value="${esc(MAIL)}" placeholder="E-mail du destinataire"><button class="btn" data-a="mail">Envoyer</button></div>` : ''}
     <button class="btn secondary" data-a="partager">Partager…</button><button class="mini" data-a="fermer" style="padding:10px">Annuler</button></div>`;
   document.body.appendChild(m);
   m.addEventListener('click', async ev => { if (ev.target === m) return m.remove(); const b = ev.target.closest('button'); if (!b) return; const a = b.dataset.a;
