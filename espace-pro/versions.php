@@ -2,6 +2,9 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.8.2', '2026-11-06', [
+        'Agendas protégés (CalDAV : Extrabat, iCloud, Nextcloud…) : adresse du serveur + nom d\'utilisateur + mot de passe (chiffré sur le serveur, jamais réaffiché) ; les calendriers sont trouvés tout seuls et relus toutes les heures',
+    ]],
     ['2.8.1', '2026-11-06', [
         'Pictogrammes pré-cochés par type de rendez-vous (colonne « Pré-coché sur » dans les réglages des pictogrammes) : un nouveau chantier arrive avec ses pictogrammes habituels, toujours décochables ; Kleyk pré-coché sur les chantiers et urgences',
         'Fiche : seuls les pictogrammes cochés s\'affichent, les autres sont repliés derrière « + Autres pictogrammes » pour libérer de la place',

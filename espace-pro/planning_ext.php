@@ -678,12 +678,65 @@ function prestations_texte(int $eid): string {
 
 // ---------- Agendas externes (abonnement ICS : Google Agenda, iCloud, Outlook, Nextcloud…) rattachés à une personne ----------
 function agendas_liste(?int $pid = null): array { return q("SELECT a.*, p.prenom FROM agendas_externes a LEFT JOIN personnel p ON p.id = a.personnel_id" . ($pid ? " WHERE a.personnel_id = ?" : '') . " ORDER BY p.prenom, a.nom", $pid ? [$pid] : [])->fetchAll(); }
-function agenda_url_ok(string $u): bool { $u = preg_replace('#^webcals?://#i', 'https://', trim($u)); return (bool)preg_match('#^https?://[^\s]+$#i', $u) && !preg_match('#^https?://(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)#i', $u); }
+function agenda_url_ok(string $u): bool { $u = preg_replace('#^webcals?://#i', 'https://', trim($u)); return (bool)preg_match('#^https?://[^\s]+$#i', $u) && (defined('ICS_TEST_DIR') && str_starts_with($u, 'http://127.0.0.1:') || !preg_match('#^https?://(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)#i', $u)); }
+/** Mot de passe d'un agenda protégé : chiffré en base avec une clé propre au serveur (jamais affiché) */
+function agenda_cle(): string { return hash('sha256', 'agenda|' . (defined('DB_PASS') ? DB_PASS : '') . '|' . (defined('DB_NAME') ? DB_NAME : '') . '|' . __DIR__, true); }
+function agenda_chiffrer(string $m): string { $iv = random_bytes(16); return base64_encode($iv . openssl_encrypt($m, 'aes-256-cbc', agenda_cle(), OPENSSL_RAW_DATA, $iv)); }
+function agenda_dechiffrer(?string $c): string { if (!$c) return ''; $b = base64_decode($c); return (string)openssl_decrypt(substr($b, 16), 'aes-256-cbc', agenda_cle(), OPENSSL_RAW_DATA, substr($b, 0, 16)); }
+/** Requête HTTP authentifiée (Basic) : [code, corps] */
+function caldav_req(string $url, string $user, string $mdp, string $methode = 'GET', ?string $corps = null, string $depth = '0'): array {
+    $ch = curl_init($url); $h = ['User-Agent: ElagageFigeacois-Planning/1.0'];
+    if ($corps !== null) { $h[] = 'Content-Type: application/xml; charset=utf-8'; $h[] = "Depth: $depth"; }
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_TIMEOUT => 25, CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_HTTPHEADER => $h, CURLOPT_USERPWD => "$user:$mdp", CURLOPT_HTTPAUTH => CURLAUTH_BASIC | CURLAUTH_DIGEST, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]);
+    if ($corps !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $corps);
+    $r = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
+    return [$r === false ? 0 : $code, $r === false ? $err : (string)$r];
+}
+/** Réponse multistatus WebDAV : [[href, DOMElement propstat/prop], ...] */
+function caldav_multi(string $xml): array {
+    $d = new DOMDocument(); if (!@$d->loadXML($xml)) return [];
+    $out = []; foreach ($d->getElementsByTagNameNS('DAV:', 'response') as $r) { $h = $r->getElementsByTagNameNS('DAV:', 'href')->item(0); $out[] = [$h ? trim($h->textContent) : '', $r]; }
+    return $out;
+}
+/** Lecture d'un agenda CalDAV (Extrabat, iCloud, Nextcloud…) avec identifiant et mot de passe : renvoie un texte iCalendar ou [false, message] */
+function caldav_lire(string $url, string $user, string $mdp): array {
+    [$c, $t] = caldav_req($url, $user, $mdp); // 1. l'adresse est peut-être déjà un fichier .ics protégé
+    if ($c === 401 || $c === 403) return [false, 'identifiant ou mot de passe refusé'];
+    if ($c >= 200 && $c < 300 && stripos($t, 'BEGIN:VCALENDAR') !== false) return [$t, ''];
+    $p = parse_url($url); $racine = $p['scheme'] . '://' . $p['host'] . (isset($p['port']) ? ':' . $p['port'] : '');
+    $abs = fn($h) => preg_match('#^https?://#', $h) ? $h : $racine . '/' . ltrim($h, '/');
+    $pf = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:resourcetype/><d:displayname/><d:current-user-principal/><c:calendar-home-set/></d:prop></d:propfind>';
+    $cals = []; $vus = []; $file = [$url]; $tours = 0;
+    while ($file && $tours++ < 4) { // 2. découverte : calendriers sous l'adresse, sinon principal → calendar-home-set
+        $u = array_shift($file); if (isset($vus[$u])) continue; $vus[$u] = 1;
+        [$c, $t] = caldav_req($u, $user, $mdp, 'PROPFIND', $pf, '1');
+        if ($c === 401 || $c === 403) return [false, 'identifiant ou mot de passe refusé'];
+        if ($c !== 207) continue;
+        foreach (caldav_multi($t) as [$href, $r]) {
+            if ($r->getElementsByTagNameNS('urn:ietf:params:xml:ns:caldav', 'calendar')->length && $r->getElementsByTagNameNS('DAV:', 'resourcetype')->length) $cals[$abs($href)] = 1;
+            foreach (['calendar-home-set' => 'urn:ietf:params:xml:ns:caldav', 'current-user-principal' => 'DAV:'] as $tag => $ns) foreach ($r->getElementsByTagNameNS($ns, $tag) as $n) { $h = $n->getElementsByTagNameNS('DAV:', 'href')->item(0); if ($h && trim($h->textContent) !== '') $file[] = $abs(trim($h->textContent)); }
+        }
+        if ($cals) break;
+    }
+    if (!$cals) return [false, "aucun calendrier trouvé à cette adresse (vérifie l'adresse du serveur)"];
+    $du = gmdate('Ymd\THis\Z', strtotime('-30 days')); $au = gmdate('Ymd\THis\Z', strtotime('+365 days'));
+    $rq = '<?xml version="1.0"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="' . $du . '" end="' . $au . '"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>';
+    $blocs = []; $tz = [];
+    foreach (array_slice(array_keys($cals), 0, 10) as $cal) { // 3. événements de chaque calendrier
+        [$c, $t] = caldav_req($cal, $user, $mdp, 'REPORT', $rq, '1'); if ($c !== 207) continue;
+        $d = new DOMDocument(); if (!@$d->loadXML($t)) continue;
+        foreach ($d->getElementsByTagNameNS('urn:ietf:params:xml:ns:caldav', 'calendar-data') as $n) { $ics = str_replace("\r\n", "\n", $n->textContent);
+            if (preg_match_all('/BEGIN:VTIMEZONE.*?END:VTIMEZONE/s', $ics, $m)) foreach ($m[0] as $z) $tz[md5($z)] = $z;
+            if (preg_match_all('/BEGIN:VEVENT.*?END:VEVENT/s', $ics, $m)) foreach ($m[0] as $v) $blocs[] = $v; }
+    }
+    return ["BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Elagage Figeacois//CalDAV//FR\n" . implode("\n", $tz) . ($tz ? "\n" : '') . implode("\n", $blocs) . "\nEND:VCALENDAR\n", ''];
+}
 /** Télécharge et relit un agenda ; renvoie le nombre d'événements (ou false + message d'erreur enregistré) */
 function agenda_sync(int $id): int|false {
     $a = q("SELECT * FROM agendas_externes WHERE id = ?", [$id])->fetch(); if (!$a) return false;
     $url = preg_replace('#^webcals?://#i', 'https://', trim($a['url'])); $txt = false; $err = '';
-    if (defined('ICS_TEST_DIR') && is_dir(ICS_TEST_DIR)) { $f = ICS_TEST_DIR . '/' . md5($url) . '.ics'; $txt = is_file($f) ? file_get_contents($f) : false; if ($txt === false) $err = 'fichier test absent'; }
+    if (($a['identifiant'] ?? '') !== '' && function_exists('curl_init')) { [$txt, $err] = caldav_lire($url, $a['identifiant'], agenda_dechiffrer($a['mdp'] ?? '')); } // agenda protégé (CalDAV)
+    elseif (defined('ICS_TEST_DIR') && is_dir(ICS_TEST_DIR)) { $f = ICS_TEST_DIR . '/' . md5($url) . '.ics'; $txt = is_file($f) ? file_get_contents($f) : false; if ($txt === false) $err = 'fichier test absent'; }
     elseif (function_exists('curl_init')) {
         $ch = curl_init($url); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_TIMEOUT => 15, CURLOPT_USERAGENT => 'ElagageFigeacois-Planning/1.0', CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]);
         $txt = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); if ($txt === false) $err = 'téléchargement impossible : ' . curl_error($ch); elseif ($code >= 400) { $err = "réponse $code du serveur"; $txt = false; } curl_close($ch);
@@ -762,7 +815,8 @@ function agendas_post(?array $pids): ?string {
     if ($op === 'ajouter') {
         $url = trim((string)($_POST['url'] ?? '')); $nom = mb_substr(trim((string)($_POST['nom'] ?? '')), 0, 80) ?: 'Agenda perso';
         if (!$pid) return 'Choisis la personne.'; if (!agenda_url_ok($url)) return "Adresse invalide : il faut l'adresse https:// ou webcal:// du calendrier (format iCal / .ics).";
-        q("INSERT INTO agendas_externes (personnel_id, nom, url, couleur, prive) VALUES (?,?,?,?,?)", [$pid, $nom, mb_substr($url, 0, 500), preg_match('/^#[0-9a-f]{6}$/i', (string)($_POST['couleur'] ?? '')) ? $_POST['couleur'] : '#9aa5b1', !empty($_POST['prive']) ? 1 : 0]);
+        $idt = mb_substr(trim((string)($_POST['identifiant'] ?? '')), 0, 120); $mdp = (string)($_POST['mdp'] ?? '');
+        q("INSERT INTO agendas_externes (personnel_id, nom, url, couleur, prive, identifiant, mdp) VALUES (?,?,?,?,?,?,?)", [$pid, $nom, mb_substr($url, 0, 500), preg_match('/^#[0-9a-f]{6}$/i', (string)($_POST['couleur'] ?? '')) ? $_POST['couleur'] : '#9aa5b1', !empty($_POST['prive']) ? 1 : 0, $idt, $idt !== '' && $mdp !== '' ? agenda_chiffrer($mdp) : null]);
         $n = agenda_sync((int)db()->lastInsertId()); $a = q("SELECT erreur FROM agendas_externes WHERE id = LAST_INSERT_ID()")->fetch();
         return $n === false ? "Agenda ajouté mais impossible à lire : " . ($a['erreur'] ?? '') : "Agenda ajouté : $n événement(s) repris.";
     }
@@ -777,15 +831,15 @@ function agendas_bloc(array $personnes, bool $choixPersonne): string {
     if (count($personnes) === 1) { $p = $personnes[0]; if ($p['ics_token']) { $l = lien_base() . '/planning-ics.php?t=' . $p['ics_token']; $h .= '<h3 style="margin:8px 0 4px">1. Voir mon planning dans le calendrier du téléphone</h3><p class="small muted" style="margin:0 0 6px">Mes chantiers et rendez-vous apparaissent dans Calendrier (iPhone), Google Agenda ou Outlook, mis à jour tout seuls. Ce lien est personnel : ne pas le transmettre.</p>'
         . '<p style="margin:0 0 4px"><button type="button" class="mini" onclick="navigator.clipboard.writeText(this.dataset.l).then(()=>this.textContent=\'Lien copié !\')" data-l="' . e($l) . '">Copier le lien d\'abonnement</button> <a class="mini" href="' . e(preg_replace('#^https?://#', 'webcal://', $l)) . '">Ouvrir dans l\'app Calendrier</a></p>'
         . '<details class="small"><summary>Comment l\'ajouter ?</summary><ul style="margin:4px 0 0 18px"><li><b>iPhone</b> : touche « Ouvrir dans l\'app Calendrier » (ou Réglages › Apps › Calendrier › Comptes › Nouveau compte › Autre › Ajouter un cal. avec abonnement, puis colle le lien).</li><li><b>Google Agenda</b> (sur ordinateur) : à gauche, « Autres agendas » › + › À partir de l\'URL › colle le lien.</li><li><b>Outlook</b> : Ajouter un calendrier › S\'abonner à partir du web.</li></ul></details>'; } }
-    $h .= '<h3 style="margin:14px 0 4px">' . (count($personnes) === 1 ? '2. ' : '') . 'Afficher mes autres calendriers dans le planning</h3><p class="small muted" style="margin:0 0 6px">Rendez-vous perso, autre agenda pro… : ils s\'affichent en gris dans le planning (lecture seule) et comptent comme « occupé » quand on planifie. Il faut l\'adresse <b>iCal / .ics</b> du calendrier (lecture seule) : <b>Google Agenda</b> › paramètres de l\'agenda › « Adresse secrète au format iCal » ; <b>iCloud</b> › partager le calendrier › « Calendrier public » › copier le lien webcal ; <b>Outlook</b> › Calendrier partagé › Publier › lien ICS ; <b>Nextcloud</b> › lien d\'abonnement. Un lien CalDAV classique (avec mot de passe) n\'est pas pris en charge : utilise l\'adresse de publication iCal, c\'est le même contenu.</p>';
+    $h .= '<h3 style="margin:14px 0 4px">' . (count($personnes) === 1 ? '2. ' : '') . 'Afficher mes autres calendriers dans le planning</h3><p class="small muted" style="margin:0 0 6px">Rendez-vous perso, autre agenda pro… : ils s\'affichent en gris dans le planning (lecture seule) et comptent comme « occupé » quand on planifie. Il faut l\'adresse <b>iCal / .ics</b> du calendrier, ou pour un agenda protégé (Extrabat…) l\'adresse du serveur avec l\'identifiant et le mot de passe (lecture seule) : <b>Google Agenda</b> › paramètres de l\'agenda › « Adresse secrète au format iCal » ; <b>iCloud</b> › partager le calendrier › « Calendrier public » › copier le lien webcal ; <b>Outlook</b> › Calendrier partagé › Publier › lien ICS ; <b>Nextcloud</b> › lien d\'abonnement. Un lien CalDAV classique (avec mot de passe) n\'est pas pris en charge : utilise l\'adresse de publication iCal, c\'est le même contenu.</p>';
     $ids = array_map(fn($p) => (int)$p['id'], $personnes); $liste = array_filter(agendas_liste(), fn($a) => in_array((int)$a['personnel_id'], $ids, true));
     if ($liste) { $h .= '<div style="overflow-x:auto"><table class="tbl"><tr>' . ($choixPersonne ? '<th>Personne</th>' : '') . '<th>Calendrier</th><th>Événements</th><th>Dernière lecture</th><th></th></tr>';
-        foreach ($liste as $a) $h .= '<tr' . ((int)$a['actif'] ? '' : ' style="opacity:.55"') . '>' . ($choixPersonne ? '<td>' . e($a['prenom'] ?? '') . '</td>' : '') . '<td><i class="conf" style="background:' . e($a['couleur']) . '"></i>' . e($a['nom']) . ((int)$a['prive'] ? ' <span class="small muted">(titres masqués)</span>' : '') . '<br><span class="small muted" style="word-break:break-all">' . e(mb_strimwidth($a['url'], 0, 70, '…')) . '</span></td><td>' . (int)$a['nb'] . '</td><td class="small">' . ($a['maj_le'] ? date('d/m H:i', strtotime($a['maj_le'])) : '—') . ($a['erreur'] ? '<br><span style="color:#e6332a">' . e($a['erreur']) . '</span>' : '') . '</td>'
+        foreach ($liste as $a) $h .= '<tr' . ((int)$a['actif'] ? '' : ' style="opacity:.55"') . '>' . ($choixPersonne ? '<td>' . e($a['prenom'] ?? '') . '</td>' : '') . '<td><i class="conf" style="background:' . e($a['couleur']) . '"></i>' . e($a['nom']) . ((int)$a['prive'] ? ' <span class="small muted">(titres masqués)</span>' : '') . (($a['identifiant'] ?? '') !== '' ? ' <span class="small muted">(protégé : ' . e($a['identifiant']) . ')</span>' : '') . '<br><span class="small muted" style="word-break:break-all">' . e(mb_strimwidth($a['url'], 0, 70, '…')) . '</span></td><td>' . (int)$a['nb'] . '</td><td class="small">' . ($a['maj_le'] ? date('d/m H:i', strtotime($a['maj_le'])) : '—') . ($a['erreur'] ? '<br><span style="color:#e6332a">' . e($a['erreur']) . '</span>' : '') . '</td>'
             . '<td style="white-space:nowrap"><form method="post" style="display:inline">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="id" value="' . (int)$a['id'] . '"><button class="mini" name="op" value="actualiser">Actualiser</button> <button class="mini" name="op" value="actif">' . ((int)$a['actif'] ? 'Masquer' : 'Afficher') . '</button> <button class="mini danger" name="op" value="supprimer" onclick="return confirm(\'Retirer ce calendrier du planning ?\')">Retirer</button></form></td></tr>';
         $h .= '</table></div>'; }
     $h .= '<form method="post" class="inline" style="margin-top:8px">' . csrf_field() . '<input type="hidden" name="action" value="agenda"><input type="hidden" name="op" value="ajouter">';
     $h .= $choixPersonne ? '<select name="personnel_id" required><option value="">Personne…</option>' . implode('', array_map(fn($p) => '<option value="' . (int)$p['id'] . '">' . e($p['prenom'] . ' ' . $p['nom']) . '</option>', $personnes)) . '</select>' : '<input type="hidden" name="personnel_id" value="' . (int)$personnes[0]['id'] . '">';
-    $h .= '<input name="nom" placeholder="Nom (ex. Perso, Google)" style="max-width:170px"><input name="url" placeholder="https://… ou webcal://… (adresse iCal / .ics)" required style="min-width:280px;flex:1"><input type="color" name="couleur" value="#9aa5b1" title="Couleur" style="width:44px;padding:2px"><label class="small" style="display:inline-flex;gap:4px;align-items:center;margin:0"><input type="checkbox" name="prive" value="1" style="width:auto;margin:0"> masquer les titres (afficher « Occupé »)</label><button class="btn">Ajouter</button></form>';
+    $h .= '<input name="nom" placeholder="Nom (ex. Perso, Google)" style="max-width:170px"><input name="url" placeholder="https://… ou webcal://… (adresse iCal / .ics)" required style="min-width:280px;flex:1"><input type="color" name="couleur" value="#9aa5b1" title="Couleur" style="width:44px;padding:2px"><label class="small" style="display:inline-flex;gap:4px;align-items:center;margin:0"><input type="checkbox" name="prive" value="1" style="width:auto;margin:0"> masquer les titres (afficher « Occupé »)</label><details class="agenda-prot" style="flex-basis:100%"><summary class="small">Agenda protégé par un identifiant et un mot de passe (CalDAV : Extrabat, iCloud, Nextcloud…)</summary><div class="inline" style="margin-top:6px"><input name="identifiant" placeholder="Nom d\'utilisateur" autocomplete="off" style="max-width:220px"><input type="password" name="mdp" placeholder="Mot de passe" autocomplete="new-password" style="max-width:220px"><span class="small muted">Adresse du serveur dans le champ ci-dessus (ex. https://synchro.extrabat.com/identifiant/). Le mot de passe est chiffré sur le serveur et n\'est jamais réaffiché.</span></div></details><button class="btn">Ajouter</button></form>';
     return $h;
 }
 
