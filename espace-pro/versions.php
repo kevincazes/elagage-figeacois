@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.8.1', '2026-11-06', [
+        'Pictogrammes pré-cochés par type de rendez-vous (colonne « Pré-coché sur » dans les réglages des pictogrammes) : un nouveau chantier arrive avec ses pictogrammes habituels, toujours décochables ; Kleyk pré-coché sur les chantiers et urgences',
+        'Fiche : seuls les pictogrammes cochés s\'affichent, les autres sont repliés derrière « + Autres pictogrammes » pour libérer de la place',
+    ]],
     ['2.8', '2026-11-06', [
         'Temps de trajet réels : le temps de route entre deux rendez-vous est calculé sur l\'itinéraire routier (service gratuit OpenStreetMap, mémorisé), majoré pour les véhicules de chantier (10 % par défaut, réglable) ; estimation à vol d\'oiseau si le service ne répond pas',
         'Planning (semaine) : bloc de route avant chaque rendez-vous, y compris le départ du dépôt avec l\'heure de départ conseillée ; en rouge si l\'écart ne suffit pas',

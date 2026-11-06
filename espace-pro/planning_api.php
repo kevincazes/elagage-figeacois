@@ -119,6 +119,7 @@ switch ($a) {
         } else {
             q("INSERT INTO evenements (" . implode(', ', $cols) . ", cree_par) VALUES (" . implode(',', array_fill(0, count($cols) + 1, '?')) . ")", array_merge(array_map(fn($c) => $r[$c], $cols), [user()['id']]));
             $id = (int)db()->lastInsertId(); evt_journal($id, 'Création : ' . $resume($r));
+            if (isset(pictos_liste()['kleyk']) && pictos_liste()['kleyk']['types']) q("UPDATE evenements SET kleyk_init = 1 WHERE id = ?", [$id]); // la fiche a déjà pré-coché (ou non) le pictogramme Kleyk
         }
         $affecter($id, $r['personnel'], $r['materiel']);
         if ($r['phyto'] && is_array($in['phyto_fiche'] ?? null)) phyto_enregistrer($id, $in['phyto_fiche']);
