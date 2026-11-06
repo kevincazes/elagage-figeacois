@@ -22,6 +22,11 @@ function dav_ms(array $reponses): never {
 }
 function dav_rep(string $href, string $props): string { return '<d:response><d:href>' . dav_x($href) . '</d:href><d:propstat><d:prop>' . $props . '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'; }
 
+// Diagnostic lancé depuis Mon compte : vérifie que l'hébergement transmet bien la méthode, le chemin et l'identification au script
+if (($d = (string)($_SERVER['HTTP_X_EF_DIAG'] ?? '')) !== '' && hash_equals((string)setting('caldav_diag'), $d) && (int)setting('caldav_diag_t') > time() - 120) {
+    $a = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    dav_fin(200, json_encode(['methode' => $methode, 'chemin' => $chemin, 'auth' => isset($_SERVER['PHP_AUTH_USER']) || stripos($a, 'basic ') === 0]), 'application/json');
+}
 if ($methode === 'OPTIONS') dav_fin(200, '', 'text/plain', ['Allow' => 'OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, REPORT']);
 
 // ---- Authentification (Basic) : e-mail + mot de passe agenda ----
