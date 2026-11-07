@@ -80,8 +80,10 @@ jobs:
           [ -n "$PROTO" ] || { echo "::error::Connexion impossible à l'hébergement : $(tr '\n' ' ' < /tmp/proto.txt | cut -c1-400)"; exit 1; }
           echo "Protocole : $PROTO ; dossier : $D"
           OUVRIR="set sftp:auto-confirm yes; set ftp:ssl-allow yes; set net:max-retries 2; set net:timeout 30; open --env-password -u $UTILISATEUR $PROTO://$HOTE"
-          # Sécurité : le site doit déjà être là, avec son fichier de configuration
-          lftp -c "$OUVRIR; cls -1 $D/espace-pro/" 2>/dev/null | grep -q 'config.php' || { echo "::error::Pas de $D/espace-pro/config.php sur le serveur : mauvais dossier, rien n'est envoyé."; exit 1; }
+          # Sécurité : le site doit déjà être là (espace-pro/lib.php) et sa configuration présente
+          # (espace-pro/config.php ou config-espace-pro.php à la racine de l'hébergement, à côté de www)
+          lftp -c "$OUVRIR; cls -1 $D/espace-pro/" 2>/dev/null | grep -q 'lib.php' || { echo "::error::Pas de $D/espace-pro/lib.php sur le serveur : mauvais dossier, rien n'est envoyé."; exit 1; }
+          { lftp -c "$OUVRIR; cls -1 $D/espace-pro/"; lftp -c "$OUVRIR; cls -1"; } 2>/dev/null | grep -qE 'config(-espace-pro)?\.php' || { echo "::error::Configuration de l'espace pro introuvable sur le serveur : rien n'est envoyé."; exit 1; }
           { echo "$OUVRIR"
             for dir in $(xargs -a /tmp/envoi.txt -d '\n' -n1 dirname | sort -u); do [ "$dir" = "." ] || echo "mkdir -p -f \"$D/$dir\""; done
             while IFS= read -r f; do [ -f "$f" ] && echo "put \"$f\" -o \"$D/$f\""; done < /tmp/envoi.txt
