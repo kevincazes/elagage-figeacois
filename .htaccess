@@ -1,2 +1,9 @@
 # Découverte automatique de l'agenda synchronisé (iPhone, DAVx⁵)
 Redirect 301 /.well-known/caldav /espace-pro/caldav.php
+
+# Les adresses en .fr renvoient vers le site principal en .com (même page)
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^(www\.)?elagage-?figeacois\.fr$ [NC]
+RewriteRule ^(.*)$ https://elagage-figeacois.com/$1 [R=301,L]
+</IfModule>
