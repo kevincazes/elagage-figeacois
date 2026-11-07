@@ -2,6 +2,10 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.14.1', '2026-11-07', [
+        'Assistant : nouvelle zone de saisie façon messagerie, avec un gros bouton micro pour dicter sa demande (elle part toute seule quand on a fini de parler), un champ qui s\'agrandit et un bouton Envoyer ; message clair si le micro est bloqué',
+        'Assistant sur téléphone : la barre du bas ne recouvre plus la zone de saisie, et le haut du panneau ne passe plus sous l\'encoche de l\'iPhone',
+    ]],
     ['2.14', '2026-11-07', [
         'Fiche client : prénom séparé du nom (recherche par prénom, « prénom nom » ou « nom prénom »), SIRET pour les professionnels et collectivités, boutons « + Ajouter un téléphone » et « + Ajouter une adresse e-mail » avec une précision (conjoint, comptabilité…)',
         'Adresses typées : Facturation, Chantier, Correspondance, Autre (la première adresse est proposée en facturation) ; prépare l\'envoi des clients vers Pennylane',

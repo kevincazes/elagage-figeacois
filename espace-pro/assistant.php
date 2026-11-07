@@ -71,7 +71,7 @@ if ($panneau) {
 } else page_start('Assistant', 'assistant.php', $bord ? ['bordereau.php?id=' . $bord['id'], $bord['nom']] : null);
 ?>
 <?php if ($panneau): ?>
-<div class="pan-tete"><strong>✦ Assistant</strong><?= $bord ? ' <span class="muted">· ' . e($bord['nom']) . '</span>' : '' ?> <a class="mini" href="assistant.php?panneau=1<?= $bord ? '&bordereau=' . $bord['id'] : '' ?><?= $pageCour ? '&page=' . e($pageCour) : '' ?>" title="Nouvelle conversation" onclick="try{sessionStorage.removeItem('assistant_cid')}catch(e){}">+ Nouvelle</a> <a class="mini" href="assistant.php<?= $bord ? '?bordereau=' . $bord['id'] : '' ?>" target="_top" title="Page complète : conversations, mémoire">Historique ↗</a></div>
+<div class="pan-tete"><strong><svg class="pi"><use href="#pi-magie"/></svg> Assistant</strong><?= $bord ? ' <span class="muted">· ' . e($bord['nom']) . '</span>' : '' ?> <a class="mini" href="assistant.php?panneau=1<?= $bord ? '&bordereau=' . $bord['id'] : '' ?><?= $pageCour ? '&page=' . e($pageCour) : '' ?>" title="Nouvelle conversation" onclick="try{sessionStorage.removeItem('assistant_cid')}catch(e){}">+ Nouvelle</a> <a class="mini" href="assistant.php<?= $bord ? '?bordereau=' . $bord['id'] : '' ?>" target="_top" title="Page complète : conversations, mémoire">Historique ↗</a></div>
 <?php endif; ?>
 <?php if (!assistant_ok()): ?><div class="flash err">L'assistant n'est pas encore activé : la clé API doit être ajoutée dans <code>config-espace-pro.php</code> (lignes <code>CLAUDE_API_KEY</code> et <code>CLAUDE_MODELE</code>).</div><?php endif; ?>
 <div class="chat-layout<?= $panneau ? ' seul' : '' ?>">
@@ -94,11 +94,14 @@ if ($panneau) {
       <?php elseif ($b['type'] === 'tool_result'): ?><div class="bulle res"><?= e(is_string($b['content']) ? $b['content'] : json_encode($b['content'])) ?></div><?php endif; ?>
     <?php endforeach; endforeach; ?>
   </div>
-  <form id="fchat" class="chat-saisie" onsubmit="envoyer(event)">
-    <textarea id="texte" rows="2" placeholder="Ex. : combien de temps pour le démontage d'un platane de 22 m avec rétention, et quel prix avec l'équipe marché public ?"></textarea>
-    <button class="mini" type="button" id="micro" title="Parler au lieu d'écrire (maintenir ou appuyer pour commencer, appuyer pour arrêter)" hidden><svg class="pi"><use href="#pi-mic"/></svg> Dicter</button>
-    <button class="mini" type="button" id="lire" title="Lire les réponses à voix haute" hidden><svg class="pi"><use href="#pi-speaker"/></svg> Lire</button>
-    <button class="btn" type="submit" id="btn">Envoyer</button>
+  <form id="fchat" class="chat-saisie v2" onsubmit="envoyer(event)">
+    <div class="cs-etat" id="csEtat" hidden></div>
+    <div class="cs-ligne">
+      <button class="cs-rond cs-micro" type="button" id="micro" title="Parler : touche, dicte ta demande, elle part toute seule" aria-label="Dicter ma demande"><svg class="pi"><use href="#pi-mic"/></svg></button>
+      <textarea id="texte" rows="1" placeholder="Pose ta question ou touche le micro…" enterkeyhint="send"></textarea>
+      <button class="cs-rond cs-envoi" type="submit" id="btn" title="Envoyer" aria-label="Envoyer"><svg class="pi"><use href="#pi-envoi"/></svg></button>
+    </div>
+    <div class="cs-options"><button class="cs-opt" type="button" id="lire" title="Lire les réponses à voix haute" hidden><svg class="pi"><use href="#pi-speaker"/></svg> <span>Lire les réponses</span></button></div>
   </form>
 </section>
 </div>
@@ -141,15 +144,21 @@ async function envoyer(e) {
 // ---- Voix : dictée (reconnaissance vocale du navigateur) et lecture des réponses ----
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null, ecoute = false, VOIX = false;
 try { VOIX = localStorage.getItem('assistant_voix') === '1'; } catch (e) {}
-if (SR) { const m = document.getElementById('micro'); m.hidden = false;
-  m.onclick = () => { if (ecoute) { rec.stop(); return; }
-    rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; const t = document.getElementById('texte'); const base = t.value ? t.value.replace(/\s+$/, '') + ' ' : '';
-    rec.onresult = ev => { let fin = '', enCours = ''; for (const r of ev.results) (r.isFinal ? (fin += r[0].transcript) : (enCours += r[0].transcript)); t.value = base + fin + enCours; };
-    rec.onend = () => { ecoute = false; m.innerHTML = '<svg class="pi"><use href="#pi-mic"/></svg> Dicter'; m.classList.remove('on'); t.focus(); if (t.value.trim() && m.dataset.auto === '1') document.getElementById('fchat').requestSubmit(); };
-    rec.onerror = ev => { ecoute = false; m.innerHTML = '<svg class="pi"><use href="#pi-mic"/></svg> Dicter'; m.classList.remove('on'); if (ev.error === 'not-allowed') bulle('err', "Le micro est bloqué : autorise-le pour ce site dans le navigateur."); };
-    try { rec.start(); ecoute = true; m.innerHTML = '<svg class="pi"><use href="#pi-stop"/></svg> Stop'; m.classList.add('on'); m.dataset.auto = '1'; } catch (e) {} };
-}
-if ('speechSynthesis' in window) { const l = document.getElementById('lire'); l.hidden = false; const maj = () => { l.innerHTML = '<svg class="pi"><use href="#pi-speaker"/></svg> ' + (VOIX ? 'Lecture activée' : 'Lire'); l.title = VOIX ? 'Lecture à voix haute activée (cliquer pour couper)' : 'Lire les réponses à voix haute'; }; maj();
+(() => { const m = document.getElementById('micro'), t = document.getElementById('texte'), et = document.getElementById('csEtat');
+  const etat = (x, err) => { et.hidden = !x; et.textContent = x || ''; et.classList.toggle('err', !!err); };
+  const pousse = () => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; }; t.addEventListener('input', pousse);
+  const fin = () => { ecoute = false; m.classList.remove('on'); m.innerHTML = '<svg class="pi"><use href="#pi-mic"/></svg>'; };
+  m.onclick = () => {
+    if (ecoute) { try { rec.stop(); } catch (e) {} return; }
+    if (!SR) { etat("Dictée directe indisponible ici : touche la zone de texte puis le micro de ton clavier.", true); t.focus(); return; }
+    rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false; const base = t.value ? t.value.replace(/\s+$/, '') + ' ' : '';
+    rec.onresult = ev => { let f = '', c = ''; for (const r of ev.results) (r.isFinal ? (f += r[0].transcript) : (c += r[0].transcript)); t.value = base + f + c; pousse(); };
+    rec.onend = () => { const auto = ecoute; fin(); etat(''); if (auto && t.value.trim()) document.getElementById('fchat').requestSubmit(); else t.focus(); };
+    rec.onerror = ev => { ecoute = false; fin(); const msg = {'not-allowed': "Micro refusé : autorise le micro pour ce site (Réglages › Safari › Micro, ou « aA » dans la barre d'adresse).", 'service-not-allowed': "Dictée désactivée sur le téléphone : active-la (Réglages › Général › Clavier › Activer la dictée) ou utilise le micro du clavier.", 'no-speech': "Rien entendu : touche le micro et parle tout de suite.", 'network': "Pas de connexion pour la dictée : utilise le micro du clavier."}[ev.error]; if (msg) etat(msg, true); };
+    try { rec.start(); ecoute = true; m.classList.add('on'); m.innerHTML = '<svg class="pi"><use href="#pi-stop"/></svg>'; etat("Je t'écoute… parle, ta demande partira toute seule."); } catch (e) { etat("Dictée impossible ici : utilise le micro du clavier.", true); t.focus(); } };
+  const env = document.getElementById('fchat'); env.addEventListener('submit', () => setTimeout(pousse, 0));
+})();
+if ('speechSynthesis' in window) { const l = document.getElementById('lire'); l.hidden = false; const maj = () => { l.innerHTML = '<svg class="pi"><use href="#pi-speaker"/></svg> <span>' + (VOIX ? 'Lecture à voix haute activée' : 'Lire les réponses') + '</span>'; l.classList.toggle('on', VOIX); l.title = VOIX ? 'Lecture à voix haute activée (cliquer pour couper)' : 'Lire les réponses à voix haute'; }; maj();
   l.onclick = () => { VOIX = !VOIX; try { localStorage.setItem('assistant_voix', VOIX ? '1' : '0'); } catch (e) {} if (!VOIX) speechSynthesis.cancel(); else { const u = new SpeechSynthesisUtterance('Lecture activée.'); u.lang = 'fr-FR'; speechSynthesis.speak(u); } maj(); }; }
 function lireVoix(txt) { if (!VOIX || !('speechSynthesis' in window)) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt.replace(/[*#_`]/g, '').slice(0, 1500)); u.lang = 'fr-FR'; u.rate = 1.05; speechSynthesis.speak(u); }
 document.getElementById('texte').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('fchat').requestSubmit(); } });

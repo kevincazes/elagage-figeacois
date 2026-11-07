@@ -377,3 +377,18 @@ body.charge::after{content:"";position:fixed;top:env(safe-area-inset-top,0px);le
 /* Après un enregistrement, la page reste au même endroit : le message s'affiche en bandeau flottant */
 .flash.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));z-index:250;max-width:min(520px,calc(100vw - 32px));box-shadow:0 8px 24px rgba(0,0,0,.18);transition:opacity .4s}
 .flash.toast-fin{opacity:0;pointer-events:none}
+
+/* Assistant : zone de saisie façon messagerie (champ arrondi, micro et envoi en gros boutons) */
+.chat-saisie.v2{display:block;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--blanc)}
+.chat-saisie.v2 .cs-ligne{display:flex;gap:8px;align-items:flex-end}
+.chat-saisie.v2 textarea{flex:1;min-width:0;margin:0;min-height:46px;max-height:160px;resize:none;border-radius:23px;padding:12px 16px;font-size:1rem;line-height:1.35;background:#f6f7f2;border:1px solid #dfe4d8}
+.chat-saisie.v2 textarea:focus{background:#fff;border-color:var(--anis);outline:none}
+.cs-rond{flex:none;width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;padding:0}.cs-rond .pi{width:22px;height:22px}
+.cs-micro{background:var(--clair);color:var(--sapin)}.cs-micro.on{background:var(--rouge);color:#fff;animation:pulse 1s infinite}
+.cs-envoi{background:var(--anis);color:#fff}.cs-envoi:disabled{opacity:.5}
+.cs-etat{font-size:.85rem;color:var(--sapin);background:var(--clair);border-radius:10px;padding:6px 10px;margin:0 0 8px}.cs-etat.err{background:#fbe9e7;color:var(--rouge)}
+.cs-options{display:flex;justify-content:flex-start;margin-top:6px}.cs-options:has(#lire[hidden]){display:none}
+.cs-opt{background:none;border:0;color:var(--doux);font:inherit;font-size:.8rem;font-weight:700;display:flex;gap:5px;align-items:center;cursor:pointer;padding:2px 4px}.cs-opt .pi{width:16px;height:16px}.cs-opt.on{color:var(--sapin)}
+/* Panneau assistant au-dessus de la barre du bas, sous l'encoche de l'iPhone */
+.pan-ia{z-index:90;padding-top:env(safe-area-inset-top,0px)}.pan-fermer{top:calc(8px + env(safe-area-inset-top,0px))}
+body.ia-ouvert .tabbar{display:none!important}
