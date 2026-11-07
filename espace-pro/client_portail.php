@@ -57,7 +57,7 @@ if (isset($_GET['t'])) {
 }
 $moi = portail_session();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'vis_envoyer') {
     if (!portail_csrf_ok()) { $_SESSION['portail_msg'] = 'La page a expiré, recommencez.'; header('Location: ' . portail_url()); exit; }
     $a = $_POST['action'] ?? '';
     if ($a === 'lien') {
@@ -102,10 +102,25 @@ if ($moi && (isset($_GET['doc']) || isset($_GET['photo']))) {
     $types = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'png' => 'image/png', 'txt' => 'text/plain; charset=utf-8'];
     $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
     header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream')); header('X-Content-Type-Options: nosniff'); header('Cache-Control: private, max-age=3600');
-    header('Content-Disposition: ' . (isset($types[$ext]) ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\n", "\r"], '', $nom) . '"');
+    header('Content-Disposition: ' . (isset($types[$ext]) && empty($_GET['dl']) ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\n", "\r"], '', $nom) . '"');
     readfile($f); exit;
 }
 
+// ---------- Visionneuse ----------
+$vis = null;
+if ($moi && (isset($_GET['voir']) || isset($_GET['voirphoto']))) {
+    if (isset($_GET['voir'])) { $d = q("SELECT * FROM client_docs WHERE id = ? AND client_id = ? AND visible_client = 1", [(int)$_GET['voir'], $moi['client_id']])->fetch(); if ($d) $vis = ['nom' => preg_replace('/\.[a-z0-9]{2,4}$/i', '', $d['nom']), 'url' => "?doc={$d['id']}", 'chemin' => chemin_fichier($d['fichier']), 'retour' => '?p=documents']; }
+    else { $d = q("SELECT p.*, e.titre FROM rapport_photos p JOIN evenements e ON e.id = p.evenement_id JOIN rapports r ON r.evenement_id = e.id WHERE p.id = ? AND e.client_id = ? AND p.dans_pdf = 1 AND r.envoye_le IS NOT NULL", [(int)$_GET['voirphoto'], $moi['client_id']])->fetch(); if ($d) $vis = ['nom' => 'Photo – ' . $d['titre'] . ($d['legende'] ? ' – ' . $d['legende'] : ''), 'url' => "?photo={$d['id']}", 'chemin' => chemin_fichier($d['fichier']), 'retour' => '?p=photos']; }
+    if (!$vis || !$vis['chemin']) { http_response_code(404); exit('Document introuvable'); }
+    $vis['message'] = ''; $vis['message_err'] = false;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'vis_envoyer' && portail_csrf_ok()) {
+        $_SESSION['portail_envois'] = array_values(array_filter($_SESSION['portail_envois'] ?? [], fn($t) => $t > time() - 3600));
+        $a = trim((string)($_POST['a'] ?? ''));
+        if (count($_SESSION['portail_envois']) >= 10) { $vis['message'] = "Trop d'envois en peu de temps : téléchargez le document pour le transmettre."; $vis['message_err'] = true; }
+        elseif (visionneuse_envoyer($a, (string)($_POST['texte'] ?? ''), $vis['nom'], $vis['chemin'])) { $_SESSION['portail_envois'][] = time(); $vis['message'] = "Document envoyé à $a."; }
+        else { $vis['message'] = "L'e-mail n'est pas parti : vérifiez l'adresse."; $vis['message_err'] = true; }
+    }
+}
 // ---------- Données de la page ----------
 $p = $moi ? ($_GET['p'] ?? 'accueil') : 'connexion';
 if ($moi) {
@@ -177,6 +192,8 @@ footer{text-align:center;color:var(--doux);font-size:.85rem;padding:20px 16px 40
     <p class="small muted" style="margin-top:14px">Pas de mot de passe à retenir : nous vous envoyons un lien par e-mail. Votre accès est ouvert par <?= e($ent) ?> ; si vous n'en avez pas encore, demandez-le-nous<?= $tel ? ' au ' . e($tel) : '' ?>.</p>
   <?php endif; ?></div>
 
+<?php elseif ($vis): ?>
+  <?= visionneuse_html(['nom' => $vis['nom'], 'url' => $vis['url'], 'url_dl' => $vis['url'] . '&dl=1', 'ext' => pathinfo($vis['chemin'], PATHINFO_EXTENSION), 'retour' => $vis['retour'], 'retour_libelle' => 'Retour', 'envoi' => true, 'email' => $moi['email'], 'message' => $vis['message'], 'message_err' => $vis['message_err']]) ?>
 <?php elseif ($p === 'accueil'): ?>
   <h1>Bonjour</h1>
   <p class="muted"><?= e($cl['nom']) ?><?php if (count($autres) > 1): ?> · <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?= e(csrf()) ?>"><input type="hidden" name="action" value="client"><select name="cid" onchange="this.form.submit()" style="display:inline-block;width:auto;padding:4px 8px;margin:0"><?php foreach ($autres as $x): ?><option value="<?= $x['client_id'] ?>" <?= (int)$x['client_id'] === $moi['client_id'] ? 'selected' : '' ?>><?= e($x['client_nom']) ?></option><?php endforeach; ?></select></form><?php endif; ?></p>
@@ -185,7 +202,7 @@ footer{text-align:center;color:var(--doux);font-size:.85rem;padding:20px 16px 40
   <?php if (!$aVenir): ?><p class="vide">Aucune intervention prévue pour le moment.</p><?php endif; ?>
   <div class="grille"><?php foreach (array_slice($aVenir, 0, 4) as $e): ?><div class="carte evt"><span class="ic"><?= $pi($e['type'] === 'chantier' ? 'tree' : 'calendar') ?></span><span><b><?= e($quand($e)) ?></b><?= e(TYPES_EVT[$e['type']][0] ?? '') ?><?= $e['ville'] ? ' · ' . e($e['ville']) : '' ?><br><span class="tag <?= $e['statut'] === 'confirme' ? '' : 'a' ?>"><?= e(STATUTS_EVT[$e['statut']] ?? '') ?></span></span></div><?php endforeach; ?></div>
   <h2>Derniers documents</h2>
-  <div class="carte"><?php if (!$docs): ?><p class="vide" style="margin:0">Aucun document pour l'instant.</p><?php endif; ?><?php foreach (array_slice($docs, 0, 5) as $d): ?><a class="doc" href="?doc=<?= $d['id'] ?>" target="_blank" rel="noopener"><?= $pi($icDoc($d['dossier'])) ?><span><b><?= e($d['nom']) ?></b><span class="small muted"><?= e($d['dossier']) ?> · <?= e(date('d/m/Y', strtotime($d['cree_le']))) ?></span></span><?= $pi('chevron') ?></a><?php endforeach; ?>
+  <div class="carte"><?php if (!$docs): ?><p class="vide" style="margin:0">Aucun document pour l'instant.</p><?php endif; ?><?php foreach (array_slice($docs, 0, 5) as $d): ?><a class="doc" href="?voir=<?= $d['id'] ?>"><?= $pi($icDoc($d['dossier'])) ?><span><b><?= e($d['nom']) ?></b><span class="small muted"><?= e($d['dossier']) ?> · <?= e(date('d/m/Y', strtotime($d['cree_le']))) ?></span></span><?= $pi('chevron') ?></a><?php endforeach; ?>
   <?php if (count($docs) > 5): ?><p style="margin:10px 0 0"><a href="?p=documents">Voir les <?= count($docs) ?> documents</a></p><?php endif; ?></div>
   <h2>Vos outils</h2>
   <div class="grille">
@@ -205,13 +222,13 @@ footer{text-align:center;color:var(--doux);font-size:.85rem;padding:20px 16px 40
 <?php elseif ($p === 'documents'): ?>
   <h1>Vos documents</h1>
   <?php $g = []; foreach ($docs as $d) $g[$d['dossier']][] = $d; if (!$g): ?><p class="vide">Aucun document pour l'instant. Vos rapports, contrats et devis apparaîtront ici.</p><?php endif; ?>
-  <?php foreach (DOSSIERS_CLIENT as $dos): if (empty($g[$dos])) continue; ?><h2><?= e($dos) ?></h2><div class="carte"><?php foreach ($g[$dos] as $d): ?><a class="doc" href="?doc=<?= $d['id'] ?>" target="_blank" rel="noopener"><?= $pi($icDoc($dos)) ?><span><b><?= e($d['nom']) ?></b><span class="small muted"><?= e(date('d/m/Y', strtotime($d['cree_le']))) ?></span></span><?= $pi('chevron') ?></a><?php endforeach; ?></div><?php endforeach; ?>
+  <?php foreach (DOSSIERS_CLIENT as $dos): if (empty($g[$dos])) continue; ?><h2><?= e($dos) ?></h2><div class="carte"><?php foreach ($g[$dos] as $d): ?><a class="doc" href="?voir=<?= $d['id'] ?>"><?= $pi($icDoc($dos)) ?><span><b><?= e($d['nom']) ?></b><span class="small muted"><?= e(date('d/m/Y', strtotime($d['cree_le']))) ?></span></span><?= $pi('chevron') ?></a><?php endforeach; ?></div><?php endforeach; ?>
 
 <?php elseif ($p === 'photos'): ?>
   <h1>Photos de vos chantiers</h1>
   <?php if (!$photos): ?><p class="vide">Les photos jointes à nos rapports apparaîtront ici.</p><?php endif; ?>
   <?php $t = null; foreach ($photos as $ph): if ($t !== $ph['titre'] . $ph['debut']): if ($t !== null) echo '</div>'; $t = $ph['titre'] . $ph['debut']; ?><h2><?= e($ph['debut'] ? ucfirst(date_fr($ph['debut'], false)) : $ph['titre']) ?></h2><div class="phg"><?php endif; ?>
-    <a href="?photo=<?= $ph['id'] ?>" target="_blank" rel="noopener" title="<?= e($ph['legende']) ?>"><img src="?photo=<?= $ph['id'] ?>" alt="<?= e($ph['legende'] ?: 'Photo du chantier') ?>" loading="lazy"></a>
+    <a href="?voirphoto=<?= $ph['id'] ?>" title="<?= e($ph['legende']) ?>"><img src="?photo=<?= $ph['id'] ?>" alt="<?= e($ph['legende'] ?: 'Photo du chantier') ?>" loading="lazy"></a>
   <?php endforeach; if ($t !== null) echo '</div>'; ?>
 
 <?php elseif ($p === 'demande'): ?>

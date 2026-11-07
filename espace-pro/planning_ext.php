@@ -66,10 +66,10 @@ function client_dossier(int $cid): string {
     $d = 'clients/' . sprintf('%04d', $c['id']) . '-' . nom_fichier_propre($c['nom'], 50);
     q("UPDATE clients SET dossier = ? WHERE id = ?", [$d, $cid]); return $d;
 }
-/** Chemin (relatif à fichiers/) d'un nouveau fichier client : clients/0142-x/2026/rapports/2026-11-06_rapport-de-visite_3fa9.pdf ; crée les dossiers */
+/** Chemin (relatif à fichiers/) d'un nouveau fichier client : clients/0142-x/2026/11-novembre/rapports/2026-11-06_rapport-de-visite_3fa9.pdf ; crée les dossiers */
 function chemin_client_nouveau(int $cid, string $categorie, string $libelle, string $ext, ?string $date = null): string {
     $t = strtotime($date ?: 'now') ?: time(); $sous = RANGEMENT_DOSSIERS[$categorie] ?? nom_fichier_propre($categorie, 30);
-    $rel = client_dossier($cid) . '/' . date('Y', $t) . '/' . $sous;
+    $rel = client_dossier($cid) . '/' . date('Y', $t) . '/' . date('m', $t) . '-' . nom_fichier_propre(MOIS_FR[(int)date('n', $t)], 12) . '/' . $sous;
     @mkdir(dossier_fichiers() . '/' . $rel, 0775, true);
     return $rel . '/' . date('Y-m-d', $t) . '_' . nom_fichier_propre(preg_replace('/\.[a-z0-9]{2,4}$/i', '', $libelle), 60) . '_' . bin2hex(random_bytes(2)) . '.' . strtolower($ext);
 }
@@ -89,6 +89,57 @@ function chemin_fichier(string $nom): ?string {
     $ok = preg_match('/^[a-z]+-\d{8}-[a-f0-9]{16}\.(jpg|png|pdf|docx|xlsx|odt|ods|txt|csv|heic)$/', $nom)
        || (preg_match('#^clients/[a-z0-9][a-z0-9/_\-.]*\.(jpg|png|pdf|docx|xlsx|odt|ods|txt|csv|heic)$#', $nom) && !str_contains($nom, '..') && !str_contains($nom, '//'));
     return $ok && is_file(dossier_fichiers() . "/$nom") ? dossier_fichiers() . "/$nom" : null;
+}
+
+// ===================== Visionneuse (espace pro et espace client) =====================
+/** Affiche un document dans une visionneuse : aperçu (PDF, photo), Télécharger, Imprimer, Partager (téléphone), Envoyer par e-mail */
+function visionneuse_html(array $o): string {
+    $pi = fn(string $i) => '<svg class="pi" aria-hidden="true"><use href="#pi-' . $i . '"/></svg>';
+    $ext = strtolower($o['ext']); $img = in_array($ext, ['jpg', 'jpeg', 'png'], true); $pdf = $ext === 'pdf';
+    ob_start(); ?>
+<style>
+.vis-barre{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}.vis-barre h1{flex:1 1 260px;min-width:0;margin:0;font-size:1.15rem;overflow-wrap:anywhere}
+.vis-b{display:inline-flex;align-items:center;gap:7px;padding:10px 14px;border-radius:999px;border:1px solid #d5dccd;background:#fff;color:#1f3b2c;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}.vis-b.p{background:#8aa33c;border-color:#8aa33c;color:#fff}.vis-b .pi{width:18px;height:18px}
+.vis-cadre{background:#e9ebe4;border-radius:14px;overflow:hidden;border:1px solid #d5dccd}.vis-cadre iframe{display:block;width:100%;height:calc(100vh - 230px);min-height:420px;border:0;background:#fff}
+.vis-cadre img{display:block;max-width:100%;max-height:calc(100vh - 230px);margin:0 auto;object-fit:contain}.vis-vide{padding:40px 20px;text-align:center;color:#5f6b63}
+.vis-mail{background:#fff;border:1px solid #d5dccd;border-radius:14px;padding:14px;margin:0 0 12px}.vis-mail[hidden]{display:none}.vis-mail label{display:block;font-weight:700;margin:0 0 10px}.vis-mail input,.vis-mail textarea{display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px 12px;border:1px solid #cfd6c6;border-radius:10px;font:inherit}
+.vis-ok{padding:10px 14px;border-radius:10px;background:#eef3e2;color:#1f3b2c;margin:0 0 12px}.vis-err{background:#fdecea;color:#8a2a22}
+@media print{body *{visibility:hidden}.vis-cadre,.vis-cadre *{visibility:visible}.vis-cadre{position:absolute;inset:0;border:0;border-radius:0}.vis-cadre img{max-height:none}}
+</style>
+<div class="vis-barre">
+  <?php if (!empty($o['retour'])): ?><a class="vis-b" href="<?= e($o['retour']) ?>"><?= $pi('retour') ?><?= e($o['retour_libelle'] ?? 'Retour') ?></a><?php endif; ?>
+  <h1><?= e($o['nom']) ?></h1>
+  <a class="vis-b p" href="<?= e($o['url_dl']) ?>"><?= $pi('telecharger') ?>Télécharger</a>
+  <?php if ($img || $pdf): ?><button type="button" class="vis-b" id="visImp"><?= $pi('imprimer') ?>Imprimer</button><?php endif; ?>
+  <button type="button" class="vis-b" id="visPart" hidden><?= $pi('partager') ?>Partager</button>
+  <?php if (!empty($o['envoi'])): ?><button type="button" class="vis-b" id="visMailB"><?= $pi('mail') ?>Envoyer par e-mail</button><?php endif; ?>
+  <?php if ($img || $pdf): ?><a class="vis-b" href="<?= e($o['url']) ?>" target="_blank" rel="noopener"><?= $pi('agrandir') ?>Plein écran</a><?php endif; ?>
+</div>
+<?php if (!empty($o['message'])): ?><p class="vis-ok <?= !empty($o['message_err']) ? 'vis-err' : '' ?>"><?= e($o['message']) ?></p><?php endif; ?>
+<?php if (!empty($o['envoi'])): ?><form method="post" class="vis-mail" id="visMail" hidden><input type="hidden" name="csrf" value="<?= e(csrf()) ?>"><input type="hidden" name="action" value="vis_envoyer">
+  <label>Destinataire<input type="email" name="a" required value="<?= e($o['email'] ?? '') ?>" placeholder="adresse@exemple.fr"></label>
+  <label>Message<textarea name="texte" rows="4"><?= e($o['texte_mail'] ?? '') ?></textarea></label>
+  <button class="vis-b p"><?= $pi('mail') ?>Envoyer le document</button> <span class="small muted">Le document part en pièce jointe.</span></form><?php endif; ?>
+<div class="vis-cadre"><?php if ($pdf): ?><iframe id="visFr" src="<?= e($o['url']) ?>#view=FitH" title="<?= e($o['nom']) ?>"></iframe><?php elseif ($img): ?><img src="<?= e($o['url']) ?>" alt="<?= e($o['nom']) ?>"><?php else: ?><p class="vis-vide">Pas d'aperçu pour ce type de fichier : utilise « Télécharger » pour l'ouvrir.</p><?php endif; ?></div>
+<script>
+(() => { const url = <?= json_encode($o['url']) ?>, nom = <?= json_encode($o['nom']) ?>, mobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const imp = document.getElementById('visImp'); if (imp) imp.onclick = () => { const fr = document.getElementById('visFr');
+    if (fr && !mobile) { try { fr.contentWindow.focus(); fr.contentWindow.print(); return; } catch (e) {} }
+    if (fr) { window.open(url, '_blank'); return; } window.print(); };
+  const mb = document.getElementById('visMailB'), mf = document.getElementById('visMail'); if (mb) mb.onclick = () => { mf.hidden = !mf.hidden; if (!mf.hidden) mf.querySelector('input[name=a]').focus(); };
+  const pb = document.getElementById('visPart'); if (navigator.canShare && mobile) { pb.hidden = false; pb.onclick = async () => {
+    try { const r = await fetch(url); const b = await r.blob(); const f = new File([b], nom.replace(/[\\/:*?"<>|]/g, '_'), {type: b.type});
+      if (navigator.canShare({files: [f]})) await navigator.share({files: [f], title: nom}); else await navigator.share({title: nom, url: location.href}); } catch (e) {} }; }
+})();
+</script>
+<?php return (string)ob_get_clean();
+}
+/** Envoie un document en pièce jointe (visionneuse) */
+function visionneuse_envoyer(string $a, string $texte, string $nom, string $chemin): bool {
+    if (!filter_var($a, FILTER_VALIDATE_EMAIL) || !is_file($chemin)) return false;
+    $types = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'png' => 'image/png'];
+    $ext = strtolower(pathinfo($chemin, PATHINFO_EXTENSION)); $nomPj = preg_replace('/[^\w.\- ]+/u', '_', $nom); if (!str_ends_with(strtolower($nomPj), ".$ext")) $nomPj .= ".$ext";
+    return envoyer_mail_pj($a, $nom . ' – ' . setting('ent_nom', 'Élagage Figeacois'), trim($texte) !== '' ? $texte : "Bonjour,\n\nVeuillez trouver ci-joint le document « $nom ».\n\nBien cordialement,\n" . setting('ent_nom', 'Élagage Figeacois') . "\n" . setting('ent_tel'), [$nomPj => [$types[$ext] ?? 'application/octet-stream', (string)file_get_contents($chemin)]]);
 }
 
 // ===================== Espace client =====================
@@ -233,6 +284,18 @@ function envoyer_mail_pj(string $a, string $sujet, string $texte, array $pj, str
 
 // ===================== Clients =====================
 const TYPES_CLIENT = ['particulier' => 'Particulier', 'professionnel' => 'Professionnel', 'collectivite' => 'Collectivité'];
+const TYPES_ADRESSE = ['facturation' => 'Facturation', 'chantier' => 'Chantier', 'correspondance' => 'Correspondance', 'autre' => 'Autre'];
+/** Nom affiché d'un client : « Prénom NOM » pour un particulier, raison sociale sinon */
+function client_nom_complet(array $c): string { return trim((($c['prenom'] ?? '') !== '' ? $c['prenom'] . ' ' : '') . $c['nom']); }
+/** Clients déjà existants qui ressemblent à celui qu'on crée (même e-mail, même téléphone, ou même nom et prénom) */
+function clients_similaires(string $nom, string $prenom, array $emails, array $tels, int $sauf = 0): array {
+    $w = []; $p = [];
+    foreach (array_filter(array_map(fn($x) => mb_strtolower(trim($x)), $emails)) as $e) { $w[] = "LOWER(c.email) = ? OR c.id IN (SELECT client_id FROM client_contacts WHERE type = 'email' AND LOWER(valeur) = ?)"; array_push($p, $e, $e); }
+    foreach (array_filter(array_map(fn($x) => preg_replace('/\D/', '', $x), $tels), fn($x) => strlen($x) >= 9) as $t) { $f = substr($t, -9); $w[] = "REPLACE(REPLACE(REPLACE(c.mobile,' ',''),'.',''),'-','') LIKE ? OR REPLACE(REPLACE(REPLACE(c.telephone,' ',''),'.',''),'-','') LIKE ? OR c.id IN (SELECT client_id FROM client_contacts WHERE type = 'tel' AND REPLACE(REPLACE(REPLACE(valeur,' ',''),'.',''),'-','') LIKE ?)"; array_push($p, "%$f", "%$f", "%$f"); }
+    if ($nom !== '') { $w[] = "(LOWER(c.nom) = ? AND (? = '' OR LOWER(c.prenom) = ? OR c.prenom = ''))"; array_push($p, mb_strtolower($nom), mb_strtolower($prenom), mb_strtolower($prenom)); }
+    if (!$w) return [];
+    return q("SELECT c.* FROM clients c WHERE c.id <> ? AND (" . implode(' OR ', $w) . ") ORDER BY c.actif DESC, c.nom LIMIT 10", array_merge([$sauf], $p))->fetchAll();
+}
 const DOSSIERS_FINANCIERS = ['Devis', 'Contrats signés'];
 const DOSSIERS_CLIENT = ['Devis', 'Contrats signés', 'Rapports de rendez-vous', "Bons d'intervention", 'Photos', 'Plans', 'Courriers', 'Documents'];
 /** Le client accepte-t-il ce canal (consentement de sa fiche) ? */

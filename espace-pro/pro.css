@@ -373,3 +373,7 @@ body.mnav-open{overflow:hidden}
 body.charge::after{content:"";position:fixed;top:env(safe-area-inset-top,0px);left:0;height:3px;width:100%;z-index:300;background:var(--anis);transform-origin:left;animation:charge 1.6s ease-out forwards}
 @keyframes charge{from{transform:scaleX(.05)}to{transform:scaleX(.85)}}
 .tabbar a:active,.tabbar button:active{background:var(--clair);border-radius:12px}
+
+/* Après un enregistrement, la page reste au même endroit : le message s'affiche en bandeau flottant */
+.flash.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));z-index:250;max-width:min(520px,calc(100vw - 32px));box-shadow:0 8px 24px rgba(0,0,0,.18);transition:opacity .4s}
+.flash.toast-fin{opacity:0;pointer-events:none}

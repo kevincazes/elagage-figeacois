@@ -2,6 +2,15 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.14', '2026-11-07', [
+        'Fiche client : prénom séparé du nom (recherche par prénom, « prénom nom » ou « nom prénom »), SIRET pour les professionnels et collectivités, boutons « + Ajouter un téléphone » et « + Ajouter une adresse e-mail » avec une précision (conjoint, comptabilité…)',
+        'Adresses typées : Facturation, Chantier, Correspondance, Autre (la première adresse est proposée en facturation) ; prépare l\'envoi des clients vers Pennylane',
+        'Anti-doublons : à la création d\'un client, les fiches qui ressemblent (même nom et prénom, même téléphone ou même e-mail, y compris les contacts supplémentaires) sont proposées avant de créer',
+        'Fiche client : le bandeau avec le nom du client, les boutons d\'action et les onglets restent figés en haut quand on fait défiler la page (bandeau réduit)',
+        'Partout : après un enregistrement, la page reste au même endroit, et le message de confirmation s\'affiche en bandeau flottant',
+        'Visionneuse de documents (porte-doc et espace client) : aperçu du PDF ou de la photo, Télécharger, Imprimer, Plein écran, Partager (téléphone) et Envoyer par e-mail en pièce jointe',
+        'Fichiers rangés par client, puis par année et par mois : clients/0142-nom/2026/11-novembre/rapports/… (le rangement range aussi les fichiers déjà classés sans le mois)',
+    ]],
     ['2.13', '2026-11-07', [
         'Espace client (elagage-figeacois.com/espace-client) : chaque client retrouve ses interventions à venir et passées, ses documents (rapports, bons d\'intervention, contrats, devis, plans…), les photos des rapports envoyés, ses contrats à signer, et peut faire une demande (devis, intervention, rendez-vous, question)',
         'Connexion client sans mot de passe : lien envoyé par e-mail (30 minutes, à usage unique), appareil reconnu 60 jours ; plusieurs accès possibles par client (services techniques, élu, secrétariat…) ; une même personne peut suivre plusieurs clients',

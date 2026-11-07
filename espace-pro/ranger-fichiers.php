@@ -8,8 +8,8 @@ require_planning();
 if (!est_admin()) { http_response_code(403); page_start('Accès réservé'); echo '<p>Réservé aux administrateurs.</p>'; page_end(); exit; }
 
 function rangement_a_faire(): array {
-    $docs = q("SELECT d.* FROM client_docs d WHERE d.fichier NOT LIKE 'clients/%'")->fetchAll();
-    $phs = q("SELECT p.*, e.client_id, e.titre, e.debut FROM rapport_photos p JOIN evenements e ON e.id = p.evenement_id WHERE e.client_id IS NOT NULL AND (p.fichier NOT LIKE 'clients/%' OR (p.original <> '' AND p.original NOT LIKE 'clients/%'))")->fetchAll();
+    $docs = q("SELECT d.* FROM client_docs d WHERE d.fichier NOT LIKE 'clients/%' OR d.fichier REGEXP '^clients/[^/]+/[0-9]{4}/[a-z]'")->fetchAll();
+    $phs = q("SELECT p.*, e.client_id, e.titre, e.debut FROM rapport_photos p JOIN evenements e ON e.id = p.evenement_id WHERE e.client_id IS NOT NULL AND (p.fichier NOT LIKE 'clients/%' OR p.fichier REGEXP '^clients/[^/]+/[0-9]{4}/[a-z]' OR (p.original <> '' AND (p.original NOT LIKE 'clients/%' OR p.original REGEXP '^clients/[^/]+/[0-9]{4}/[a-z]')))")->fetchAll();
     return [$docs, $phs];
 }
 function copier_vers(string $ancien, int $cid, string $cat, string $libelle, ?string $date): ?string {
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (microtime(true) - $t0 > 20) break;
             $maj = []; $ok = true;
             foreach (['fichier', 'original'] as $col) {
-                if ($p[$col] === '' || str_starts_with($p[$col], 'clients/')) continue;
+                if ($p[$col] === '' || (str_starts_with($p[$col], 'clients/') && !preg_match('#^clients/[^/]+/\d{4}/[a-z]#', $p[$col]))) continue;
                 $n = copier_vers($p[$col], (int)$p['client_id'], 'Photos', ($col === 'original' ? 'photo originale ' : 'photo ') . $p['titre'], $p['debut'] ?: $p['cree_le']);
                 if ($n) $maj[$col] = $n; else $ok = false;
             }
@@ -65,6 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$rangé) { $o++; continue; } // jamais supprimé s'il n'a pas été rangé par cet outil
             $o += 0; $n += (int)@unlink($f);
         }
+        foreach (q("SELECT ancien_fichier f FROM client_docs WHERE ancien_fichier LIKE 'clients/%' UNION SELECT ancien_fichier FROM rapport_photos WHERE ancien_fichier LIKE 'clients/%'") as $r) {
+            if (isset($u[$r['f']]) || !preg_match('#^clients/[^/]+/\d{4}/[a-z]#', $r['f'])) continue; if (($c = chemin_fichier($r['f'])) && @unlink($c)) { $n++; @rmdir(dirname($c)); @rmdir(dirname($c, 2)); }
+        }
         journal('parametres', "Nettoyage des anciens fichiers : $n supprimé(s)");
         echo json_encode(['supprimes' => $n]); exit;
     }
@@ -78,7 +81,7 @@ $ranges = (int)q("SELECT COUNT(*) c FROM client_docs WHERE fichier LIKE 'clients
 $u = anciens_utilises(); $anciens = 0; foreach (glob(dossier_fichiers() . '/*.*') ?: [] as $f) { $b = basename($f); if (preg_match('/^[a-z]+-\d{8}-[a-f0-9]{16}\.[a-z]+$/', $b) && !isset($u[$b]) && q("SELECT 1 FROM client_docs WHERE ancien_fichier = ? UNION SELECT 1 FROM rapport_photos WHERE ancien_fichier = ? LIMIT 1", [$b, $b])->fetch()) $anciens++; }
 page_start('Rangement des fichiers', 'ranger-fichiers.php');
 ?>
-<p class="lead">Les documents, rapports, contrats signés et photos sont rangés dans un dossier par client sur l'hébergement, lisible par FTP :<br><code>fichiers/clients/0142-mairie-de-figeac/2026/rapports/2026-11-06_rapport-de-visite_….pdf</code></p>
+<p class="lead">Les documents, rapports, contrats signés et photos sont rangés dans un dossier par client sur l'hébergement, lisible par FTP :<br><code>fichiers/clients/0142-mairie-de-figeac/2026/11-novembre/rapports/2026-11-06_rapport-de-visite_….pdf</code></p>
 <div class="card">
   <p><strong><?= $ranges ?></strong> fichier(s) déjà rangé(s) · <strong id="nbReste"><?= $aRanger ?></strong> à ranger<?= $introuvables ? " · $introuvables introuvable(s) sur le serveur (laissés tels quels)" : '' ?></p>
   <?php if ($aRanger): ?><p><button class="btn" id="go">Ranger les fichiers existants</button></p>

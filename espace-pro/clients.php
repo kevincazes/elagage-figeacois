@@ -15,7 +15,7 @@ if (isset($_GET['doc'])) { // téléchargement d'un document du porte-doc
     $types = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'png' => 'image/png', 'txt' => 'text/plain; charset=utf-8', 'csv' => 'text/csv'];
     $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
     header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream')); header('X-Content-Type-Options: nosniff');
-    header('Content-Disposition: ' . (isset($types[$ext]) && $ext !== 'csv' ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\n"], '', $d['nom']) . '"');
+    header('Content-Disposition: ' . (isset($types[$ext]) && $ext !== 'csv' && empty($_GET['dl']) ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\n"], '', $d['nom']) . '"');
     readfile($f); exit;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -23,16 +23,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (in_array($a, ['client', 'adresse', 'adresse_suppr', 'archiver'], true) && !$gere) { flash("Seuls les comptes qui gèrent le planning modifient les fiches clients.", 'err'); redirect("clients.php?id=$cid"); }
     if ($a === 'client') {
         $nom = trim($_POST['nom'] ?? ''); if ($nom === '') { flash('Le nom est obligatoire.', 'err'); redirect('clients.php' . ($cid ? "?id=$cid" : '?nouveau=1')); }
-        $v = [$nom, array_key_exists($_POST['type'] ?? '', TYPES_CLIENT) ? $_POST['type'] : 'particulier', trim($_POST['telephone'] ?? ''), trim($_POST['mobile'] ?? ''), trim($_POST['email'] ?? ''), !empty($_POST['ok_sms']) ? 1 : 0, !empty($_POST['ok_email']) ? 1 : 0, trim($_POST['ref_externe'] ?? ''), trim($_POST['notes'] ?? '')];
-        if ($cid) q("UPDATE clients SET nom = ?, type = ?, telephone = ?, mobile = ?, email = ?, ok_sms = ?, ok_email = ?, ref_externe = ?, notes = ? WHERE id = ?", array_merge($v, [$cid]));
-        else { q("INSERT INTO clients (nom, type, telephone, mobile, email, ok_sms, ok_email, ref_externe, notes) VALUES (?,?,?,?,?,?,?,?,?)", $v); $cid = (int)db()->lastInsertId(); }
+        $prenom = trim((string)($_POST['prenom'] ?? '')); $type = array_key_exists($_POST['type'] ?? '', TYPES_CLIENT) ? $_POST['type'] : 'particulier';
+        $contacts = [];
+        foreach ((array)($_POST['cx_val'] ?? []) as $i => $val) { $val = trim((string)$val); if ($val === '') continue; $ty = ($_POST['cx_type'][$i] ?? '') === 'email' ? 'email' : 'tel';
+            if ($ty === 'email' && !filter_var($val, FILTER_VALIDATE_EMAIL)) continue; $contacts[] = [$ty, mb_substr($val, 0, 190), mb_substr(trim((string)($_POST['cx_lib'][$i] ?? '')), 0, 60)]; }
+        if (!$cid && empty($_POST['doublon_ok'])) { // éviter les doublons : on montre les fiches qui ressemblent avant de créer
+            $sim = clients_similaires($nom, $prenom, array_merge([(string)($_POST['email'] ?? '')], array_column(array_filter($contacts, fn($x) => $x[0] === 'email'), 1)), array_merge([(string)($_POST['mobile'] ?? ''), (string)($_POST['telephone'] ?? '')], array_column(array_filter($contacts, fn($x) => $x[0] === 'tel'), 1)));
+            if ($sim) { $_SESSION['client_brouillon'] = $_POST; $_SESSION['client_similaires'] = array_column($sim, 'id'); redirect('clients.php?nouveau=1&doublons=1'); }
+        }
+        $v = [$nom, $prenom, $type, $type === 'particulier' ? '' : preg_replace('/\D/', '', (string)($_POST['siret'] ?? '')), trim($_POST['telephone'] ?? ''), trim($_POST['mobile'] ?? ''), trim($_POST['email'] ?? ''), !empty($_POST['ok_sms']) ? 1 : 0, !empty($_POST['ok_email']) ? 1 : 0, trim($_POST['ref_externe'] ?? ''), trim($_POST['notes'] ?? '')];
+        if ($cid) q("UPDATE clients SET nom = ?, prenom = ?, type = ?, siret = ?, telephone = ?, mobile = ?, email = ?, ok_sms = ?, ok_email = ?, ref_externe = ?, notes = ? WHERE id = ?", array_merge($v, [$cid]));
+        else { q("INSERT INTO clients (nom, prenom, type, siret, telephone, mobile, email, ok_sms, ok_email, ref_externe, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)", $v); $cid = (int)db()->lastInsertId(); }
+        if (isset($_POST['cx_envoyes'])) { q("DELETE FROM client_contacts WHERE client_id = ?", [$cid]); foreach ($contacts as $i => [$ty, $val, $lib]) q("INSERT INTO client_contacts (client_id, type, valeur, libelle, ordre) VALUES (?,?,?,?,?)", [$cid, $ty, $val, $lib, $i]); }
+        unset($_SESSION['client_brouillon'], $_SESSION['client_similaires']);
         flash('Fiche client enregistrée.'); redirect("clients.php?id=$cid&o=" . ($_POST['onglet'] ?? 'contact'));
     }
     if ($a === 'adresse') {
         $aid = (int)($_POST['aid'] ?? 0);
-        $v = [trim($_POST['libelle'] ?? '') ?: 'Chantier', trim($_POST['adresse'] ?? ''), trim($_POST['cp'] ?? ''), trim($_POST['ville'] ?? ''), is_numeric($_POST['lat'] ?? '') ? (float)$_POST['lat'] : null, is_numeric($_POST['lng'] ?? '') ? (float)$_POST['lng'] : null, trim($_POST['interlocuteur'] ?? ''), trim($_POST['tel'] ?? '')];
-        if ($aid) q("UPDATE client_adresses SET libelle = ?, adresse = ?, cp = ?, ville = ?, lat = ?, lng = ?, interlocuteur = ?, tel = ? WHERE id = ? AND client_id = ?", array_merge($v, [$aid, $cid]));
-        else q("INSERT INTO client_adresses (client_id, libelle, adresse, cp, ville, lat, lng, interlocuteur, tel, ordre) VALUES (?,?,?,?,?,?,?,?,?,99)", array_merge([$cid], $v));
+        $tyA = array_key_exists($_POST['atype'] ?? '', TYPES_ADRESSE) ? $_POST['atype'] : 'chantier';
+        $v = [trim($_POST['libelle'] ?? '') ?: TYPES_ADRESSE[$tyA], trim($_POST['adresse'] ?? ''), trim($_POST['cp'] ?? ''), trim($_POST['ville'] ?? ''), is_numeric($_POST['lat'] ?? '') ? (float)$_POST['lat'] : null, is_numeric($_POST['lng'] ?? '') ? (float)$_POST['lng'] : null, trim($_POST['interlocuteur'] ?? ''), trim($_POST['tel'] ?? '')];
+        if ($aid) q("UPDATE client_adresses SET libelle = ?, adresse = ?, cp = ?, ville = ?, lat = ?, lng = ?, interlocuteur = ?, tel = ?, type = ? WHERE id = ? AND client_id = ?", array_merge($v, [$tyA, $aid, $cid]));
+        else q("INSERT INTO client_adresses (client_id, libelle, adresse, cp, ville, lat, lng, interlocuteur, tel, type, ordre) VALUES (?,?,?,?,?,?,?,?,?,?,99)", array_merge([$cid], $v, [$tyA]));
         flash('Adresse enregistrée.'); redirect("clients.php?id=$cid&o=contact");
     }
     if ($a === 'adresse_suppr') { q("DELETE FROM client_adresses WHERE id = ? AND client_id = ?", [(int)$_POST['aid'], $cid]); redirect("clients.php?id=$cid&o=contact"); }
@@ -70,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ---------- Liste ----------
 if (!$id && empty($_GET['nouveau'])) {
     $t = trim((string)($_GET['q'] ?? ''));
-    $liste = $t !== '' ? q("SELECT c.*, (SELECT ville FROM client_adresses a WHERE a.client_id = c.id ORDER BY ordre, id LIMIT 1) ville FROM clients c WHERE nom LIKE ? OR email LIKE ? OR REPLACE(mobile,' ','') LIKE ? OR REPLACE(telephone,' ','') LIKE ? OR id IN (SELECT client_id FROM client_adresses WHERE ville LIKE ? OR adresse LIKE ?) ORDER BY actif DESC, nom LIMIT 200", ["%$t%", "%$t%", '%' . str_replace(' ', '', $t) . '%', '%' . str_replace(' ', '', $t) . '%', "%$t%", "%$t%"])->fetchAll()
+    $liste = $t !== '' ? q("SELECT c.*, (SELECT ville FROM client_adresses a WHERE a.client_id = c.id ORDER BY ordre, id LIMIT 1) ville FROM clients c WHERE nom LIKE ? OR prenom LIKE ? OR CONCAT(prenom, ' ', nom) LIKE ? OR CONCAT(nom, ' ', prenom) LIKE ? OR email LIKE ? OR siret LIKE ? OR REPLACE(mobile,' ','') LIKE ? OR REPLACE(telephone,' ','') LIKE ? OR id IN (SELECT client_id FROM client_adresses WHERE ville LIKE ? OR adresse LIKE ?) OR id IN (SELECT client_id FROM client_contacts WHERE REPLACE(valeur,' ','') LIKE ?) ORDER BY actif DESC, nom LIMIT 200", ["%$t%", "%$t%", "%$t%", "%$t%", "%$t%", "%$t%", '%' . str_replace(' ', '', $t) . '%', '%' . str_replace(' ', '', $t) . '%', "%$t%", "%$t%", '%' . str_replace(' ', '', $t) . '%'])->fetchAll()
                      : q("SELECT c.*, (SELECT ville FROM client_adresses a WHERE a.client_id = c.id ORDER BY ordre, id LIMIT 1) ville FROM clients c JOIN client_vus v ON v.client_id = c.id AND v.utilisateur_id = ? ORDER BY v.vu_le DESC LIMIT 12", [user()['id']])->fetchAll();
     $nb = (int)q("SELECT COUNT(*) c FROM clients WHERE actif = 1")->fetch()['c'];
     page_start('Clients', 'clients.php');
@@ -80,12 +91,19 @@ if (!$id && empty($_GET['nouveau'])) {
 </style>
     <form class="cols" style="max-width:760px;align-items:end"><label>Rechercher un client <input name="q" value="<?= e($t) ?>" placeholder="Nom, ville, téléphone, e-mail…" autofocus></label><button class="btn">Rechercher</button><?php if ($gere): ?><a class="btn secondary" href="clients.php?nouveau=1">+ Nouveau client</a><?php endif; ?></form>
     <p class="muted"><?= $t !== '' ? count($liste) . ' résultat(s).' : "Les derniers clients consultés ($nb clients au total). Les clients sont aussi créés automatiquement quand tu enregistres un rendez-vous." ?></p>
-    <div class="cl-l"><?php foreach ($liste as $c): ?><a href="clients.php?id=<?= $c['id'] ?>" class="<?= (int)$c['actif'] ? '' : 'off' ?>"><i><?= e(mb_strtoupper(mb_substr($c['nom'], 0, 1))) ?></i><span><b><?= e($c['nom']) ?></b><small><?= e($c['ville'] ?? '') ?><?= $c['type'] !== 'particulier' ? ' · ' . e(TYPES_CLIENT[$c['type']] ?? '') : '' ?></small></span></a><?php endforeach; ?></div>
+    <div class="cl-l"><?php foreach ($liste as $c): ?><a href="clients.php?id=<?= $c['id'] ?>" class="<?= (int)$c['actif'] ? '' : 'off' ?>"><i><?= e(mb_strtoupper(mb_substr($c['nom'], 0, 1))) ?></i><span><b><?= e(client_nom_complet($c)) ?></b><small><?= e($c['ville'] ?? '') ?><?= $c['type'] !== 'particulier' ? ' · ' . e(TYPES_CLIENT[$c['type']] ?? '') : '' ?></small></span></a><?php endforeach; ?></div>
     <?php page_end(); exit;
 }
 
 // ---------- Fiche ----------
-$c = $id ? q("SELECT * FROM clients WHERE id = ?", [$id])->fetch() : ['id' => 0, 'nom' => '', 'type' => 'particulier', 'telephone' => '', 'mobile' => '', 'email' => '', 'ok_sms' => 1, 'ok_email' => 1, 'ref_externe' => '', 'notes' => '', 'actif' => 1];
+$c = $id ? q("SELECT * FROM clients WHERE id = ?", [$id])->fetch() : ['id' => 0, 'nom' => '', 'prenom' => '', 'siret' => '', 'type' => 'particulier', 'telephone' => '', 'mobile' => '', 'email' => '', 'ok_sms' => 1, 'ok_email' => 1, 'ref_externe' => '', 'notes' => '', 'actif' => 1, 'grality_url' => ''];
+$cx = $id ? q("SELECT * FROM client_contacts WHERE client_id = ? ORDER BY ordre, id", [$id])->fetchAll() : [];
+$similaires = [];
+if (!$id && !empty($_GET['doublons']) && !empty($_SESSION['client_brouillon'])) { // création interrompue : des fiches ressemblent à ce client
+    $br = $_SESSION['client_brouillon']; foreach (['nom', 'prenom', 'siret', 'type', 'telephone', 'mobile', 'email', 'ref_externe', 'notes'] as $k) $c[$k] = (string)($br[$k] ?? $c[$k]);
+    foreach ((array)($br['cx_val'] ?? []) as $i => $val) if (trim((string)$val) !== '') $cx[] = ['type' => ($br['cx_type'][$i] ?? 'tel') === 'email' ? 'email' : 'tel', 'valeur' => (string)$val, 'libelle' => (string)($br['cx_lib'][$i] ?? '')];
+    $ids = array_map('intval', $_SESSION['client_similaires'] ?? []); if ($ids) $similaires = q("SELECT c.*, (SELECT ville FROM client_adresses a WHERE a.client_id = c.id ORDER BY ordre, id LIMIT 1) ville FROM clients c WHERE id IN (" . implode(',', $ids) . ")")->fetchAll();
+}
 if (!$c) { redirect('clients.php'); }
 if ($id) client_vu($id);
 $adr = $id ? q("SELECT * FROM client_adresses WHERE client_id = ? ORDER BY ordre, id", [$id])->fetchAll() : [];
@@ -102,40 +120,53 @@ $nbDem = count(array_filter($demandesC, fn($d) => $d['traitee_le'] === null));
 $pi = fn(string $i) => '<svg class="pi" aria-hidden="true"><use href="#pi-' . $i . '"/></svg>';
 $tel = $c['mobile'] ?: $c['telephone']; $telN = preg_replace('/[^0-9+]/', '', $tel); $a0 = $adr[0] ?? null;
 $dest = $a0 ? ($a0['lat'] !== null ? $a0['lat'] . ',' . $a0['lng'] : urlencode(trim($a0['adresse'] . ' ' . $a0['cp'] . ' ' . $a0['ville']))) : '';
-page_start($id ? $c['nom'] : 'Nouveau client', 'clients.php', ['clients.php', 'Clients']);
+page_start($id ? client_nom_complet($c) : 'Nouveau client', 'clients.php', ['clients.php', 'Clients']);
 ?>
 <style>
 main{max-width:860px}main>h1{position:absolute;left:-9999px}
 .cl-haut{background:var(--brun);color:#fff;border-radius:0 0 26px 26px;margin:-22px -20px 0;padding:18px 16px 40px;text-align:center}.cl-haut small{opacity:.85;display:block}.cl-haut h2{color:#fff;margin:2px 0;font-size:1.4rem;text-transform:uppercase}
+.cl-fixe{position:sticky;top:var(--haut-top,0px);z-index:4;background:var(--creme,#f4f3ee);margin:0 -20px;padding:0 20px 2px}.cl-fixe .cl-haut{margin-left:-20px;margin-right:-20px;transition:padding .2s}
+.cl-fixe.reduit .cl-haut{padding:8px 16px 30px}.cl-fixe.reduit .cl-haut small{display:none}.cl-fixe.reduit .cl-haut h2{font-size:1.1rem}.cl-fixe.reduit .boutons{margin-top:-24px}.cl-fixe.reduit .boutons a{width:40px;height:40px}.cl-fixe.reduit .onglets{margin-bottom:8px}
 .boutons{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:-28px 0 14px}.boutons a{width:50px;height:50px;border-radius:50%;background:#efe3d5;color:var(--brun);display:grid;place-items:center;font-size:1.35rem;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.12)}.boutons a.off{opacity:.3;pointer-events:none}
 .onglets{display:flex;gap:4px;overflow-x:auto;background:#ece8df;border-radius:12px;padding:4px;margin:0 0 14px}.onglets a{padding:8px 14px;border-radius:9px;text-decoration:none;color:var(--texte);font-weight:700;white-space:nowrap}.onglets a.on{background:#efe3d5;color:var(--brun);box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .bloc{background:var(--blanc);border:1px solid #e1e5da;border-radius:14px;padding:12px 14px;margin:0 0 10px}.bloc h4{margin:0 0 4px;color:var(--brun)}
-.dos{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eee}.dos:last-child{border:0}.dos .ic{display:grid;place-items:center;color:var(--brun)}.boutons .pi{width:22px;height:22px}.vis{background:none;border:1px solid #d5dccd;border-radius:999px;padding:3px 9px;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--doux)}.vis.on{background:#e3f0da;border-color:#8aa33c;color:var(--sapin)}
+.cx{display:grid!important;grid-template-columns:1fr 1fr auto;gap:0 10px;align-items:end}.cx .cx-x{margin:0 0 12px!important;padding:8px 10px}.cx .cx-x .pi{width:16px;height:16px}
+@media(max-width:700px){.cx{grid-template-columns:1fr auto}.cx label:first-of-type{grid-column:1/-1}}
+.tagA{display:inline-block;font-size:.75rem;font-weight:800;padding:2px 9px;border-radius:999px;background:#efe3d5;color:var(--brun);vertical-align:2px}.dos{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eee}.dos:last-child{border:0}.dos .ic{display:grid;place-items:center;color:var(--brun)}.boutons .pi{width:22px;height:22px}.vis{background:none;border:1px solid #d5dccd;border-radius:999px;padding:3px 9px;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--doux)}.vis.on{background:#e3f0da;border-color:#8aa33c;color:var(--sapin)}
 .phg{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px}.phg img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
 </style>
-<div class="cl-haut"><small><?= e(setting('ent_nom')) ?></small><h2><?= e($c['nom'] ?: 'Nouveau client') ?></h2><small><?= e(TYPES_CLIENT[$c['type']] ?? 'Client') ?><?= (int)$c['actif'] ? '' : ' · archivé' ?></small></div>
+<div class="cl-fixe" id="clFixe"><div class="cl-haut"><small><?= e(setting('ent_nom')) ?></small><h2><?= e(client_nom_complet($c) ?: 'Nouveau client') ?></h2><small><?= e(TYPES_CLIENT[$c['type']] ?? 'Client') ?><?= (int)$c['actif'] ? '' : ' · archivé' ?></small></div>
 <?php if ($id): ?><div class="boutons">
   <a href="https://www.google.com/maps/dir/?api=1&destination=<?= e($dest) ?>" target="_blank" rel="noopener" class="<?= $dest ? '' : 'off' ?>" title="Itinéraire"><?= $pi('pin') ?></a>
   <a href="tel:<?= e($telN) ?>" class="<?= $telN ? '' : 'off' ?>" title="Appeler"><?= $pi('phone') ?></a><a href="sms:<?= e($telN) ?>" class="<?= $telN ? '' : 'off' ?>" title="SMS"><?= $pi('sms') ?></a>
   <a href="mailto:<?= e($c['email']) ?>" class="<?= $c['email'] ? '' : 'off' ?>" title="E-mail"><?= $pi('mail') ?></a>
   <?php if ($ajoute): ?><a href="planning.php?nouveau_client=<?= $id ?>" title="Nouveau rendez-vous pour ce client"><?= $pi('calendar') ?></a><?php endif; ?>
 </div>
-<nav class="onglets"><?php foreach (['contact' => 'Contact', 'rdv' => 'Rendez-vous (' . count($rdv) . ')'] + ($gere ? ['finance' => 'Devis et contrats'] : []) + ['doc' => 'Porte-doc'] + ($gere ? ['portail' => 'Espace client' . ($nbDem ? " ($nbDem)" : '')] : []) + ['autres' => 'Autres'] as $k => $l): ?><a href="?id=<?= $id ?>&o=<?= $k ?>" class="<?= $o === $k ? 'on' : '' ?>"><?= e($l) ?></a><?php endforeach; ?></nav><?php endif; ?>
+<nav class="onglets"><?php foreach (['contact' => 'Contact', 'rdv' => 'Rendez-vous (' . count($rdv) . ')'] + ($gere ? ['finance' => 'Devis et contrats'] : []) + ['doc' => 'Porte-doc'] + ($gere ? ['portail' => 'Espace client' . ($nbDem ? " ($nbDem)" : '')] : []) + ['autres' => 'Autres'] as $k => $l): ?><a href="?id=<?= $id ?>&o=<?= $k ?>" class="<?= $o === $k ? 'on' : '' ?>"><?= e($l) ?></a><?php endforeach; ?></nav><?php endif; ?></div>
 
 <?php if ($o === 'contact' || !$id): ?>
   <form method="post" class="bloc"><?= csrf_field() ?><input type="hidden" name="action" value="client"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="onglet" value="contact">
-    <div class="cols"><label>Nom <input name="nom" value="<?= e($c['nom']) ?>" required <?= $gere ? '' : 'readonly' ?>></label><label>Type <select name="type" <?= $gere ? '' : 'disabled' ?>><?php foreach (TYPES_CLIENT as $k => $l): ?><option value="<?= $k ?>" <?= $c['type'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></label></div>
+    <?php if ($similaires): ?><div class="flash err" style="margin:0 0 12px"><p style="margin:0 0 6px">Attention : <?= count($similaires) ?> fiche(s) client ressemblent à celle-ci (même nom, téléphone ou e-mail). Est-ce le même client ?</p>
+      <?php foreach ($similaires as $x): ?><a href="clients.php?id=<?= $x['id'] ?>" style="display:block;font-weight:700"><?= e(client_nom_complet($x)) ?><?= $x['ville'] ? ' – ' . e($x['ville']) : '' ?><?= $x['email'] ? ' · ' . e($x['email']) : '' ?><?= $x['mobile'] ? ' · ' . e($x['mobile']) : '' ?></a><?php endforeach; ?>
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0 0"><input type="checkbox" name="doublon_ok" value="1" style="width:auto;margin:0" required> Non, c'est un autre client : le créer quand même</label></div><?php endif; ?>
+    <input type="hidden" name="cx_envoyes" value="1">
+    <div class="cols"><label>Type <select name="type" id="clType" <?= $gere ? '' : 'disabled' ?>><?php foreach (TYPES_CLIENT as $k => $l): ?><option value="<?= $k ?>" <?= $c['type'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></label>
+      <label><span id="lNom"><?= $c['type'] === 'particulier' ? 'Nom' : 'Nom de la société ou de la collectivité' ?></span> <input name="nom" value="<?= e($c['nom']) ?>" required <?= $gere ? '' : 'readonly' ?>></label>
+      <label><span id="lPrenom"><?= $c['type'] === 'particulier' ? 'Prénom' : 'Prénom du contact (facultatif)' ?></span> <input name="prenom" value="<?= e($c['prenom'] ?? '') ?>" <?= $gere ? '' : 'readonly' ?>></label>
+      <label id="blSiret" <?= $c['type'] === 'particulier' ? 'hidden' : '' ?>>SIRET <input name="siret" value="<?= e($c['siret'] ?? '') ?>" inputmode="numeric" maxlength="20" <?= $gere ? '' : 'readonly' ?>></label></div>
     <div class="cols"><label>Mobile <input name="mobile" type="tel" value="<?= e($c['mobile']) ?>" <?= $gere ? '' : 'readonly' ?>></label><label>Téléphone fixe <input name="telephone" type="tel" value="<?= e($c['telephone']) ?>" <?= $gere ? '' : 'readonly' ?>></label><label>E-mail <input name="email" type="email" value="<?= e($c['email']) ?>" <?= $gere ? '' : 'readonly' ?>></label></div>
+    <div id="cxL"><?php foreach ($cx as $x): ?><div class="cols cx"><input type="hidden" name="cx_type[]" value="<?= e($x['type']) ?>"><label><?= $x['type'] === 'email' ? 'Autre e-mail' : 'Autre téléphone' ?> <input name="cx_val[]" type="<?= $x['type'] === 'email' ? 'email' : 'tel' ?>" value="<?= e($x['valeur']) ?>" <?= $gere ? '' : 'readonly' ?>></label><label>Précision <input name="cx_lib[]" value="<?= e($x['libelle']) ?>" placeholder="Ex. conjoint, comptabilité, travail" <?= $gere ? '' : 'readonly' ?>></label><?php if ($gere): ?><button type="button" class="mini danger cx-x" title="Retirer" ><?= $pi('fermer') ?></button><?php endif; ?></div><?php endforeach; ?></div>
+    <?php if ($gere): ?><p style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="mini" data-cx="tel">+ Ajouter un téléphone</button><button type="button" class="mini" data-cx="email">+ Ajouter une adresse e-mail</button></p><?php endif; ?>
     <div class="cols"><label>Référence Extrabat <input name="ref_externe" value="<?= e($c['ref_externe']) ?>" <?= $gere ? '' : 'readonly' ?>></label><label>Notes <input name="notes" value="<?= e($c['notes']) ?>" <?= $gere ? '' : 'readonly' ?>></label></div>
     <input type="hidden" name="ok_sms" value="<?= (int)$c['ok_sms'] ?>"><input type="hidden" name="ok_email" value="<?= (int)$c['ok_email'] ?>">
     <?php if ($gere): ?><button class="btn"><?= $id ? 'Enregistrer' : 'Créer le client' ?></button><?php endif; ?>
   </form>
   <?php if ($id): ?><h3>Adresses</h3>
-  <?php foreach (array_merge($adr, $gere ? [['id' => 0, 'libelle' => '', 'adresse' => '', 'cp' => '', 'ville' => '', 'lat' => null, 'lng' => null, 'interlocuteur' => '', 'tel' => '']] : []) as $x): ?>
+  <?php foreach (array_merge($adr, $gere ? [['id' => 0, 'type' => $adr ? 'chantier' : 'facturation', 'libelle' => '', 'adresse' => '', 'cp' => '', 'ville' => '', 'lat' => null, 'lng' => null, 'interlocuteur' => '', 'tel' => '']] : []) as $x): ?>
     <form method="post" class="bloc adr"><?= csrf_field() ?><input type="hidden" name="action" value="adresse"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="aid" value="<?= $x['id'] ?>">
-      <?php if ($x['id']): ?><h4><?= $pi('house') ?> <?= e($x['libelle']) ?> <?php if ($x['lat'] !== null): ?><a class="mini" href="https://www.google.com/maps/dir/?api=1&destination=<?= e($x['lat'] . ',' . $x['lng']) ?>" target="_blank" rel="noopener">Itinéraire</a><?php endif; ?></h4><?php else: ?><h4>+ Ajouter une adresse</h4><?php endif; ?>
+      <?php if ($x['id']): ?><h4><?= $pi('house') ?> <span class="tagA"><?= e(TYPES_ADRESSE[$x['type'] ?? 'chantier'] ?? 'Chantier') ?></span> <?= e($x['libelle'] !== (TYPES_ADRESSE[$x['type'] ?? 'chantier'] ?? '') ? $x['libelle'] : '') ?> <?php if ($x['lat'] !== null): ?><a class="mini" href="https://www.google.com/maps/dir/?api=1&destination=<?= e($x['lat'] . ',' . $x['lng']) ?>" target="_blank" rel="noopener">Itinéraire</a><?php endif; ?></h4><?php else: ?><h4>+ Ajouter une adresse</h4><?php endif; ?>
       <?php if ($gere): ?>
-      <div class="cols"><label>Libellé <input name="libelle" value="<?= e($x['libelle']) ?>" placeholder="Chantier, Correspondance, Résidence secondaire…"></label><label class="ac">Adresse <input name="adresse" class="adrIn" value="<?= e($x['adresse']) ?>" placeholder="Tape puis choisis dans la liste"><ul hidden></ul></label></div>
+      <div class="cols"><label>Type d'adresse <select name="atype"><?php foreach (TYPES_ADRESSE as $k => $l): ?><option value="<?= $k ?>" <?= ($x['type'] ?? 'chantier') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></label><label>Précision <input name="libelle" value="<?= e($x['libelle'] !== (TYPES_ADRESSE[$x['type'] ?? 'chantier'] ?? '') ? $x['libelle'] : '') ?>" placeholder="Ex. résidence secondaire, école Jean-Moulin…"></label><label class="ac">Adresse <input name="adresse" class="adrIn" value="<?= e($x['adresse']) ?>" placeholder="Tape puis choisis dans la liste"><ul hidden></ul></label></div>
       <div class="cols"><label>Code postal <input name="cp" value="<?= e($x['cp']) ?>"></label><label>Ville <input name="ville" value="<?= e($x['ville']) ?>"></label><label>Interlocuteur sur place <input name="interlocuteur" value="<?= e($x['interlocuteur']) ?>"></label><label>Son téléphone <input name="tel" value="<?= e($x['tel']) ?>"></label></div>
       <input type="hidden" name="lat" value="<?= e((string)$x['lat']) ?>"><input type="hidden" name="lng" value="<?= e((string)$x['lng']) ?>">
       <p style="margin:0"><button class="mini"><?= $x['id'] ? 'Enregistrer' : 'Ajouter' ?></button> <?php if ($x['id']): ?><button class="mini danger" name="action" value="adresse_suppr" onclick="return confirm('Supprimer cette adresse ?')">Supprimer</button><?php endif; ?></p>
@@ -161,19 +192,19 @@ main{max-width:860px}main>h1{position:absolute;left:-9999px}
   <?php if ($ajoute): ?><form method="post" enctype="multipart/form-data" class="bloc cols" style="align-items:end"><?= csrf_field() ?><input type="hidden" name="action" value="doc"><input type="hidden" name="id" value="<?= $id ?>">
     <label>Ajouter un document <input type="file" name="fichier" required></label><label style="display:flex;gap:6px;align-items:center;font-weight:700;margin-bottom:10px"><input type="checkbox" name="visible_client" value="1" checked style="width:auto;margin:0"> Visible dans l'espace client</label><label>Dossier <select name="dossier"><?php foreach (DOSSIERS_CLIENT as $d): if (!$gere && in_array($d, DOSSIERS_FINANCIERS, true)) continue; ?><option><?= e($d) ?></option><?php endforeach; ?></select></label><button class="btn">Ajouter</button></form><?php endif; ?>
   <?php
-  $dos = []; foreach ($docs as $d) $dos[$d['dossier']][] = ['nom' => $d['nom'], 'url' => "clients.php?doc={$d['id']}", 'date' => $d['cree_le'], 'id' => $d['id'], 'vis' => (int)$d['visible_client']];
+  $dos = []; foreach ($docs as $d) $dos[$d['dossier']][] = ['nom' => $d['nom'], 'url' => "visionneuse.php?doc={$d['id']}", 'vis_page' => 1, 'date' => $d['cree_le'], 'id' => $d['id'], 'vis' => (int)$d['visible_client']];
   foreach ($rapps as $r) $dos[$r['modele'] === 'fin' ? "Bons d'intervention" : 'Rapports de rendez-vous'][] = ['nom' => ($r['modele'] === 'fin' ? 'Bon' : 'Rapport') . ' – ' . $r['titre'] . ($r['signe_le'] ? ' (signé)' : ''), 'url' => "rapport.php?evt={$r['evenement_id']}&pdf=1", 'date' => $r['debut'] ?: $r['cree_le'], 'id' => 0, 'auto' => 1];
   if ($gere) foreach ($contrats as $k) if (in_array($k['statut'], ['signe', 'envoye'], true)) $dos[$k['statut'] === 'signe' ? 'Contrats signés' : 'Devis'][] = ['nom' => 'Contrat ' . $k['numero'] . ($k['statut'] === 'signe' ? ' (signé)' : ' (à signer)'), 'url' => "contrats.php?id={$k['id']}&pdf=1", 'date' => $k['signe_le'] ?: $k['envoye_le'], 'id' => 0, 'auto' => 1];
   ?>
   <?php foreach (DOSSIERS_CLIENT as $d): $l = $dos[$d] ?? []; if ($d === 'Photos' || (!$gere && in_array($d, DOSSIERS_FINANCIERS, true))) continue; ?>
     <details class="bloc" <?= $l ? 'open' : '' ?>><summary style="cursor:pointer"><strong><?= $pi('box') ?> <?= e($d) ?></strong> <span class="muted small"><?= $l ? count($l) . ' élément(s)' : 'Dossier vide' ?></span></summary>
-      <?php foreach ($l as $x): ?><div class="dos"><span class="ic"><?= $pi(str_ends_with(strtolower($x['nom']), '.pdf') || !empty($x['auto']) ? 'doc' : 'clipboard') ?></span><span style="flex:1"><a href="<?= e($x['url']) ?>" target="_blank" rel="noopener"><?= e($x['nom']) ?></a><br><span class="muted small"><?= $x['date'] ? e(date('d/m/Y', strtotime($x['date']))) : '' ?></span></span>
+      <?php foreach ($l as $x): ?><div class="dos"><span class="ic"><?= $pi(str_ends_with(strtolower($x['nom']), '.pdf') || !empty($x['auto']) ? 'doc' : 'clipboard') ?></span><span style="flex:1"><a href="<?= e($x['url']) ?>"<?= empty($x['vis_page']) ? ' target="_blank" rel="noopener"' : '' ?>><?= e($x['nom']) ?></a><br><span class="muted small"><?= $x['date'] ? e(date('d/m/Y', strtotime($x['date']))) : '' ?></span></span>
         <?php if ($x['id'] && $gere): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="doc_visible"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="did" value="<?= $x['id'] ?>"><button class="vis <?= $x['vis'] ? 'on' : '' ?>" title="Visible ou non dans l'espace client"><?= $x['vis'] ? 'Visible client' : 'Interne' ?></button></form><?php endif; ?>
         <?php if ($x['id'] && $gere): ?><form method="post" onsubmit="return confirm('Supprimer ce document ?')"><?= csrf_field() ?><input type="hidden" name="action" value="doc_suppr"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="did" value="<?= $x['id'] ?>"><button class="mini danger" title="Supprimer"><?= $pi('fermer') ?></button></form><?php endif; ?></div><?php endforeach; ?>
     </details>
   <?php endforeach; ?>
   <details class="bloc" <?= $photos ? 'open' : '' ?>><summary style="cursor:pointer"><strong><?= $pi('camera') ?> Photos</strong> <span class="muted small"><?= count($photos) ?> photo(s) des rapports</span></summary>
-    <div class="phg"><?php foreach ($photos as $ph): ?><a href="rapport.php?evt=<?= $ph['evenement_id'] ?>&photo=<?= $ph['id'] ?>" target="_blank" title="<?= e($ph['titre'] . ($ph['legende'] ? ' – ' . $ph['legende'] : '')) ?>"><img src="rapport.php?evt=<?= $ph['evenement_id'] ?>&photo=<?= $ph['id'] ?>" alt="" loading="lazy"></a><?php endforeach; ?></div></details>
+    <div class="phg"><?php foreach ($photos as $ph): ?><a href="visionneuse.php?photo=<?= $ph['id'] ?>" title="<?= e($ph['titre'] . ($ph['legende'] ? ' – ' . $ph['legende'] : '')) ?>"><img src="rapport.php?evt=<?= $ph['evenement_id'] ?>&photo=<?= $ph['id'] ?>" alt="" loading="lazy"></a><?php endforeach; ?></div></details>
 <?php elseif ($o === 'portail' && $gere): ?>
   <div class="bloc"><h4>Espace client</h4><p class="small muted" style="margin:0 0 8px">Le client se connecte sur <a href="../espace-client/" target="_blank" rel="noopener"><?= e(portail_url()) ?></a> avec son adresse e-mail (lien de connexion, sans mot de passe). Il y voit ses interventions, les documents marqués « Visible client » du porte-doc, les photos des rapports envoyés, ses contrats à signer, et peut faire une demande. Une collectivité peut avoir plusieurs accès (services techniques, élu, secrétariat).</p>
     <?php foreach ($acces as $x): ?><div class="dos"><span class="ic"><?= $pi('personne') ?></span><span style="flex:1"><strong><?= e($x['nom'] ?: $x['email']) ?></strong><?= (int)$x['actif'] ? '' : ' <span class="muted small">(désactivé)</span>' ?><br><span class="muted small"><?= e($x['email']) ?> · <?= $x['derniere_connexion'] ? 'dernière connexion le ' . e(date('d/m/Y', strtotime($x['derniere_connexion']))) : ($x['invite_le'] ? 'invité le ' . e(date('d/m/Y', strtotime($x['invite_le']))) . ', pas encore connecté' : 'pas encore invité') ?></span></span>
@@ -194,7 +225,7 @@ main{max-width:860px}main>h1{position:absolute;left:-9999px}
     <form method="post" style="margin:0"><?= csrf_field() ?><input type="hidden" name="action" value="demande_traitee"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="did" value="<?= $d['id'] ?>"><button class="mini"><?= $d['traitee_le'] ? 'Remettre à traiter' : 'Marquer comme traitée' ?></button> <?php if (!$d['traitee_le'] && $ajoute): ?><a class="mini" href="planning.php?nouveau_client=<?= $id ?>">Planifier un rendez-vous</a><?php endif; ?></form></div><?php endforeach; ?>
 <?php elseif ($o === 'autres'): ?>
   <form method="post" class="bloc"><?= csrf_field() ?><input type="hidden" name="action" value="client"><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="onglet" value="autres">
-    <?php foreach (['nom', 'type', 'telephone', 'mobile', 'email', 'ref_externe', 'notes'] as $k): ?><input type="hidden" name="<?= $k ?>" value="<?= e($c[$k]) ?>"><?php endforeach; ?>
+    <?php foreach (['nom', 'prenom', 'siret', 'type', 'telephone', 'mobile', 'email', 'ref_externe', 'notes'] as $k): ?><input type="hidden" name="<?= $k ?>" value="<?= e($c[$k]) ?>"><?php endforeach; ?>
     <h4>Autorisation de contact</h4>
     <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" name="ok_sms" value="1" style="width:auto;margin:0" <?= (int)$c['ok_sms'] ? 'checked' : '' ?> <?= $gere ? '' : 'disabled' ?>> SMS (confirmations, rappels, demande d'avis)</label>
     <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" name="ok_email" value="1" style="width:auto;margin:0" <?= (int)$c['ok_email'] ? 'checked' : '' ?> <?= $gere ? '' : 'disabled' ?>> E-mails (rappels, demande d'avis)</label>
@@ -204,6 +235,14 @@ main{max-width:860px}main>h1{position:absolute;left:-9999px}
   <?php if ($gere): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="archiver"><input type="hidden" name="id" value="<?= $id ?>"><button class="mini"><?= (int)$c['actif'] ? 'Archiver ce client' : 'Réactiver ce client' ?></button></form><?php endif; ?>
 <?php endif; ?>
 <script>
+(() => { const f = document.getElementById('clFixe'), top = document.querySelector('.top'); if (!f) return;
+  const maj = () => { document.documentElement.style.setProperty('--haut-top', (top && getComputedStyle(top).position === 'sticky' ? top.offsetHeight : 0) + 'px'); if (scrollY > 160) f.classList.add('reduit'); else if (scrollY < 40) f.classList.remove('reduit'); };
+  addEventListener('scroll', maj, {passive: true}); addEventListener('resize', maj); maj(); })();
+(() => { const ty = document.getElementById('clType'); if (ty) ty.onchange = () => { const p = ty.value === 'particulier'; document.getElementById('lNom').textContent = p ? 'Nom' : 'Nom de la société ou de la collectivité'; document.getElementById('lPrenom').textContent = p ? 'Prénom' : 'Prénom du contact (facultatif)'; document.getElementById('blSiret').hidden = p; };
+  const L = document.getElementById('cxL'); const lier = r => { const b = r.querySelector('.cx-x'); if (b) b.onclick = () => r.remove(); }; if (L) L.querySelectorAll('.cx').forEach(lier);
+  document.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { const em = b.dataset.cx === 'email', d = document.createElement('div'); d.className = 'cols cx';
+    d.innerHTML = `<input type="hidden" name="cx_type[]" value="${em ? 'email' : 'tel'}"><label>${em ? 'Autre e-mail' : 'Autre téléphone'} <input name="cx_val[]" type="${em ? 'email' : 'tel'}"></label><label>Précision <input name="cx_lib[]" placeholder="Ex. conjoint, comptabilité, travail"></label><button type="button" class="mini danger cx-x" title="Retirer" ><svg class="pi"><use href="#pi-fermer"/></svg></button>`;
+    L.appendChild(d); lier(d); d.querySelector('input[name="cx_val[]"]').focus(); }); })();
 document.querySelectorAll('form.adr').forEach(f => { const a = f.querySelector('.adrIn'); if (!a) return; const l = a.nextElementSibling; let t, r = [];
   a.addEventListener('input', () => { clearTimeout(t); t = setTimeout(async () => { if (a.value.length < 4) return; try { r = (await (await fetch('https://api-adresse.data.gouv.fr/search/?limit=5&lat=44.6&lon=1.95&q=' + encodeURIComponent(a.value))).json()).features || []; l.innerHTML = r.map((x, i) => `<li data-i="${i}" style="padding:6px 8px;cursor:pointer">${x.properties.label.replace(/</g, '&lt;')}</li>`).join(''); l.hidden = !r.length; } catch (e) {} }, 250); });
   l.addEventListener('mousedown', ev => { const li = ev.target.closest('li'); if (!li) return; ev.preventDefault(); const x = r[+li.dataset.i]; a.value = x.properties.name; f.cp.value = x.properties.postcode || ''; f.ville.value = x.properties.city || ''; f.lat.value = x.geometry.coordinates[1]; f.lng.value = x.geometry.coordinates[0]; l.hidden = true; });

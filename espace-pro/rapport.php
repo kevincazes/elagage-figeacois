@@ -19,7 +19,9 @@ if (isset($_GET['photo'])) { // vignette ou photo du rapport
     $ph = q("SELECT * FROM rapport_photos WHERE id = ? AND evenement_id = ?", [(int)$_GET['photo'], $id])->fetch();
     $f = $ph ? chemin_fichier(isset($_GET['orig']) && $ph['original'] ? $ph['original'] : $ph['fichier']) : null;
     if (!$f) { http_response_code(404); exit; }
-    header('Content-Type: ' . (str_ends_with($f, '.png') ? 'image/png' : 'image/jpeg')); header('Cache-Control: private, max-age=86400'); readfile($f); exit;
+    header('Content-Type: ' . (str_ends_with($f, '.png') ? 'image/png' : 'image/jpeg')); header('Cache-Control: private, max-age=86400');
+    if (!empty($_GET['dl'])) header('Content-Disposition: attachment; filename="photo-' . $ph['id'] . (str_ends_with($f, '.png') ? '.png' : '.jpg') . '"');
+    readfile($f); exit;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json; charset=UTF-8');
