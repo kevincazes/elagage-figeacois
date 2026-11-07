@@ -2,6 +2,9 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.12.2', '2026-11-07', [
+        'Mise en ligne fiabilisée : le site passe désormais par GitHub Actions, comme Urgence Élagage et Créneau libre (vérification du code avant l\'envoi, historique vert ou rouge dans l\'onglet Actions, contrôle de la version en ligne à la fin)',
+    ]],
     ['2.12.1', '2026-11-07', [
         'Pages nettement plus rapides : les vérifications de la base de données (près de 90 requêtes) ne tournent plus à chaque page, seulement après une mise à jour du site',
         'Navigation : la page suivante est préparée dès que le doigt touche le bouton, et une fine barre verte en haut montre que ça charge',

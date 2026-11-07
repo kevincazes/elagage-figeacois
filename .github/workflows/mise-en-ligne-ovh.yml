@@ -1,0 +1,100 @@
+# Élagage Figeacois — mise en ligne automatique sur l'hébergement OVH (comme Urgence Élagage et Créneau libre)
+# Se lance à chaque envoi sur la branche principale (main), ou à la main depuis l'onglet « Actions »
+# (bouton « Run workflow » : renvoie alors tout le site).
+#
+# Secrets (Settings → Secrets and variables → Actions) :
+#   OVH_HOTE          ex. ftp.cluster100.hosting.ovh.net
+#   OVH_UTILISATEUR   identifiant FTP de l'hébergement
+#   OVH_MOT_DE_PASSE  mot de passe FTP
+# Variable facultative OVH_DOSSIER : dossier du site sur l'hébergement (www par défaut)
+#
+# Jamais envoyés ni écrasés : espace-pro/config.php, espace-pro/fichiers/ (documents enregistrés), .git, .github.
+# Rien n'est jamais supprimé sur le serveur.
+name: Mise en ligne OVH
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: mise-en-ligne-ovh
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SITE: https://elagage-figeacois.com
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Vérifier la syntaxe PHP (rien ne part si un fichier est cassé)
+        run: |
+          ERR=0
+          for f in $(git ls-files '*.php'); do php -l "$f" >/dev/null 2>/tmp/e.txt || { echo "::error file=$f::$(cat /tmp/e.txt)"; ERR=1; }; done
+          [ $ERR = 0 ] && echo "PHP OK" || exit 1
+
+      - name: Version à mettre en ligne
+        id: version
+        run: |
+          V=$(php -r '$v = require "espace-pro/versions.php"; echo $v[0][0];')
+          echo "version=$V" >> "$GITHUB_OUTPUT"; echo "Version : $V"
+
+      - name: Liste des fichiers à envoyer
+        run: |
+          AVANT="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "push" ] && git cat-file -e "$AVANT" 2>/dev/null; then
+            git diff --name-only --diff-filter=ACMRT "$AVANT" HEAD > /tmp/liste.txt
+            echo "Fichiers modifiés depuis la dernière mise en ligne :"
+          else
+            git ls-files > /tmp/liste.txt
+            echo "Envoi complet du site :"
+          fi
+          grep -vE '^(\.github/|\.gitignore$|README\.md$|espace-pro/config\.php$|espace-pro/fichiers/)' /tmp/liste.txt > /tmp/envoi.txt || true
+          wc -l < /tmp/envoi.txt; head -50 /tmp/envoi.txt
+
+      - name: Installer l'outil de transfert
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp >/dev/null
+
+      - name: Envoyer les fichiers sur OVH
+        env:
+          HOTE: ${{ secrets.OVH_HOTE }}
+          UTILISATEUR: ${{ secrets.OVH_UTILISATEUR }}
+          MOT_DE_PASSE: ${{ secrets.OVH_MOT_DE_PASSE }}
+          DOSSIER: ${{ vars.OVH_DOSSIER }}
+        run: |
+          [ -s /tmp/envoi.txt ] || { echo "Rien à envoyer."; exit 0; }
+          [ -n "$HOTE" ] && [ -n "$UTILISATEUR" ] && [ -n "$MOT_DE_PASSE" ] || { echo "::error::Secrets OVH_HOTE / OVH_UTILISATEUR / OVH_MOT_DE_PASSE manquants."; exit 1; }
+          D=$(echo "${DOSSIER:-www}" | tr -d ' ' | sed 's#/*$##')
+          export LFTP_PASSWORD="$MOT_DE_PASSE"
+          HOTE=$(echo "$HOTE" | tr -d ' '); UTILISATEUR=$(echo "$UTILISATEUR" | tr -d ' ')
+          PROTO=""
+          for P in sftp ftp; do
+            if lftp -c "set sftp:auto-confirm yes; set ftp:ssl-allow yes; set net:max-retries 1; set net:timeout 20; open --env-password -u $UTILISATEUR $P://$HOTE; cls -1 $D/" >/dev/null 2>>/tmp/proto.txt; then PROTO=$P; break; fi
+          done
+          [ -n "$PROTO" ] || { echo "::error::Connexion impossible à l'hébergement : $(tr '\n' ' ' < /tmp/proto.txt | cut -c1-400)"; exit 1; }
+          echo "Protocole : $PROTO ; dossier : $D"
+          OUVRIR="set sftp:auto-confirm yes; set ftp:ssl-allow yes; set net:max-retries 2; set net:timeout 30; open --env-password -u $UTILISATEUR $PROTO://$HOTE"
+          # Sécurité : le site doit déjà être là, avec son fichier de configuration
+          lftp -c "$OUVRIR; cls -1 $D/espace-pro/" 2>/dev/null | grep -q 'config.php' || { echo "::error::Pas de $D/espace-pro/config.php sur le serveur : mauvais dossier, rien n'est envoyé."; exit 1; }
+          { echo "$OUVRIR"
+            for dir in $(xargs -a /tmp/envoi.txt -d '\n' -n1 dirname | sort -u); do [ "$dir" = "." ] || echo "mkdir -p -f \"$D/$dir\""; done
+            while IFS= read -r f; do [ -f "$f" ] && echo "put \"$f\" -o \"$D/$f\""; done < /tmp/envoi.txt
+            echo "bye"; } > /tmp/script.lftp
+          lftp -f /tmp/script.lftp
+          echo "$(wc -l < /tmp/envoi.txt) fichier(s) envoyé(s)."
+
+      - name: Vérifier que le site répond avec la bonne version
+        run: |
+          sleep 3
+          EN_LIGNE=$(curl -fsS --max-time 30 "$SITE/espace-pro/version.php?t=$(date +%s)" || true)
+          echo "Version en ligne : $EN_LIGNE (attendue : ${{ steps.version.outputs.version }})"
+          [ "$EN_LIGNE" = "${{ steps.version.outputs.version }}" ] || { echo "::error::Le site ne répond pas avec la nouvelle version."; exit 1; }
+          curl -fsS -o /dev/null --max-time 30 "$SITE/" && echo "Site vitrine OK"
+          curl -fsS -o /dev/null --max-time 30 "$SITE/espace-pro/login.php" && echo "Espace pro OK"
+          echo "Mise en ligne réussie : version ${{ steps.version.outputs.version }}"
