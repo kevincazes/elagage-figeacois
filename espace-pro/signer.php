@@ -2,7 +2,7 @@
 // Page publique : le client lit et signe son contrat d'entretien (signature électronique simple)
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
-planning_migrate();
+planning_migrer_tout();
 header('X-Robots-Tag: noindex');
 $t = preg_replace('/[^a-f0-9]/', '', (string)($_GET['t'] ?? $_POST['t'] ?? ''));
 $c = strlen($t) === 32 ? q("SELECT * FROM contrats WHERE token = ?", [$t])->fetch() : null;

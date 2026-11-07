@@ -52,7 +52,14 @@ function db(): PDO {
 function q(string $sql, array $p = []): PDOStatement { $s = db()->prepare($sql); $s->execute($p); return $s; }
 
 // Mises à jour de structure (exécutées une seule fois)
+/** Empreinte des fichiers qui décrivent la base : les migrations ne tournent qu'après une mise à jour de ces fichiers (sinon ~90 requêtes à chaque page) */
+function schema_cle(array $fichiers): string { $k = ''; foreach ($fichiers as $f) $k .= $f . '-' . @filesize(__DIR__ . '/' . $f) . '-' . @filemtime(__DIR__ . '/' . $f) . ';'; return md5($k); }
 function migrate(): void {
+    static $fait = false; if ($fait) return; $fait = true;
+    $cle = schema_cle(['lib.php']); if (setting('schema_cle_base') === $cle) return;
+    migrate_tout(); set_setting('schema_cle_base', $cle);
+}
+function migrate_tout(): void {
     $etapes = [
         "CREATE TABLE IF NOT EXISTS packs (id INT AUTO_INCREMENT PRIMARY KEY, nom VARCHAR(150) NOT NULL, description VARCHAR(255) NOT NULL DEFAULT '') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS pack_lignes (pack_id INT NOT NULL, ligne_id INT NOT NULL, ordre INT NOT NULL DEFAULT 0, PRIMARY KEY (pack_id, ligne_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
@@ -472,7 +479,7 @@ function pending_user(): ?array {
     return q("SELECT * FROM utilisateurs WHERE id = ? AND actif = 1", [$_SESSION['pending']])->fetch() ?: null;
 }
 function page_simple_start(string $title): void {
-    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '"></head><body class="centered"><main class="box"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois" class="box-logo">';
+    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex"><title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '"></head><body class="centered"><main class="box"><img src="../images/logo-elagage-figeacois.png" alt="Élagage Figeacois" class="box-logo">';
 }
 function page_simple_end(): void { echo '</main></body></html>'; }
 
@@ -510,7 +517,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     // Administration : comptes, droits sur les agendas, réglages ; « Qui voit qui » peut être confié à un compte non administrateur
     $administration = $admin ? ['utilisateurs.php' => 'Comptes', 'droits-agendas.php' => 'Qui voit qui', 'reglages-planning.php' => 'Réglages (SMS, Pennylane…)', 'liens.php' => 'Liens des outils', 'parametres.php' => 'Paramètres de prix'] : (peut_gerer_droits() ? ['droits-agendas.php' => 'Qui voit qui'] : []);
     $nav = [['index.php' => 'Tableau de bord'], ['Planning', $planning], ['Clients', $clients], ['materiel.php' => 'Matériel'], ['Personnel', $personnel], ['Chiffrage', $chiffrage], ['Administration', $administration], ['Compte', $compte]];
-    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">';
+    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex">';
     echo '<title>' . e($title) . ' – ' . e(APP_NAME) . '</title><link rel="icon" href="../images/favicon.png"><link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="pro.css?v=' . e(app_version()) . '.' . @filemtime(__DIR__ . '/pro.css') . '">'
        . '<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#683c11"><link rel="apple-touch-icon" href="icone-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Élagage pro">'
        . ($u ? '<meta name="csrf" content="' . e(csrf()) . '">' : '') . '</head><body' . (isset($_GET['panneau']) || ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') === 'iframe' ? ' class="panneau"' : '') . '>' . (function_exists('pictos_sprite') ? pictos_sprite() : '');
@@ -568,6 +575,7 @@ function page_start(string $title, string $active = '', ?array $parent = null): 
     // un seul menu déroulant ouvert à la fois ; fermeture au clic ailleurs (grand écran)
     echo '<script>(function(){const m=document.getElementById("mnav");window.mnavOuvrir=function(o){if(!m)return;m.hidden=!o;document.body.classList.toggle("mnav-open",o);const on=o&&m.querySelector(".mnav-l.on");if(on)on.scrollIntoView({block:"center"});};if(m){m.querySelector(".mnav-x").onclick=()=>mnavOuvrir(false);m.addEventListener("click",e=>{if(e.target.closest("a"))mnavOuvrir(false);});document.addEventListener("keydown",e=>{if(e.key==="Escape")mnavOuvrir(false);});}
 const tbN=document.getElementById("tbNouveau");if(tbN&&document.getElementById("nouveau"))tbN.addEventListener("click",e=>{e.preventDefault();scrollTo(0,0);document.getElementById("nouveau").click();});
+const pre=new Set();const lien=e=>{const a=e.target.closest&&e.target.closest("a[href]");if(!a||a.target||a.hasAttribute("download"))return null;const u=new URL(a.href,location.href);if(u.origin!==location.origin||u.pathname===location.pathname&&u.hash||/logout|\.pdf|\.ics|export|telecharger/i.test(u.pathname+u.search))return null;return u;};const prech=e=>{const u=lien(e);if(!u||pre.has(u.href))return;pre.add(u.href);const l=document.createElement("link");l.rel="prefetch";l.href=u.href;document.head.appendChild(l);};document.addEventListener("touchstart",prech,{passive:true});document.addEventListener("mouseover",prech,{passive:true});document.addEventListener("click",e=>{if(e.defaultPrevented||e.metaKey||e.ctrlKey)return;const u=lien(e);if(u&&u.pathname!==location.pathname)document.body.classList.add("charge");});addEventListener("pageshow",()=>document.body.classList.remove("charge"));
 const survol=matchMedia("(hover:hover) and (min-width:901px)");document.querySelectorAll(".top nav details.menu").forEach(d=>{let t;d.addEventListener("mouseenter",()=>{if(!survol.matches)return;clearTimeout(t);document.querySelectorAll(".top nav details.menu[open]").forEach(x=>{if(x!==d)x.open=false;});d.open=true;});d.addEventListener("mouseleave",()=>{if(!survol.matches)return;t=setTimeout(()=>d.open=false,250);});d.querySelector("summary").addEventListener("click",e=>{if(survol.matches&&d.open){e.preventDefault();}});});})();</script>';
     echo '<script>document.addEventListener("click",e=>{const d=e.target.closest("details.menu");document.querySelectorAll("details.menu[open]").forEach(x=>{if(x!==d&&!matchMedia("(max-width:900px)").matches)x.open=false;});});if(matchMedia("(max-width:900px)").matches)document.querySelectorAll("details.menu.active").forEach(x=>x.open=true);document.querySelectorAll(".top nav details.menu").forEach(d=>d.addEventListener("toggle",()=>{if(d.open&&matchMedia("(max-width:900px)").matches)document.querySelectorAll(".top nav details.menu[open]").forEach(x=>{if(x!==d)x.open=false;});}));</script>';
     // Fil d'Ariane

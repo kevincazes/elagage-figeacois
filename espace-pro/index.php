@@ -61,7 +61,7 @@ if (acces_chiffrage()) {
 }
 foreach ($liens as [$n, $url, $d, $icn]) $w('lien_' . strtolower(preg_replace('/[^a-z]/i', '', iconv('UTF-8', 'ASCII//TRANSLIT', $n))), 'Outils', $url ?: (est_admin() ? 'liens.php' : ''), '', $n, $url ? $d : (est_admin() ? 'Lien à renseigner : Compte › Liens des outils' : 'Lien pas encore renseigné'), (bool)$url, $icn);
 // préférences du compte : {"ordre":[...], "masques":[...]}
-try { db()->exec("ALTER TABLE utilisateurs ADD COLUMN tdb TEXT NULL"); } catch (Throwable $t) {}
+if (setting('col_tdb') !== '1') { try { db()->exec("ALTER TABLE utilisateurs ADD COLUMN tdb TEXT NULL"); } catch (Throwable $t) {} set_setting('col_tdb', '1'); }
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tdb') {
     $in = json_decode((string)($_POST['prefs'] ?? ''), true) ?: []; $ordre = array_values(array_filter((array)($in['ordre'] ?? []), fn($k) => isset($W[$k]))); $masques = array_values(array_filter((array)($in['masques'] ?? []), fn($k) => isset($W[$k])));
     $tailles = []; foreach ((array)($in['tailles'] ?? []) as $k => $v) if (isset($W[$k]) && in_array($v, ['l', 'xl'], true)) $tailles[$k] = $v; $groupes = array_values(array_filter((array)($in['groupes'] ?? []), fn($g) => in_array($g, ['Planning', 'Clients', 'Materiel', 'Personnel', 'Chiffrage', 'Outils'], true)));

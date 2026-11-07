@@ -5,7 +5,7 @@
 // Adresse du compte : https://…/espace-pro/caldav.php  — identifiant : e-mail de la personne ; mot de passe : « mot de passe agenda » créé dans Mon compte.
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
-planning_migrate();
+planning_migrer_tout();
 
 const DAV_MODIFIABLES = ['rdv', 'visite'];
 $apres = preg_match('#/caldav\.php(/[^?]*)?#', (string)$_SERVER['REQUEST_URI'], $mm) ? rawurldecode($mm[1] ?? '') : (string)($_SERVER['PATH_INFO'] ?? '');

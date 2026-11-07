@@ -5,7 +5,7 @@ require_once __DIR__ . '/planning_lib.php';
 header('Content-Type: application/json; charset=UTF-8'); header('Cache-Control: no-store');
 $a = $_GET['a'] ?? '';
 if ($a === 'suivant') { // appelé par le téléphone à la réception d'une notification (sans session) : l'adresse d'abonnement sert de clé
-    planning_migrate();
+    planning_migrer_tout();
     $ab = q("SELECT * FROM push_abonnements WHERE cle = ?", [hash('sha256', (string)($_GET['ep'] ?? ''))])->fetch();
     if (!$ab) { echo json_encode(['notifications' => []]); exit; }
     $l = q("SELECT id, titre, corps, url FROM notifications WHERE utilisateur_id = ? AND cree_le > ? ORDER BY id DESC LIMIT 3", [$ab['utilisateur_id'], $ab['vu_le'] ?: date('Y-m-d H:i:s', time() - 86400)])->fetchAll();

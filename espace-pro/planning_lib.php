@@ -142,7 +142,13 @@ function evt_visible(array $personnel): bool { $v = agendas_visibles(); if ($v =
 /** Un événement est modifiable si l'on a tout, ou si toutes les personnes concernées font partie des agendas autorisés */
 function peut_modifier_evt(array $personnel): bool { $m = agendas_modifiables(); if ($m === null) return true; return $personnel && !array_diff(array_map('intval', $personnel), $m); }
 function peut_planifier(): bool { $m = agendas_modifiables(); return $m === null || count($m) > 0; }
-function require_planning(): void { require_login(); planning_migrate(); materiel_migrate(); phyto_migrate(); livret_migrate(); }
+function require_planning(): void { require_login(); planning_migrer_tout(); }
+/** Migrations du planning, du matériel, des platanes et du livret : seulement quand un de ces fichiers a changé */
+function planning_migrer_tout(): void {
+    static $fait = false; if ($fait) return; $fait = true;
+    $cle = schema_cle(['planning_lib.php', 'materiel_lib.php', 'phyto_lib.php', 'livret_lib.php']); if (setting('schema_cle_planning') === $cle) return;
+    planning_migrate(); materiel_migrate(); phyto_migrate(); livret_migrate(); set_setting('schema_cle_planning', $cle);
+}
 function equipes_liste(): array {
     $eq = q("SELECT * FROM equipes_pl WHERE actif = 1 ORDER BY ordre, nom")->fetchAll();
     foreach ($eq as &$e) { $e['membres'] = array_map('intval', array_column(q("SELECT personnel_id FROM equipe_membres WHERE equipe_id = ?", [$e['id']])->fetchAll(), 'personnel_id'));

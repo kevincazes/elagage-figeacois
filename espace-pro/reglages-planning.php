@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
 require_once __DIR__ . '/assistant_lib.php';
 require_admin();
-planning_migrate();
+planning_migrer_tout();
 const SECRETS = ['ovh_app_secret', 'ovh_consumer_key', 'pl_token', 'urgence_cle', 'xb_cle'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $_POST['action'] ?? '';

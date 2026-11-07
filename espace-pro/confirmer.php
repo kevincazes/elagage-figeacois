@@ -2,7 +2,7 @@
 // Page publique : le client confirme la date proposée ou en demande une autre (lien reçu par e-mail)
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
-planning_migrate();
+planning_migrer_tout();
 header('X-Robots-Tag: noindex');
 $t = preg_replace('/[^a-f0-9]/', '', (string)($_GET['t'] ?? $_POST['t'] ?? ''));
 $e = strlen($t) === 32 ? (q("SELECT id FROM evenements WHERE token = ?", [$t])->fetch() ?: null) : null;

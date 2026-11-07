@@ -2,6 +2,11 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.12.1', '2026-11-07', [
+        'Pages nettement plus rapides : les vérifications de la base de données (près de 90 requêtes) ne tournent plus à chaque page, seulement après une mise à jour du site',
+        'Navigation : la page suivante est préparée dès que le doigt touche le bouton, et une fine barre verte en haut montre que ça charge',
+        'iPhone : la barre du bas est remontée au-dessus de la barre d\'accueil noire (geste de retour à l\'écran d\'accueil), les boutons ne se gênent plus',
+    ]],
     ['2.12', '2026-11-07', [
         'Mode appli sur téléphone (1re étape) : barre fixe en bas de l\'écran avec Accueil, Mon planning, Nouveau (bouton vert central), Planning et Menu ; en-tête réduit, sans fil d\'Ariane',
         'Planning sur téléphone : « Nouveau » ouvre le choix du type de rendez-vous dans un volet en bas de l\'écran, avec de gros boutons',

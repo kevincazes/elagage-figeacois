@@ -2,7 +2,7 @@
 // Abonnement d'agenda (téléphone) : chantiers et rendez-vous d'une personne, par lien secret
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
-planning_migrate();
+planning_migrer_tout();
 $t = preg_replace('/[^a-f0-9]/', '', (string)($_GET['t'] ?? ''));
 $p = strlen($t) === 32 ? q("SELECT * FROM personnel WHERE ics_token = ? AND actif = 1", [$t])->fetch() : null;
 if (!$p) { http_response_code(404); exit('Lien inconnu'); }

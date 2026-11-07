@@ -3,7 +3,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/planning_lib.php';
 header('Content-Type: application/json; charset=UTF-8');
-require_login(); planning_migrate();
+require_login(); planning_migrer_tout();
 $a = $_GET['a'] ?? '';
 $in = $_SERVER['REQUEST_METHOD'] === 'POST' ? (json_decode(file_get_contents('php://input'), true) ?: []) : [];
 $sortie = function ($d) { echo json_encode($d, JSON_UNESCAPED_UNICODE); exit; };
