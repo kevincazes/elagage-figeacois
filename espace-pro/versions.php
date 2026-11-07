@@ -2,6 +2,14 @@
 // Journal des versions de l'espace pro : la plus récente en premier.
 // Chaque entrée : numéro, date, liste des changements. APP_VERSION = première entrée.
 return [
+    ['2.13', '2026-11-07', [
+        'Espace client (elagage-figeacois.com/espace-client) : chaque client retrouve ses interventions à venir et passées, ses documents (rapports, bons d\'intervention, contrats, devis, plans…), les photos des rapports envoyés, ses contrats à signer, et peut faire une demande (devis, intervention, rendez-vous, question)',
+        'Connexion client sans mot de passe : lien envoyé par e-mail (30 minutes, à usage unique), appareil reconnu 60 jours ; plusieurs accès possibles par client (services techniques, élu, secrétariat…) ; une même personne peut suivre plusieurs clients',
+        'Fiche client › onglet « Espace client » : ouvrir un accès et envoyer l\'invitation, désactiver, lien Grality (bouton « Mon patrimoine arboré »), demandes reçues à traiter ; raccourci Urgence Élagage affiché pour les collectivités',
+        'Porte-doc : chaque document est « Visible client » ou « Interne » (les rapports, contrats, devis, plans et courriers sont visibles par défaut, les autres documents internes)',
+        'Fichiers rangés par client sur l\'hébergement : fichiers/clients/0142-nom-du-client/2026/rapports/… avec des noms lisibles (date, type, objet) ; Administration › Rangement des fichiers range les fichiers existants (copie, puis nettoyage des anciens exemplaires une fois vérifié)',
+        'Fiche client : pictogrammes à la place des emojis',
+    ]],
     ['2.12.2', '2026-11-07', [
         'Mise en ligne fiabilisée : le site passe désormais par GitHub Actions, comme Urgence Élagage et Créneau libre (vérification du code avant l\'envoi, historique vert ou rouge dans l\'onglet Actions, contrôle de la version en ligne à la fin)',
     ]],

@@ -51,15 +51,64 @@ function dossier_fichiers(): string {
     if (!is_file("$d/.htaccess")) @file_put_contents("$d/.htaccess", "Require all denied\n");
     return $d;
 }
-/** Enregistre une image envoyée en data URL (JPEG/PNG) ; retourne le nom du fichier */
-function enregistrer_image_dataurl(string $data, string $prefixe = 'ph'): ?string {
+/** Sous-dossiers par type de document (classement lisible sur l'hébergement : fichiers/clients/0142-mairie-de-figeac/2026/rapports/…) */
+const RANGEMENT_DOSSIERS = ['Devis' => 'devis', 'Contrats signés' => 'contrats', 'Rapports de rendez-vous' => 'rapports', "Bons d'intervention" => 'bons-intervention',
+    'Photos' => 'photos', 'Plans' => 'plans', 'Courriers' => 'courriers', 'Documents' => 'documents', 'Factures' => 'factures'];
+function nom_fichier_propre(string $s, int $max = 60): string {
+    $s = mb_strtolower(trim($s)); $s = strtr($s, ['à'=>'a','â'=>'a','ä'=>'a','á'=>'a','ç'=>'c','é'=>'e','è'=>'e','ê'=>'e','ë'=>'e','î'=>'i','ï'=>'i','í'=>'i','ô'=>'o','ö'=>'o','ó'=>'o','ù'=>'u','û'=>'u','ü'=>'u','ú'=>'u','ÿ'=>'y','œ'=>'oe','æ'=>'ae','ñ'=>'n']);
+    $s = (string)@iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s); $s = preg_replace('/[^a-z0-9]+/', '-', strtolower($s)); $s = trim((string)$s, '-');
+    return substr($s, 0, $max) ?: 'document';
+}
+/** Dossier propre au client (créé une fois, garde son nom même si le client est renommé) : clients/0142-mairie-de-figeac */
+function client_dossier(int $cid): string {
+    $c = q("SELECT id, nom, dossier FROM clients WHERE id = ?", [$cid])->fetch(); if (!$c) return 'clients/0000-sans-client';
+    if ($c['dossier'] !== '' && $c['dossier'] !== null) return $c['dossier'];
+    $d = 'clients/' . sprintf('%04d', $c['id']) . '-' . nom_fichier_propre($c['nom'], 50);
+    q("UPDATE clients SET dossier = ? WHERE id = ?", [$d, $cid]); return $d;
+}
+/** Chemin (relatif à fichiers/) d'un nouveau fichier client : clients/0142-x/2026/rapports/2026-11-06_rapport-de-visite_3fa9.pdf ; crée les dossiers */
+function chemin_client_nouveau(int $cid, string $categorie, string $libelle, string $ext, ?string $date = null): string {
+    $t = strtotime($date ?: 'now') ?: time(); $sous = RANGEMENT_DOSSIERS[$categorie] ?? nom_fichier_propre($categorie, 30);
+    $rel = client_dossier($cid) . '/' . date('Y', $t) . '/' . $sous;
+    @mkdir(dossier_fichiers() . '/' . $rel, 0775, true);
+    return $rel . '/' . date('Y-m-d', $t) . '_' . nom_fichier_propre(preg_replace('/\.[a-z0-9]{2,4}$/i', '', $libelle), 60) . '_' . bin2hex(random_bytes(2)) . '.' . strtolower($ext);
+}
+/** Enregistre un contenu dans le dossier du client (ou à plat sans client) ; retourne le nom à garder en base */
+function fichier_enregistrer(string $bin, string $ext, ?int $cid, string $categorie, string $libelle, ?string $date = null, string $prefixe = 'doc'): string {
+    $nom = $cid ? chemin_client_nouveau($cid, $categorie, $libelle, $ext, $date) : $prefixe . '-' . date('Ymd') . '-' . bin2hex(random_bytes(8)) . '.' . $ext;
+    file_put_contents(dossier_fichiers() . '/' . $nom, $bin); return $nom;
+}
+/** Enregistre une image envoyée en data URL (JPEG/PNG) ; retourne le nom du fichier (rangée chez le client si $cid) */
+function enregistrer_image_dataurl(string $data, string $prefixe = 'ph', ?int $cid = null, string $libelle = 'photo', ?string $date = null): ?string {
     if (!preg_match('#^data:image/(jpeg|png);base64,(.+)$#s', $data, $m)) return null;
     $bin = base64_decode($m[2], true); if ($bin === false || strlen($bin) > 8_000_000 || !@getimagesizefromstring($bin)) return null;
-    $nom = $prefixe . '-' . date('Ymd') . '-' . bin2hex(random_bytes(8)) . ($m[1] === 'png' ? '.png' : '.jpg');
-    file_put_contents(dossier_fichiers() . '/' . $nom, $bin);
-    return $nom;
+    return fichier_enregistrer($bin, $m[1] === 'png' ? 'png' : 'jpg', $cid, 'Photos', $libelle, $date, $prefixe);
 }
-function chemin_fichier(string $nom): ?string { return preg_match('/^[a-z]+-\d{8}-[a-f0-9]{16}\.(jpg|png|pdf|docx|xlsx|odt|ods|txt|csv|heic)$/', $nom) && is_file(dossier_fichiers() . "/$nom") ? dossier_fichiers() . "/$nom" : null; }
+/** Chemin réel d'un fichier enregistré : ancien nom à plat (doc-20261106-….pdf) ou chemin rangé (clients/…/fichier.pdf) */
+function chemin_fichier(string $nom): ?string {
+    $ok = preg_match('/^[a-z]+-\d{8}-[a-f0-9]{16}\.(jpg|png|pdf|docx|xlsx|odt|ods|txt|csv|heic)$/', $nom)
+       || (preg_match('#^clients/[a-z0-9][a-z0-9/_\-.]*\.(jpg|png|pdf|docx|xlsx|odt|ods|txt|csv|heic)$#', $nom) && !str_contains($nom, '..') && !str_contains($nom, '//'));
+    return $ok && is_file(dossier_fichiers() . "/$nom") ? dossier_fichiers() . "/$nom" : null;
+}
+
+// ===================== Espace client =====================
+function portail_url(string $q = ''): string {
+    $b = preg_replace('#/(espace-pro|espace-client)$#', '', lien_base());
+    return $b . '/espace-client/' . ($q !== '' ? '?' . $q : '');
+}
+function portail_jeton(int $accesId, string $type, string $duree): string {
+    $sel = bin2hex(random_bytes(12)); $jeton = bin2hex(random_bytes(32));
+    q("INSERT INTO client_jetons (acces_id, type, selecteur, jeton_hash, expire) VALUES (?,?,?,?,DATE_ADD(NOW(), INTERVAL $duree))", [$accesId, $type, $sel, hash('sha256', $jeton)]);
+    return "$sel.$jeton";
+}
+/** Envoie au client un lien d'accès à son espace (invitation : valable 7 jours, à usage unique) */
+function portail_inviter(int $accesId): bool {
+    $a = q("SELECT a.*, c.nom client_nom FROM client_acces a JOIN clients c ON c.id = a.client_id WHERE a.id = ?", [$accesId])->fetch(); if (!$a) return false;
+    $ent = setting('ent_nom', 'Élagage Figeacois');
+    $ok = envoyer_mail($a['email'], "Votre espace client $ent", "Bonjour" . ($a['nom'] ? ' ' . $a['nom'] : '') . ",\n\nNous avons ouvert votre espace client $ent" . ($a['client_nom'] ? " ({$a['client_nom']})" : '') . ". Vous y retrouvez vos interventions, rapports, contrats et photos de chantier, et pouvez nous adresser vos demandes.\n\nPour l'ouvrir (lien valable 7 jours) :\n" . portail_url('t=' . portail_jeton($accesId, 'lien', '7 DAY')) . "\n\nEnsuite, il suffira d'aller sur " . portail_url() . " et d'indiquer votre adresse e-mail pour recevoir un nouveau lien de connexion.\n\nBien cordialement,\n$ent\n" . setting('ent_tel'));
+    if ($ok) q("UPDATE client_acces SET invite_le = NOW() WHERE id = ?", [$accesId]);
+    return $ok;
+}
 
 // ===================== PDF =====================
 require_once __DIR__ . '/lib/fpdf/fpdf.php';

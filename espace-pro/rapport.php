@@ -38,13 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $out(['ok' => 1]);
         case 'photo':
             if ($signe) $out(['erreur' => 'Le bon est signé : les photos ne peuvent plus changer.'], 409);
-            $n = enregistrer_image_dataurl((string)($in['data'] ?? '')); if (!$n) $out(['erreur' => 'Photo illisible ou trop lourde.'], 400);
+            $n = enregistrer_image_dataurl((string)($in['data'] ?? ''), 'ph', $e['client_id'] ? (int)$e['client_id'] : null, 'photo ' . $e['titre'], $e['debut'] ?: null); if (!$n) $out(['erreur' => 'Photo illisible ou trop lourde.'], 400);
             q("INSERT INTO rapport_photos (evenement_id, fichier, ordre, cree_par) VALUES (?,?,?,?)", [$id, $n, (int)q("SELECT COALESCE(MAX(ordre),0)+1 m FROM rapport_photos WHERE evenement_id = ?", [$id])->fetch()['m'], user()['id']]);
             $out(['ok' => 1, 'id' => (int)db()->lastInsertId()]);
         case 'photo_maj':
             if ($signe) $out(['erreur' => 'Le bon est signé : les photos ne peuvent plus changer.'], 409);
             $ph = q("SELECT * FROM rapport_photos WHERE id = ? AND evenement_id = ?", [(int)($in['id'] ?? 0), $id])->fetch(); if (!$ph) $out(['erreur' => 'Photo introuvable.'], 404);
-            if (!empty($in['data'])) { $n = enregistrer_image_dataurl((string)$in['data']); if ($n) { if ($ph['original'] === '') q("UPDATE rapport_photos SET original = fichier WHERE id = ?", [$ph['id']]); else @unlink(dossier_fichiers() . '/' . $ph['fichier']); q("UPDATE rapport_photos SET fichier = ? WHERE id = ?", [$n, $ph['id']]); } }
+            if (!empty($in['data'])) { $n = enregistrer_image_dataurl((string)$in['data'], 'ph', $e['client_id'] ? (int)$e['client_id'] : null, 'photo annotee ' . $e['titre'], $e['debut'] ?: null); if ($n) { if ($ph['original'] === '') q("UPDATE rapport_photos SET original = fichier WHERE id = ?", [$ph['id']]); else if ($cf = chemin_fichier($ph['fichier'])) @unlink($cf); q("UPDATE rapport_photos SET fichier = ? WHERE id = ?", [$n, $ph['id']]); } }
             if (isset($in['legende'])) q("UPDATE rapport_photos SET legende = ? WHERE id = ?", [mb_substr(trim((string)$in['legende']), 0, 200), $ph['id']]);
             if (isset($in['dans_pdf'])) q("UPDATE rapport_photos SET dans_pdf = ? WHERE id = ?", [$in['dans_pdf'] ? 1 : 0, $ph['id']]);
             if (!empty($in['retablir']) && $ph['original'] !== '') { @unlink(dossier_fichiers() . '/' . $ph['fichier']); q("UPDATE rapport_photos SET fichier = original, original = '' WHERE id = ?", [$ph['id']]); }
@@ -75,9 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$cid) $out(['erreur' => "Pas de client sur ce rendez-vous : renseigne son nom dans la fiche."], 400);
             if (!$e['client_id']) q("UPDATE evenements SET client_id = ? WHERE id = ?", [$cid, $id]);
             $r = rapport_charger($id); $pdf = rapport_pdf($id);
-            $nf = 'doc-' . date('Ymd') . '-' . bin2hex(random_bytes(8)) . '.pdf'; file_put_contents(dossier_fichiers() . "/$nf", $pdf);
             $dossier = $r['modele'] === 'fin' ? "Bons d'intervention" : 'Rapports de rendez-vous';
             $nom = ($r['modele'] === 'fin' ? "Bon de fin d'intervention" : 'Rapport de visite') . ' du ' . date('d/m/Y', strtotime($e['debut'] ?: 'now')) . ' – ' . $e['titre'] . '.pdf';
+            $nf = fichier_enregistrer($pdf, 'pdf', $cid, $dossier, ($r['modele'] === 'fin' ? 'bon de fin d intervention ' : 'rapport de visite ') . $e['titre'], $e['debut'] ?: null);
             q("INSERT INTO client_docs (client_id, dossier, nom, fichier, taille, cree_par) VALUES (?,?,?,?,?,?)", [$cid, $dossier, mb_substr($nom, 0, 200), $nf, strlen($pdf), user()['id']]);
             evt_journal($id, "PDF déposé dans le porte-document du client ($dossier)");
             $out(['ok' => 1, 'client_id' => $cid, 'dossier' => $dossier]);

@@ -20,7 +20,7 @@ if ($c && $_SERVER['REQUEST_METHOD'] === 'POST' && $c['statut'] === 'envoye') {
         $c = q("SELECT * FROM contrats WHERE id = ?", [$c['id']])->fetch();
         journal('contrats', "Contrat {$c['numero']} signé en ligne par $nom");
         $pdf = contrat_pdf($c);
-        if ($c['client_id']) { $nf = 'doc-' . date('Ymd') . '-' . bin2hex(random_bytes(8)) . '.pdf'; file_put_contents(dossier_fichiers() . "/$nf", $pdf); q("INSERT INTO client_docs (client_id, dossier, nom, fichier, taille) VALUES (?,?,?,?,?)", [$c['client_id'], 'Contrats signés', "Contrat {$c['numero']} signé le " . date('d/m/Y') . '.pdf', $nf, strlen($pdf)]); }
+        if ($c['client_id']) { $nf = fichier_enregistrer($pdf, 'pdf', (int)$c['client_id'], 'Contrats signés', "contrat {$c['numero']} signe"); q("INSERT INTO client_docs (client_id, dossier, nom, fichier, taille) VALUES (?,?,?,?,?)", [$c['client_id'], 'Contrats signés', "Contrat {$c['numero']} signé le " . date('d/m/Y') . '.pdf', $nf, strlen($pdf)]); }
         envoyer_mail_pj($c['client_email'], "Votre contrat d'entretien n° {$c['numero']} signé", "Bonjour,\n\nMerci ! Vous trouverez ci-joint votre contrat signé. Nous vous proposerons la date de chaque passage à l'avance.\n\nBien cordialement,\n" . setting('ent_nom') . "\n" . setting('ent_tel'), ["Contrat-{$c['numero']}-signe.pdf" => ['application/pdf', $pdf]], setting('ent_email'));
         notifier_gestionnaires("Contrat {$c['numero']} signé", "{$c['client_nom']} a signé son contrat d'entretien", "contrats.php?id={$c['id']}");
         try { contrats_generer(); } catch (Throwable $e) {}
